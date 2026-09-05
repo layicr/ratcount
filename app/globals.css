@@ -1,0 +1,126 @@
+@import "tailwindcss";
+
+/* 启用 Tailwind dark variant：<html class="dark"> 生效 */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ===== ratcount · 全局设计变量（浅色）===== */
+:root {
+  --brand: #0d9488;
+  --brand-deep: #0f766e;
+  --brand-soft: #ccfbf1;
+  --bg: #f4f5f7;
+  --card: #ffffff;
+  --line: #e6e8eb;
+  --text: #1a1b1c;
+  --sub: #6b7280;
+  --faint: #9ca3af;
+  --danger: #dc2626;
+  --income: #16a34a;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ===== 深色主题（基础 token 覆盖）
+   通过属性选择器批量覆盖高频 Tailwind utility，
+   使 <html class="dark"> 下全站背景/卡片/文本/边框可读。
+   精确数字为 Slate 色板。===== */
+.dark [class~="bg-slate-100"] { background-color: #0f172a; }
+.dark [class~="bg-slate-50"] { background-color: #1e293b; }
+.dark [class~="bg-white"] { background-color: #1e293b; }
+.dark [class~="hover:bg-slate-50"]:hover { background-color: #1e293b; }
+.dark [class~="hover:bg-slate-50\\/50"]:hover { background-color: #1e293b; }
+
+.dark [class~="border-slate-200"] { border-color: #334155; }
+.dark [class~="border-slate-100"] { border-color: #334155; }
+.dark [class~="border-teal-200"] { border-color: #115e59; }
+.dark [class~="border-red-200"] { border-color: #7f1d1d; }
+
+.dark [class~="text-slate-900"] { color: #f8fafc; }
+.dark [class~="text-slate-800"] { color: #f1f5f9; }
+.dark [class~="text-slate-700"] { color: #e2e8f0; }
+.dark [class~="text-slate-600"] { color: #cbd5e1; }
+.dark [class~="text-slate-500"] { color: #94a3b8; }
+.dark [class~="text-slate-400"] { color: #94a3b8; }
+.dark [class~="text-slate-300"] { color: #64748b; }
+
+.dark [class~="bg-teal-50"] { background-color: #134e4a; }
+.dark [class~="text-teal-700"] { color: #5eead4; }
+.dark [class~="text-teal-600"] { color: #2dd4bf; }
+.dark [class~="bg-red-50"] { background-color: #450a0a; }
+.dark [class~="text-red-600"] { color: #fca5a5; }
+.dark [class~="text-red-500"] { color: #f87171; }
+.dark [class~="bg-green-50"] { background-color: #052e16; }
+.dark [class~="text-green-700"] { color: #86efac; }
+.dark [class~="text-green-600"] { color: #4ade80; }
+.dark [class~="bg-amber-50"] { background-color: #451a03; }
+.dark [class~="text-amber-700"] { color: #fcd34d; }
+.dark [class~="text-amber-600"] { color: #fbbf24; }
+.dark [class~="bg-blue-50"] { background-color: #172554; }
+.dark [class~="text-blue-700"] { color: #93c5fd; }
+.dark [class~="bg-gradient-to-br"] { background-image: linear-gradient(to bottom right, #0f172a, #111827, #1e1b4b); }
+
+/* ===== 彩色主题（浅色模式下切换品牌色）
+   通过属性选择器覆盖 teal 系列 utility，
+   使 <html class="theme-ocean"> 等下全站品牌色切换。===== */
+
+/* 海洋蓝 / Ocean Blue */
+.theme-ocean { --brand: #2563eb; --brand-deep: #1d4ed8; --brand-soft: #dbeafe; }
+.theme-ocean [class~="bg-teal-600"] { background-color: #2563eb; }
+.theme-ocean [class~="bg-teal-50"] { background-color: #eff6ff; }
+.theme-ocean [class~="text-teal-700"] { color: #1d4ed8; }
+.theme-ocean [class~="text-teal-600"] { color: #2563eb; }
+.theme-ocean [class~="border-teal-200"] { border-color: #bfdbfe; }
+.theme-ocean [class~="hover:bg-teal-700"]:hover { background-color: #1d4ed8; }
+.theme-ocean [class~="bg-teal-100"] { background-color: #dbeafe; }
+
+/* 森林绿 / Forest Green */
+.theme-forest { --brand: #16a34a; --brand-deep: #15803d; --brand-soft: #dcfce7; }
+.theme-forest [class~="bg-teal-600"] { background-color: #16a34a; }
+.theme-forest [class~="bg-teal-50"] { background-color: #f0fdf4; }
+.theme-forest [class~="text-teal-700"] { color: #15803d; }
+.theme-forest [class~="text-teal-600"] { color: #16a34a; }
+.theme-forest [class~="border-teal-200"] { border-color: #bbf7d0; }
+.theme-forest [class~="hover:bg-teal-700"]:hover { background-color: #15803d; }
+.theme-forest [class~="bg-teal-100"] { background-color: #dcfce7; }
+
+/* 日落橙 / Sunset Orange */
+.theme-sunset { --brand: #ea580c; --brand-deep: #c2410c; --brand-soft: #ffedd5; }
+.theme-sunset [class~="bg-teal-600"] { background-color: #ea580c; }
+.theme-sunset [class~="bg-teal-50"] { background-color: #fff7ed; }
+.theme-sunset [class~="text-teal-700"] { color: #c2410c; }
+.theme-sunset [class~="text-teal-600"] { color: #ea580c; }
+.theme-sunset [class~="border-teal-200"] { border-color: #fed7aa; }
+.theme-sunset [class~="hover:bg-teal-700"]:hover { background-color: #c2410c; }
+.theme-sunset [class~="bg-teal-100"] { background-color: #ffedd5; }
+
+/* 薰衣草紫 / Lavender Purple */
+.theme-lavender { --brand: #7c3aed; --brand-deep: #6d28d9; --brand-soft: #ede9fe; }
+.theme-lavender [class~="bg-teal-600"] { background-color: #7c3aed; }
+.theme-lavender [class~="bg-teal-50"] { background-color: #f5f3ff; }
+.theme-lavender [class~="text-teal-700"] { color: #6d28d9; }
+.theme-lavender [class~="text-teal-600"] { color: #7c3aed; }
+.theme-lavender [class~="border-teal-200"] { border-color: #ddd6fe; }
+.theme-lavender [class~="hover:bg-teal-700"]:hover { background-color: #6d28d9; }
+.theme-lavender [class~="bg-teal-100"] { background-color: #ede9fe; }
+
+/* 玫瑰粉 / Rose Pink */
+.theme-rose { --brand: #e11d48; --brand-deep: #be123c; --brand-soft: #ffe4e6; }
+.theme-rose [class~="bg-teal-600"] { background-color: #e11d48; }
+.theme-rose [class~="bg-teal-50"] { background-color: #fff1f2; }
+.theme-rose [class~="text-teal-700"] { color: #be123c; }
+.theme-rose [class~="text-teal-600"] { color: #e11d48; }
+.theme-rose [class~="border-teal-200"] { border-color: #fecdd3; }
+.theme-rose [class~="hover:bg-teal-700"]:hover { background-color: #be123c; }
+.theme-rose [class~="bg-teal-100"] { background-color: #ffe4e6; }

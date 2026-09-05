@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ratcount · 记账系统原型</title>
+<style>
+  :root{
+    --bg:#F4F6F8; --card:#FFFFFF; --line:#E6E9ED; --txt:#17202A; --sub:#6B7280; --faint:#9AA3AF;
+    --brand:#0D9488; --brand-deep:#0F766E; --brand-soft:#E6F7F5;
+    --income:#16A34A; --expense:#DC2626; --transfer:#6B7280;
+    --hover:#F0F4F6; --input-bg:#FFFFFF; --bar-bg:#EEF1F4; --tbl-hover:#FAFCFD;
+    --radius:14px; --shadow:0 1px 3px rgba(16,24,40,.06), 0 1px 2px rgba(16,24,40,.04);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{font-family:'PingFang SC','Microsoft YaHei','Segoe UI',Arial,sans-serif; background:var(--bg); color:var(--txt); font-size:14px; line-height:1.5;}
+  button{font-family:inherit; cursor:pointer; border:none; background:none;}
+  input,select,textarea{font-family:inherit; font-size:14px;}
+
+  /* ===== 登录页 ===== */
+  .login-wrap{display:none; min-height:100vh; align-items:center; justify-content:center; background:linear-gradient(160deg,#E6F7F5 0%,#F4F6F8 55%,#EEF2FF 100%);}
+  .login-card{width:360px; background:var(--card); border:1px solid var(--line); border-radius:18px; box-shadow:var(--shadow); padding:36px 32px;}
+  .login-logo{display:flex; align-items:center; gap:10px; justify-content:center; margin-bottom:6px;}
+  .logo-badge{width:38px;height:38px;border-radius:10px;background:var(--brand); color:#fff; display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;}
+  .login-title{text-align:center; font-size:20px; font-weight:700;}
+  .login-sub{text-align:center; color:var(--sub); font-size:12px; margin-bottom:26px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block; font-size:12px; color:var(--sub); margin-bottom:6px;}
+  .field input{width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:10px; outline:none;}
+  .field input:focus{border-color:var(--brand); box-shadow:0 0 0 3px rgba(13,148,136,.12);}
+  .cap-row{display:flex; gap:10px;}
+  .cap-box{width:96px;height:40px;border:1px solid var(--line);border-radius:10px;display:flex;align-items:center;justify-content:center;letter-spacing:6px;font-weight:700;color:var(--brand-deep);background:#F0FDFA;}
+  .btn-primary{width:100%; padding:11px; border-radius:10px; background:var(--brand); color:#fff; font-weight:600; margin-top:6px;}
+  .btn-primary:hover{background:var(--brand-deep);}
+  .lang-link{color:var(--faint); text-decoration:none; cursor:pointer;}
+  .lang-link.active{color:var(--brand); font-weight:600;}
+  .login-foot{text-align:center; font-size:12px; color:var(--sub); margin-top:16px;}
+  .login-foot a{color:var(--brand); text-decoration:none;}
+
+  /* ===== 主框架 ===== */
+  .app{display:none; height:100vh; overflow:hidden;}
+  .topbar{height:56px; background:var(--card); border-bottom:1px solid var(--line); display:flex; align-items:center; padding:0 20px; gap:14px;}
+  .brand{display:flex; align-items:center; gap:10px; font-weight:700; font-size:16px;}
+  .top-right{margin-left:auto; display:flex; align-items:center; gap:8px;}
+  .lang-btn{padding:6px 10px; border-radius:8px; font-size:12px; border:1px solid var(--line); color:var(--sub);}
+  .lang-btn.active{background:var(--brand-soft); color:var(--brand-deep); border-color:rgba(13,148,136,.3);}
+  .avatar{width:32px;height:32px;border-radius:50%;background:var(--brand-soft);color:var(--brand-deep);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;}
+  .wrapper{display:flex; height:calc(100vh - 56px);}
+
+  .sidebar{width:224px; background:var(--card); border-right:1px solid var(--line); padding:16px 12px; display:flex; flex-direction:column; gap:4px; overflow-y:auto;}
+  .side-label{font-size:11px; color:var(--faint); padding:8px 10px 4px; letter-spacing:.5px;}
+  .nav-item{display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:10px; color:var(--txt); font-size:13.5px; cursor:pointer; user-select:none;}
+  .nav-item:hover{background:var(--hover);}
+  .nav-item.active{background:var(--brand-soft); color:var(--brand-deep); font-weight:600;}
+  .nav-item svg{flex-shrink:0;}
+  .nav-badge{margin-left:auto; font-size:11px; color:var(--brand-deep); background:var(--brand-soft); padding:1px 7px; border-radius:20px;}
+
+  .ledger-box{margin-bottom:10px; border:1px solid var(--line); border-radius:12px; padding:10px;}
+  .ledger-title{font-size:11px; color:var(--faint); margin-bottom:8px;}
+  .ledger-item{display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:8px; cursor:pointer; font-size:13px;}
+  .ledger-item.active{background:var(--brand-soft);}
+  .ledger-ico{width:24px;height:24px;border-radius:7px;background:#E0F2F1;display:flex;align-items:center;justify-content:center;font-size:13px;}
+
+  .main{flex:1; overflow-y:auto; padding:20px 24px 40px;}
+  .page{display:none;}
+  .page.active{display:block;}
+  .page-head{display:flex; align-items:center; margin-bottom:16px; gap:12px; flex-wrap:wrap;}
+  .page-title{font-size:19px; font-weight:700;}
+  .page-sub{color:var(--sub); font-size:12.5px;}
+
+  /* 卡片 */
+  .card{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); padding:18px; margin-bottom:16px;}
+  .card-title{font-size:14px; font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:8px;}
+  .grid{display:grid; gap:16px;}
+  .g4{grid-template-columns:repeat(4,1fr);}
+  .g3{grid-template-columns:repeat(3,1fr);}
+  .g2{grid-template-columns:repeat(2,1fr);}
+  @media(max-width:1100px){.g4{grid-template-columns:repeat(2,1fr);} .g3{grid-template-columns:repeat(2,1fr);}}
+  @media(max-width:680px){
+    .g4,.g3,.g2{grid-template-columns:1fr;}
+    .sidebar{display:none;}
+    .main{padding:14px 14px 92px;}
+    .hamburger{display:flex;}
+    .top-mode{display:none;}
+    .tabbar{display:flex;}
+    .form-row{grid-template-columns:1fr;}
+    .cat-grid{grid-template-columns:repeat(4,1fr);}
+    .responsive2{grid-template-columns:1fr !important;}
+    .filterbar{flex-wrap:nowrap; overflow-x:auto; padding-bottom:6px; -webkit-overflow-scrolling:touch;}
+    .filterbar input,.filterbar select{flex-shrink:0;}
+    .tbl{display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; white-space:nowrap;}
+    .amt-input{font-size:30px;}
+    .page-head{flex-direction:column; align-items:flex-start;}
+    .page-head>div:last-child{margin-left:0 !important;}
+    .set-right{width:100%; justify-content:flex-end;}
+    .stat .val{font-size:21px;}
+    .type-tab{padding:10px;}
+    .card{padding:14px;}
+    .login-card{width:92%; max-width:400px; padding:28px 22px;}
+  }
+
+  .stat{padding:16px;}
+  .stat .lbl{font-size:12px; color:var(--sub);}
+  .stat .val{font-size:24px; font-weight:700; margin-top:4px;}
+  .stat .delta{font-size:11.5px; color:var(--sub); margin-top:2px;}
+  .stat .tag{font-size:11px; padding:2px 8px; border-radius:20px; background:var(--brand-soft); color:var(--brand-deep);}
+
+  .bar{height:8px; border-radius:6px; background:var(--bar-bg); overflow:hidden; margin-top:6px;}
+  .bar i{display:block; height:100%; border-radius:6px; background:var(--brand);}
+
+  /* 表格 */
+  table.tbl{width:100%; border-collapse:collapse; font-size:13px;}
+  .tbl th{text-align:left; color:var(--sub); font-weight:500; font-size:12px; padding:8px 10px; border-bottom:1px solid var(--line);}
+  .tbl td{padding:10px; border-bottom:1px solid #F0F3F5; vertical-align:middle;}
+  .tbl tr:hover td{background:var(--tbl-hover);}
+
+  .tx-ico{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:15px;}
+  .amt-in{color:var(--income); font-weight:600;}
+  .amt-out{color:var(--expense); font-weight:600;}
+  .amt-tr{color:var(--transfer); font-weight:600;}
+  .pill{display:inline-block; font-size:11px; padding:2px 9px; border-radius:20px; background:#F0F4F6; color:var(--sub); margin-right:4px;}
+  .pill.tag{background:var(--brand-soft); color:var(--brand-deep);}
+
+  /* 筛选条 */
+  .filterbar{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:14px;}
+  .filterbar input,.filterbar select{padding:8px 10px; border:1px solid var(--line); border-radius:9px; background:var(--input-bg); font-size:13px; outline:none;}
+  .filterbar input:focus,.filterbar select:focus{border-color:var(--brand);}
+
+  /* 记一笔 */
+  .type-tabs{display:flex; gap:8px; margin-bottom:16px;}
+  .type-tab{flex:1; text-align:center; padding:12px; border-radius:12px; border:1px solid var(--line); font-weight:600; font-size:14px;}
+  .type-tab.active.out{background:#FEF2F2; border-color:#FECACA; color:var(--expense);}
+  .type-tab.active.in{background:#F0FDF4; border-color:#BBF7D0; color:var(--income);}
+  .type-tab.active.tr{background:#F0F4F6; border-color:#CBD5E1; color:var(--transfer);}
+  .amt-input{font-size:34px; font-weight:700; border:none; outline:none; width:100%; padding:6px 0; border-bottom:2px solid var(--line);}
+  .amt-input:focus{border-color:var(--brand);}
+  .form-row{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+  .form-row .full{grid-column:1/-1;}
+  .form-item label{display:block; font-size:12px; color:var(--sub); margin-bottom:6px;}
+  .form-item select,.form-item input{padding:9px 11px; border:1px solid var(--line); border-radius:9px; width:100%; background:var(--input-bg); outline:none;}
+  .cat-grid{display:grid; grid-template-columns:repeat(6,1fr); gap:8px;}
+  .cat-cell{text-align:center; padding:10px 4px; border-radius:10px; border:1px solid transparent; cursor:pointer; font-size:12px;}
+  .cat-cell:hover{background:var(--hover);}
+  .cat-cell.sel{background:var(--brand-soft); border-color:rgba(13,148,136,.35); color:var(--brand-deep);}
+  .cat-ico{font-size:20px; display:block; margin-bottom:2px;}
+  .tag-opt{display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border-radius:20px; border:1px solid var(--line); font-size:12.5px; margin:0 6px 8px 0; cursor:pointer;}
+  .tag-opt.sel{background:var(--brand-soft); border-color:rgba(13,148,136,.4); color:var(--brand-deep);}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
+
+  /* 账户 */
+  .acct-card{padding:16px; position:relative;}
+  .acct-ico{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:10px;}
+  .acct-name{font-weight:600; font-size:14px;}
+  .acct-type{font-size:11px; color:var(--faint);}
+  .acct-bal{font-size:20px; font-weight:700; margin-top:8px;}
+  .switch{position:relative; width:36px; height:20px; border-radius:20px; background:#D8DEE4; display:inline-block; transition:.2s;}
+  .switch.on{background:var(--brand);}
+  .switch::after{content:''; position:absolute; width:16px; height:16px; border-radius:50%; background:#fff; top:2px; left:2px; transition:.2s;}
+  .switch.on::after{left:18px;}
+  .asset-tag{font-size:10.5px; padding:2px 7px; border-radius:20px; background:#F0FDF4; color:var(--income);}
+
+  /* 设置 */
+  .set-group{margin-bottom:22px;}
+  .set-group-title{font-size:13px; font-weight:600; color:var(--sub); margin-bottom:10px;}
+  .set-row{display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid #F0F3F5; flex-wrap:wrap;}
+  .set-row:last-child{border-bottom:none;}
+  .set-lbl{font-size:13.5px;}
+  .set-desc{font-size:12px; color:var(--sub);}
+  .set-right{margin-left:auto; display:flex; align-items:center; gap:8px;}
+  .btn{border-radius:9px; padding:8px 14px; font-size:13px; border:1px solid var(--line); background:var(--input-bg); color:var(--txt);}
+  .btn.brand{background:var(--brand); color:#fff; border-color:var(--brand);}
+  .btn.ghost{background:transparent;}
+  .btn.sm{padding:5px 10px; font-size:12px;}
+
+  .log-row{display:flex; gap:8px; flex-wrap:wrap;}
+  .log-act{font-size:11px; padding:3px 9px; border-radius:6px; font-weight:600;}
+  .act-c{background:#F0FDF4; color:var(--income);}
+  .act-r{background:#EFF6FF; color:#2563EB;}
+  .act-u{background:#FFFBEB; color:#D97706;}
+  .act-d{background:#FEF2F2; color:var(--expense);}
+
+  .toast{position:fixed; right:24px; bottom:24px; background:#111827; color:#fff; padding:10px 16px; border-radius:10px; font-size:13px; display:none; z-index:99;}
+  .foot-note{font-size:11px; color:var(--faint); margin-top:18px; text-align:center;}
+
+  /* ===== 移动端组件（默认隐藏，≤680px 显示） ===== */
+  .hamburger{display:none; align-items:center; justify-content:center; width:38px;height:38px;border-radius:9px; border:1px solid var(--line); color:var(--txt); flex-shrink:0; background:var(--input-bg);}
+  .drawer-overlay{display:none; position:fixed; inset:0; background:rgba(16,24,40,.42); z-index:40;}
+  .drawer-overlay.show{display:block;}
+  .drawer{position:fixed; top:0; left:0; bottom:0; width:276px; max-width:82vw; background:var(--card); z-index:50; transform:translateX(-100%); transition:transform .25s ease; padding:16px 12px; overflow-y:auto; border-right:1px solid var(--line); box-sizing:border-box;}
+  .drawer.open{transform:translateX(0);}
+  .drawer-head{display:flex; align-items:center; gap:10px; padding:4px 6px 12px;}
+  .tabbar{display:none; position:fixed; left:0; right:0; bottom:0; background:var(--card); border-top:1px solid var(--line); z-index:30; padding:4px 4px calc(4px + env(safe-area-inset-bottom)); box-sizing:border-box;}
+  .tabbar a{flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; padding:6px 2px; font-size:10.5px; color:var(--sub); text-decoration:none; min-width:0;}
+  .tabbar a.active{color:var(--brand-deep); font-weight:600;}
+  .tabbar svg{width:20px;height:20px;}
+
+  /* ===== 深色模式 ===== */
+  body.dark{--bg:#0F1720; --card:#1A2330; --line:#2B3746; --txt:#E8EEF4; --sub:#A0ADBB; --faint:#76828F; --hover:rgba(255,255,255,.06); --input-bg:#141D28; --bar-bg:#2B3746; --tbl-hover:#151F2B; --brand-soft:rgba(13,148,136,.20); --shadow:0 1px 3px rgba(0,0,0,.35);}
+  body.dark .login-wrap{background:linear-gradient(160deg,#0F1720 0%,#131C27 55%,#16202B 100%);}
+  body.dark input,body.dark select{background:var(--input-bg); color:var(--txt);}
+  body.dark .tx-ico{filter:saturate(.65) brightness(.95);}
+  body.dark .logo-badge{color:#0F1720;}
+  body.dark .cap-box{background:#141D28; color:var(--brand);}
+
+  /* 风格设置控件 */
+  .theme-opt.sel{background:var(--brand-soft); color:var(--brand-deep); border-color:rgba(13,148,136,.45); font-weight:600;}
+  .accent-opt.sel{outline:2px solid var(--brand-deep); outline-offset:2px;}
+
+  /* ===== 报表页签（总览/分类/趋势/项目/标签/资产/年度） ===== */
+  .report-tabs{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px;}
+  .report-tab{padding:7px 14px; border-radius:20px; border:1px solid var(--line); background:var(--input-bg); font-size:13px; color:var(--sub); cursor:pointer;}
+  .report-tab.active{background:var(--brand-soft); color:var(--brand-deep); border-color:rgba(13,148,136,.4); font-weight:600;}
+  .report-panel{display:none;}
+  .report-panel.active{display:block;}
+  @media(max-width:680px){.report-tabs{flex-wrap:nowrap; overflow-x:auto; padding-bottom:6px; -webkit-overflow-scrolling:touch;} .report-tab{flex-shrink:0;}}
+
+  /* ===== 确认对话框（所有写操作前弹出） ===== */
+  .modal-overlay{display:none; position:fixed; inset:0; background:rgba(16,24,40,.45); z-index:60; align-items:center; justify-content:center; padding:20px;}
+  .modal-overlay.show{display:flex;}
+  .confirm-modal{display:none; width:min(400px, 92vw); background:var(--card); border-radius:18px; padding:26px 24px 20px; text-align:center; box-shadow:0 14px 44px rgba(0,0,0,.18); border:1px solid var(--line); transform:translateY(10px); opacity:0; transition:transform .22s ease, opacity .22s ease;}
+  .confirm-modal.show{display:block; transform:translateY(0); opacity:1;}
+  .confirm-ico{width:54px;height:54px;border-radius:50%; background:var(--brand-soft); color:var(--brand-deep); display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 12px;}
+  .confirm-ico.warn{background:#FEF3C7; color:#D97706;}
+  .confirm-ico.danger{background:#FEF2F2; color:var(--expense);}
+  .confirm-title{font-size:16px; font-weight:700;}
+  .confirm-desc{font-size:12.5px; color:var(--sub); margin-top:8px; line-height:1.65;}
+  .confirm-btns{display:flex; gap:10px; margin-top:20px;}
+  .confirm-btns .btn{flex:1; padding:11px; font-size:13.5px; border-radius:11px;}
+  .confirm-btns .btn.danger{background:var(--expense); color:#fff; border-color:var(--expense);}
+  .confirm-btns .btn.brand{border-color:transparent;}
+
+  /* ===== 行操作（复制/删除）& 批量选择 ===== */
+  .row-ops{display:flex; gap:4px; justify-content:flex-end;}
+  .op-btn{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);background:var(--input-bg);color:var(--sub);padding:0;cursor:pointer;}
+  .op-btn:hover{color:var(--brand-deep); border-color:var(--brand);}
+  .op-btn.del:hover{color:var(--expense); border-color:var(--expense);}
+  .chk{width:16px;height:16px;accent-color:var(--brand);cursor:pointer;}
+  .batchbar{display:none; align-items:center; gap:12px; padding:10px 14px; border-radius:12px; background:var(--brand-soft); border:1px solid rgba(13,148,136,.3); margin-bottom:12px; font-size:13px; color:var(--brand-deep);}
+  .batchbar.show{display:flex;}
+  .batchbar .btn.danger{background:var(--expense); color:#fff; border-color:var(--expense);}
+</style>
+</head>
+<body>
+
+<!-- ========== 登录页 ========== -->
+<div class="login-wrap" id="page-login">
+  <div class="login-card">
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-bottom:10px;font-size:12px;">
+      <a href="javascript:;" class="lang-link active" data-lang="zh" onclick="toggleLang('zh',this)">中文</a><span style="color:var(--faint);">|</span><a href="javascript:;" class="lang-link" data-lang="en" onclick="toggleLang('en',this)">English</a>
+    </div>
+    <div class="login-logo"><div class="logo-badge">R</div></div>
+    <div class="login-title">ratcount</div>
+    <div class="login-sub" id="loginSub">个人 / 家庭 / 生意 记账 · 数据本地可控</div>
+    <div class="field"><label id="lblAcct">账号</label><input type="text" id="loginAccount" value="demo@example.com" placeholder="邮箱 / 手机号"></div>
+    <div class="field"><label id="lblPwd">密码</label><input type="password" id="loginPassword" value="demo1234" placeholder="密码"></div>
+    <div class="field">
+      <label id="lblCap">验证码 <span style="color:var(--faint);font-weight:400;" id="capHint">（已开启）</span></label>
+      <div class="cap-row">
+        <input type="text" id="loginCaptcha" style="flex:1;" placeholder="输入验证码" maxlength="4" autocomplete="off">
+        <div class="cap-box" id="capBox" title="点击刷新验证码" onclick="refreshCaptcha()"></div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 14px;font-size:12.5px;color:var(--sub);">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;"><input type="checkbox" class="chk" checked> 记住我</label>
+      <a href="javascript:;" style="color:var(--brand);text-decoration:none;" onclick="toast('演示：重置密码邮件已发送')">忘记密码？</a>
+    </div>
+    <button class="btn-primary" id="btnLogin" onclick="doLogin()">登 录</button>
+    <div class="login-foot"><a href="javascript:;" id="linkRegister" onclick="toast('演示：注册流程（可在全局设置中关闭）')">没有账号？立即注册</a></div>
+    <div class="login-foot" style="margin-top:8px;color:var(--faint);">ratcount v1.0 · 支持本地 / Turso 云端双部署</div>
+  </div>
+</div>
+
+<!-- ========== 主框架 ========== -->
+<div class="app" id="app">
+  <div class="topbar">
+    <button class="hamburger" onclick="toggleDrawer(true)" aria-label="菜单"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+    <div class="brand"><div class="logo-badge" style="width:30px;height:30px;font-size:15px;border-radius:8px;">R</div> ratcount</div>
+    <div class="top-mode" style="font-size:12px;color:var(--faint);border-left:1px solid var(--line);padding-left:12px;">本地模式 · 账本：家庭账本</div>
+    <div class="top-right">
+      <button class="lang-btn active">中文</button>
+      <button class="lang-btn" onclick="toast('英文界面切换示意')">EN</button>
+      <div style="width:1px;height:20px;background:var(--line);"></div>
+      <div class="avatar" onclick="go('profile',document.querySelector('.nav-item[data-p=profile]'))" style="cursor:pointer;" title="个人设置">管</div>
+      <button class="btn sm ghost" onclick="logout()" title="退出登录" style="color:var(--sub);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-3px;"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></button>
+    </div>
+  </div>
+
+  <div class="wrapper">
+    <!-- 侧边栏 -->
+    <div class="sidebar">
+      <div class="ledger-box">
+        <div class="ledger-title">账本</div>
+        <div class="ledger-item active"><span class="ledger-ico">🏠</span> 家庭账本</div>
+        <div class="ledger-item"><span class="ledger-ico">💼</span> 奶茶店</div>
+        <div class="ledger-item"><span class="ledger-ico">👤</span> 个人零花</div>
+        <div style="margin-top:6px;padding:6px 8px;color:var(--brand);font-size:12.5px;cursor:pointer;">+ 新建账本</div>
+      </div>
+
+      <div class="nav-item active" data-p="dashboard" onclick="go('dashboard',this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg> 仪表盘</div>
+      <div class="nav-item" data-p="flow" onclick="go('flow',this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg> 流水明细</div>
+      <div class="nav-item" data-p="add" onclick="go('add',this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg> 记一笔</div>
+      <div class="nav-item" data-p="accounts" onclick="go('accounts',this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M16 12h.01"/></svg> 账户</div>
+      <div class="nav-item" data-p="reports" onclick="go('reports',this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg> 报表</div>
+      <div class="nav-item" data-p="balance" onclick="go('balance',this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h12a1 1 0 0 1 1 1v18l-3-2-3 2-3-2-3 2V3a1 1 0 0 1 1-1z"/><path d="M9 10l2 2 4-4"/></svg> 余额表</div>
+      <div class="side-label">管理</div>
+      <div class="nav-item" data-p="projects" onclick="go('projects',this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg> 项目</div>
+      <div class="nav-item" data-p="tags" onclick="go('tags',this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l9-9 9 9-9 9z"/><circle cx="9" cy="9" r="1.4"/></svg> 标签</div>
+      <div class="nav-item" data-p="logs" onclick="go('logs',this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h12a1 1 0 0 1 1 1v18l-3-2-3 2-3-2-3 2V3a1 1 0 0 1 1-1z"/></svg> 操作日志</div>
+      <div class="nav-item" data-p="settings" onclick="go('settings',this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.5-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.5 2 1.5A7 7 0 0 0 5 12a7 7 0 0 0 .1 1.2l-2 1.5 2 3.5 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.5-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.5-2-1.5c.06-.4.1-.8.1-1.2z"/></svg> 全局设置 <span class="nav-badge">管理员</span></div>
+      <div class="nav-item" data-p="profile" onclick="go('profile',this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h13M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg> 个人设置</div>
+    </div>
+
+    <!-- 主内容 -->
+    <div class="main">
+
+      <!-- ===== 仪表盘 ===== -->
+      <div class="page" id="p-dashboard">
+        <div class="page-head">
+          <div><div class="page-title">仪表盘</div><div class="page-sub">家庭账本 · 2026 年 9 月</div></div>
+        </div>
+        <div class="grid g4">
+          <div class="card stat"><div class="lbl">净资产</div><div class="val">¥ 390,240</div><div class="delta">资产 ¥395,100 − 负债 ¥4,860</div></div>
+          <div class="card stat"><div class="lbl">本月收入</div><div class="val amt-in">¥ 28,000</div><div class="delta">预算 ¥ 30,000</div></div>
+          <div class="card stat"><div class="lbl">本月支出</div><div class="val amt-out">¥ 12,480</div><div class="delta">较上月 <span class="amt-out">-¥ 1,620</span> <span class="tag">预算剩余 58%</span></div></div>
+          <div class="card stat"><div class="lbl">本月结余</div><div class="val">+¥ 15,520</div><div class="delta">结余率 55.4%</div></div>
+        </div>
+        <div class="grid g2">
+          <div class="card">
+            <div class="card-title">月度趋势（近 6 个月收支）</div>
+            <div style="display:flex;align-items:flex-end;gap:8px;height:170px;margin-top:6px;">
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;"><div style="display:flex;align-items:flex-end;gap:3px;height:140px;"><div style="width:14px;height:88px;background:#16A34A;opacity:.8;border-radius:3px 3px 0 0;"></div><div style="width:14px;height:48px;background:#DC2626;opacity:.72;border-radius:3px 3px 0 0;"></div></div><span style="font-size:10px;color:var(--faint);">4月</span></div>
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;"><div style="display:flex;align-items:flex-end;gap:3px;height:140px;"><div style="width:14px;height:100px;background:#16A34A;opacity:.8;border-radius:3px 3px 0 0;"></div><div style="width:14px;height:55px;background:#DC2626;opacity:.72;border-radius:3px 3px 0 0;"></div></div><span style="font-size:10px;color:var(--faint);">5月</span></div>
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;"><div style="display:flex;align-items:flex-end;gap:3px;height:140px;"><div style="width:14px;height:95px;background:#16A34A;opacity:.8;border-radius:3px 3px 0 0;"></div><div style="width:14px;height:51px;background:#DC2626;opacity:.72;border-radius:3px 3px 0 0;"></div></div><span style="font-size:10px;color:var(--faint);">6月</span></div>
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;"><div style="display:flex;align-items:flex-end;gap:3px;height:140px;"><div style="width:14px;height:108px;background:#16A34A;opacity:.8;border-radius:3px 3px 0 0;"></div><div style="width:14px;height:62px;background:#DC2626;opacity:.72;border-radius:3px 3px 0 0;"></div></div><span style="font-size:10px;color:var(--faint);">7月</span></div>
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;"><div style="display:flex;align-items:flex-end;gap:3px;height:140px;"><div style="width:14px;height:112px;background:#16A34A;opacity:.8;border-radius:3px 3px 0 0;"></div><div style="width:14px;height:58px;background:#DC2626;opacity:.72;border-radius:3px 3px 0 0;"></div></div><span style="font-size:10px;color:var(--faint);">8月</span></div>
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;"><div style="display:flex;align-items:flex-end;gap:3px;height:140px;"><div style="width:14px;height:100px;background:#16A34A;opacity:.8;border-radius:3px 3px 0 0;"></div><div style="width:14px;height:45px;background:#DC2626;opacity:.72;border-radius:3px 3px 0 0;"></div></div><span style="font-size:10px;color:var(--faint);">9月</span></div>
+            </div>
+            <div style="display:flex;gap:14px;margin-top:8px;font-size:11.5px;color:var(--sub);"><span><span class="dot" style="background:#16A34A;"></span> 收入</span><span><span class="dot" style="background:#DC2626;"></span> 支出</span></div>
+          </div>
+          <div class="card">
+            <div class="card-title">资产分布（按账户类型）</div>
+            <div style="display:flex;flex-direction:column;gap:12px;margin-top:4px;">
+              <div><div style="display:flex;justify-content:space-between;font-size:12.5px;"><span>📈 股票</span><span style="color:var(--sub);">¥ 152,000 · 38.5%</span></div><div class="bar"><i style="width:38%;background:#F4B393;"></i></div></div>
+              <div><div style="display:flex;justify-content:space-between;font-size:12.5px;"><span>💳 储蓄（现金/卡/微信）</span><span style="color:var(--sub);">¥ 128,080 · 32.4%</span></div><div class="bar"><i style="width:32%;background:#0D9488;"></i></div></div>
+              <div><div style="display:flex;justify-content:space-between;font-size:12.5px;"><span>🛡️ 国债</span><span style="color:var(--sub);">¥ 80,000 · 20.2%</span></div><div class="bar"><i style="width:20%;background:#8BC8EA;"></i></div></div>
+              <div><div style="display:flex;justify-content:space-between;font-size:12.5px;"><span>💎 贵金属</span><span style="color:var(--sub);">¥ 26,440 · 6.7%</span></div><div class="bar"><i style="width:7%;background:#C9A7E8;"></i></div></div>
+              <div><div style="display:flex;justify-content:space-between;font-size:12.5px;"><span>🌐 外币</span><span style="color:var(--sub);">≈¥ 8,580 · 2.2%</span></div><div class="bar"><i style="width:3%;background:#9EACEA;"></i></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">近期流水 <span style="font-size:11px;color:var(--faint);font-weight:400;">· 行内提供复制 / 删除</span></div>
+          <table class="tbl">
+            <tr><th>类型</th><th>分类</th><th>摘要</th><th>标签 / 项目</th><th style="text-align:right;">金额</th><th style="text-align:right;">日期</th><th style="text-align:right;">操作</th></tr>
+            <tr><td><div class="tx-ico" style="background:#F0FDF4;">🛒</div></td><td>餐饮</td><td>山姆会员店 · 周末采购</td><td><span class="pill tag">宝宝</span></td><td class="amt-out" style="text-align:right;">-¥ 486.00</td><td style="text-align:right;color:var(--sub);">09-04</td><td class="row-ops"><button class="op-btn" title="复制为新交易" onclick="copyTx('山姆会员店 · 周末采购')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button><button class="op-btn del" title="删除" onclick="delTx('山姆会员店 · 周末采购')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button></td></tr>
+            <tr><td><div class="tx-ico" style="background:#EFF6FF;">💰</div></td><td>工资</td><td>9 月工资到账</td><td><span class="pill">收入</span></td><td class="amt-in" style="text-align:right;">+¥ 20,000.00</td><td style="text-align:right;color:var(--sub);">09-03</td><td class="row-ops"><button class="op-btn" title="复制为新交易" onclick="copyTx('9 月工资到账')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button><button class="op-btn del" title="删除" onclick="delTx('9 月工资到账')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button></td></tr>
+            <tr><td><div class="tx-ico" style="background:#F0F4F6;">↔</div></td><td>转账</td><td>储蓄卡 → 招行储蓄卡</td><td><span class="pill">转账</span></td><td class="amt-tr" style="text-align:right;">¥ 5,000.00</td><td style="text-align:right;color:var(--sub);">09-02</td><td class="row-ops"><button class="op-btn" title="复制为新交易" onclick="copyTx('储蓄卡 → 招行储蓄卡')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button><button class="op-btn del" title="删除" onclick="delTx('储蓄卡 → 招行储蓄卡')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button></td></tr>
+            <tr><td><div class="tx-ico" style="background:#FFF7ED;">🏥</div></td><td>医疗</td><td>康复机构 · 月费</td><td><span class="pill tag">宝宝</span><span class="pill tag">康复</span><span class="pill">项目：宝贝计划</span></td><td class="amt-out" style="text-align:right;">-¥ 1,860.00</td><td style="text-align:right;color:var(--sub);">09-02</td><td class="row-ops"><button class="op-btn" title="复制为新交易" onclick="copyTx('康复机构 · 月费')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button><button class="op-btn del" title="删除" onclick="delTx('康复机构 · 月费')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button></td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- ===== 流水明细 ===== -->
+      <div class="page" id="p-flow">
+        <div class="page-head">
+          <div><div class="page-title">流水明细</div><div class="page-sub">支持类型 / 分类 / 账户 / 标签 / 项目 / 日期筛选</div></div>
+          <div style="margin-left:auto;display:flex;gap:8px;">
+            <button class="btn sm" onclick="toast('导出 Excel 示意')">导出 Excel</button>
+            <button class="btn sm brand" onclick="go('add',document.querySelector('[data-p=add]'))">+ 记一笔</button>
+          </div>
+        </div>
+        <div class="filterbar">
+          <select><option>全部类型</option><option>收入</option><option>支出</option><option>转账</option></select>
+          <select><option>全部分类</option><option>餐饮</option><option>房贷</option><option>宝宝</option></select>
+          <select><option>全部账户</option><option>现金</option><option>招行储蓄卡</option></select>
+          <select><option>全部标签</option><option>宝宝</option><option>康复</option><option>出差</option></select>
+          <select><option>全部项目</option><option>奶茶店</option><option>宝贝计划</option></select>
+          <input type="date" value="2026-09-01" style="width:140px;"><span style="color:var(--faint);">至</span><input type="date" value="2026-09-30" style="width:140px;">
+          <input type="text" placeholder="搜索备注 / 对方" style="width:170px;">
+        </div>
+        <div class="batchbar" id="batchbar">已选 <b id="selCount">0</b> 条流水 &nbsp;<button class="btn sm danger" onclick="batchDel()">批量删除</button><button class="btn sm" onclick="clearSel()">取消选择</button></div>
+        <div class="card" style="padding:8px 18px;">
+          <table class="tbl">
+            <tr><th style="width:34px;"><input type="checkbox" class="chk" onclick="toggleAll(this)" title="全选"></th><th>类型</th><th>分类</th><th>摘要</th><th>账户</th><th>标签 / 项目</th><th style="text-align:right;">金额</th><th style="text-align:right;">日期</th><th style="text-align:right;">操作</th></tr>
+            <tr><td><input type="checkbox" class="chk txchk" onchange="selTx()"></td><td><div class="tx-ico" style="background:#F0FDF4;">🛒</div></td><td>餐饮</td><td>山姆会员店 · 周末采购</td><td>招行储蓄卡</td><td><span class="pill tag">宝宝</span></td><td class="amt-out" style="text-align:right;">-¥ 486.00</td><td style="text-align:right;color:var(--sub);">09-04</td><td class="row-ops"><button class="op-btn" title="复制为新交易" onclick="copyTx('山姆会员店 · 周末采购')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button><button class="op-btn del" title="删除" onclick="delTx('山姆会员店 · 周末采购')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button></td></tr>
+            <tr><td><input type="checkbox" class="chk txchk" onchange="selTx()"></td><td><div class="tx-ico" style="background:#EFF6FF;">💰</div></td><td>工资</td><td>9 月工资到账</td><td>招行储蓄卡</td><td><span class="pill">收入</span></td><td class="amt-in" style="text-align:right;">+¥ 20,000.00</td><td style="text-align:right;color:var(--sub);">09-03</td><td class="row-ops"><button class="op-btn" title="复制为新交易" onclick="copyTx('9 月工资到账')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button><button class="op-btn del" title="删除" onclick="delTx('9 月工资到账')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button></td></tr>
+            <tr><td><input type="checkbox" class="chk txchk" onchange="selTx()"></td><td><div class="tx-ico" style="background:#F0F4F6;">↔</div></td><td>转账</td><td>储蓄卡 → 招行储蓄卡</td><td>现金 → 招行储蓄卡</td><td><span class="pill">转账</span></td><td class="amt-tr" style="text-align:right;">¥ 5,000.00</td><td style="text-align:right;color:var(--sub);">09-02</td><td class="row-ops"><button class="op-btn" title="复制为新交易" onclick="copyTx('储蓄卡 → 招行储蓄卡')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button><button class="op-btn del" title="删除" onclick="delTx('储蓄卡 → 招行储蓄卡')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button></td></tr>
+            <tr><td><input type="checkbox" class="chk txchk" onchange="selTx()"></td><td><div class="tx-ico" style="background:#FFF7ED;">🏥</div></td><td>医疗</td><td>康复机构 · 月费</td><td>招行储蓄卡</td><td><span class="pill tag">宝宝</span><span class="pill tag">康复</span><span class="pill">宝贝计划</span></td><td class="amt-out" style="text-align:right;">-¥ 1,860.00</td><td style="text-align:right;color:var(--sub);">09-02</td><td class="row-ops"><button class="op-btn" title="复制为新交易" onclick="copyTx('康复机构 · 月费')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button><button class="op-btn del" title="删除" onclick="delTx('康复机构 · 月费')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button></td></tr>
+            <tr><td><input type="checkbox" class="chk txchk" onchange="selTx()"></td><td><div class="tx-ico" style="background:#F0FDF4;">🍜</div></td><td>餐饮</td><td>楼下小馆 午餐</td><td>微信</td><td><span class="pill tag">出差</span></td><td class="amt-out" style="text-align:right;">-¥ 32.00</td><td style="text-align:right;color:var(--sub);">09-01</td><td class="row-ops"><button class="op-btn" title="复制为新交易" onclick="copyTx('楼下小馆 午餐')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button><button class="op-btn del" title="删除" onclick="delTx('楼下小馆 午餐')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button></td></tr>
+          </table>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0 4px;font-size:12px;color:var(--sub);">
+            <span>共 1,284 条记录</span>
+            <div style="display:flex;gap:6px;"><button class="btn sm" disabled>上一页</button><button class="btn sm brand">1</button><button class="btn sm">2</button><button class="btn sm">3</button><button class="btn sm">下一页</button></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== 记一笔 ===== -->
+      <div class="page" id="p-add">
+        <div class="page-head"><div><div class="page-title">记一笔</div><div class="page-sub">收入 / 支出 / 转账 · 转账不计入收支</div></div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;" class="responsive2">
+          <div class="card">
+            <div class="type-tabs">
+              <div class="type-tab active out">支出</div>
+              <div class="type-tab">收入</div>
+              <div class="type-tab">转账</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;margin:8px 0 16px;">
+              <span style="color:var(--sub);font-size:16px;">¥</span>
+              <input class="amt-input" type="text" value="0.00" style="font-size:32px;">
+            </div>
+            <div class="form-row">
+              <div class="form-item"><label>账户</label><select><option>招行储蓄卡</option><option>现金</option><option>微信</option><option>信用卡</option></select></div>
+              <div class="form-item"><label>发生时间</label><input type="date" value="2026-09-04"></div>
+            </div>
+            <div class="form-item" style="margin-top:12px;"><label>分类</label>
+              <div class="cat-grid">
+                <div class="cat-cell sel"><span class="cat-ico">🍚</span>餐饮</div>
+                <div class="cat-cell"><span class="cat-ico">🛒</span>购物</div>
+                <div class="cat-cell"><span class="cat-ico">🏠</span>房贷</div>
+                <div class="cat-cell"><span class="cat-ico">👶</span>宝宝</div>
+                <div class="cat-cell"><span class="cat-ico">🚗</span>交通</div>
+                <div class="cat-cell"><span class="cat-ico">🏥</span>医疗</div>
+                <div class="cat-cell"><span class="cat-ico">✈️</span>旅行</div>
+                <div class="cat-cell"><span class="cat-ico">🎁</span>礼金</div>
+                <div class="cat-cell"><span class="cat-ico">📦</span>其他</div>
+              </div>
+            </div>
+            <div class="form-item" style="margin-top:12px;"><label>标签（可多选，回车新建）</label>
+              <div>
+                <span class="tag-opt sel"><span class="dot" style="background:#EA6668;"></span>宝宝</span>
+                <span class="tag-opt"><span class="dot" style="background:#8BC8EA;"></span>出差</span>
+                <span class="tag-opt"><span class="dot" style="background:#A2DDAA;"></span>房贷</span>
+                <span class="tag-opt"><span class="dot" style="background:#C9A7E8;"></span>康复</span>
+                <span class="tag-opt"><span class="dot" style="background:#F4B393;"></span>投资</span>
+                <span class="tag-opt">+ 新建标签</span>
+              </div>
+            </div>
+            <div class="form-item" style="margin-top:12px;"><label>项目（可选）</label><select><option>无项目</option><option>奶茶店</option><option>宝贝计划</option></select></div>
+            <div class="form-row" style="margin-top:12px;">
+              <div class="form-item"><label>对方 / 商户</label><input type="text" placeholder="如：山姆会员店"></div>
+              <div class="form-item"><label>币种</label><select><option>CNY ¥</option><option>USD $</option><option>EUR €</option></select></div>
+            </div>
+            <div class="form-item" style="margin-top:12px;"><label>备注</label><input type="text" placeholder="备注说明（可选）"></div>
+          </div>
+          <div>
+            <div class="card">
+              <div class="card-title">快捷模板</div>
+              <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                <button class="btn sm">🍚 午餐 ¥30</button>
+                <button class="btn sm">🚇 地铁 ¥4</button>
+                <button class="btn sm">☕ 咖啡 ¥18</button>
+                <button class="btn sm">💰 工资入账</button>
+              </div>
+              <div style="font-size:12px;color:var(--faint);margin-top:10px;">快捷模板可在设置中自定义</div>
+            </div>
+            <div class="card" style="background:var(--brand-soft);border-color:rgba(13,148,136,.2);">
+              <div style="font-size:12.5px;color:var(--brand-deep);line-height:1.7;">本笔将写入操作日志（增）。保存后流水实时反映到账户余额与仪表盘。</div>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:6px;">
+              <button class="btn" style="flex:1;" onclick="toast('已保存 · 写入审计日志')">保存</button>
+              <button class="btn ghost" style="flex:1;" onclick="toast('已取消')">取消</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== 账户 ===== -->
+      <div class="page" id="p-accounts">
+        <div class="page-head">
+          <div><div class="page-title">账户</div><div class="page-sub">11 种类型 · 是否计入资产开关 · 余额由流水实时汇总</div></div>
+          <div style="margin-left:auto;"><button class="btn brand sm" onclick="toast('新建账户示意')">+ 新建账户</button></div>
+        </div>
+        <div class="grid g4" style="margin-bottom:16px;">
+          <div class="card stat"><div class="lbl">资产合计（计入资产）</div><div class="val">¥ 395,100</div></div>
+          <div class="card stat"><div class="lbl">账户数量</div><div class="val">8</div></div>
+          <div class="card stat"><div class="lbl">外币资产（USD）</div><div class="val">$ 1,200</div></div>
+        </div>
+        <div class="grid g3">
+          <div class="card acct-card"><div class="acct-ico" style="background:#F0FDF4;">💵</div><div class="acct-name">现金</div><div class="acct-type">cash 现金 · CNY</div><div class="acct-bal">¥ 3,200.00</div><div style="margin-top:10px;display:flex;align-items:center;gap:6px;"><span class="switch on"></span><span class="asset-tag">计入资产</span></div></div>
+          <div class="card acct-card"><div class="acct-ico" style="background:#EFF6FF;">💳</div><div class="acct-name">招行储蓄卡</div><div class="acct-type">debit_card 储蓄卡 · CNY</div><div class="acct-bal">¥ 118,460.00</div><div style="margin-top:10px;display:flex;align-items:center;gap:6px;"><span class="switch on"></span><span class="asset-tag">计入资产</span></div></div>
+          <div class="card acct-card"><div class="acct-ico" style="background:#FEF2F2;">💳</div><div class="acct-name">招行信用卡</div><div class="acct-type">credit_card 信用账户 · CNY</div><div class="acct-bal" style="color:var(--expense);">-¥ 4,860.00</div><div style="margin-top:10px;display:flex;align-items:center;gap:6px;"><span class="switch"></span><span style="font-size:10.5px;color:var(--faint);">不计入资产</span></div></div>
+          <div class="card acct-card"><div class="acct-ico" style="background:#F0F4F6;">💬</div><div class="acct-name">微信</div><div class="acct-type">wechat 虚拟账户 · CNY</div><div class="acct-bal">¥ 6,420.00</div><div style="margin-top:10px;display:flex;align-items:center;gap:6px;"><span class="switch on"></span><span class="asset-tag">计入资产</span></div></div>
+          <div class="card acct-card"><div class="acct-ico" style="background:#FFFBEB;">📈</div><div class="acct-name">A 股账户</div><div class="acct-type">investment 股票 · CNY</div><div class="acct-bal">¥ 152,000.00</div><div style="margin-top:10px;display:flex;align-items:center;gap:6px;"><span class="switch on"></span><span class="asset-tag">计入资产</span></div></div>
+          <div class="card acct-card"><div class="acct-ico" style="background:#EEF2FF;">🌐</div><div class="acct-name">美元账户</div><div class="acct-type">foreign_currency 外币账户 · USD</div><div class="acct-bal">$ 1,200.00</div><div style="margin-top:10px;display:flex;align-items:center;gap:6px;"><span class="switch on"></span><span class="asset-tag">计入资产</span></div></div>
+          <div class="card acct-card"><div class="acct-ico" style="background:#F5F3FF;">🛡️</div><div class="acct-name">国债</div><div class="acct-type">bond 国债 · CNY</div><div class="acct-bal">¥ 80,000.00</div><div style="margin-top:10px;display:flex;align-items:center;gap:6px;"><span class="switch on"></span><span class="asset-tag">计入资产</span></div></div>
+          <div class="card acct-card"><div class="acct-ico" style="background:#F0FDF4;">💎</div><div class="acct-name">黄金定投</div><div class="acct-type">precious_metal 贵金属 · CNY</div><div class="acct-bal">¥ 26,440.00</div><div style="margin-top:10px;display:flex;align-items:center;gap:6px;"><span class="switch on"></span><span class="asset-tag">计入资产</span></div></div>
+        </div>
+      </div>
+
+      <!-- ===== 报表 ===== -->
+      <div class="page" id="p-reports">
+        <div class="page-head"><div><div class="page-title">报表</div><div class="page-sub">总览 / 分类 / 趋势 / 项目 / 标签 / 资产 / 年度</div></div>
+          <div style="margin-left:auto;display:flex;gap:8px;"><select style="padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--input-bg);"><option>2026 年</option><option>2026-09</option><option>2026-08</option></select><button class="btn sm" onclick="toast('导出报表 Excel 示意')">导出 Excel</button></div>
+        </div>
+        <div class="report-tabs">
+          <button class="report-tab active" onclick="goReport('overview',this)">总览</button>
+          <button class="report-tab" onclick="goReport('category',this)">分类</button>
+          <button class="report-tab" onclick="goReport('trend',this)">趋势</button>
+          <button class="report-tab" onclick="goReport('project',this)">项目</button>
+          <button class="report-tab" onclick="goReport('tag',this)">标签</button>
+          <button class="report-tab" onclick="goReport('asset',this)">资产</button>
+          <button class="report-tab" onclick="goReport('year',this)">年度</button>
+        </div>
+
+        <!-- 总览 -->
+        <div class="report-panel active" id="rpt-overview">
+          <div class="grid g3" style="margin-bottom:16px;">
+            <div class="card stat"><div class="lbl">本月收入</div><div class="val amt-in">¥ 28,000</div><div class="delta">预算 ¥ 30,000</div></div>
+            <div class="card stat"><div class="lbl">本月支出</div><div class="val amt-out">¥ 12,480</div><div class="delta">较上月 -¥ 1,620</div></div>
+            <div class="card stat"><div class="lbl">本月结余</div><div class="val">+¥ 15,520</div><div class="delta">结余率 55.4%</div></div>
+          </div>
+          <div class="card">
+            <div class="card-title">本月支出分类占比</div>
+            <div style="display:flex;flex-direction:column;gap:11px;">
+              <div><div style="display:flex;justify-content:space-between;font-size:12.5px;"><span>🏠 房贷</span><span style="color:var(--sub);">¥ 3,800 · 30.4%</span></div><div class="bar"><i style="width:30%;background:#0D9488;"></i></div></div>
+              <div><div style="display:flex;justify-content:space-between;font-size:12.5px;"><span>👶 宝宝</span><span style="color:var(--sub);">¥ 2,960 · 23.7%</span></div><div class="bar"><i style="width:24%;background:#F4B393;"></i></div></div>
+              <div><div style="display:flex;justify-content:space-between;font-size:12.5px;"><span>🍚 餐饮</span><span style="color:var(--sub);">¥ 2,180 · 17.5%</span></div><div class="bar"><i style="width:18%;background:#A2DDAA;"></i></div></div>
+              <div><div style="display:flex;justify-content:space-between;font-size:12.5px;"><span>🏥 康复</span><span style="color:var(--sub);">¥ 1,860 · 14.9%</span></div><div class="bar"><i style="width:15%;background:#C9A7E8;"></i></div></div>
+              <div><div style="display:flex;justify-content:space-between;font-size:12.5px;"><span>🚗 交通</span><span style="color:var(--sub);">¥ 980 · 7.9%</span></div><div class="bar"><i style="width:8%;background:#8BC8EA;"></i></div></div>
+              <div><div style="display:flex;justify-content:space-between;font-size:12.5px;"><span>📦 其他</span><span style="color:var(--sub);">¥ 700 · 5.6%</span></div><div class="bar"><i style="width:6%;background:#9EACEA;"></i></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 分类 -->
+        <div class="report-panel" id="rpt-category">
+          <div class="grid g2">
+            <div class="card">
+              <div class="card-title">支出分类明细</div>
+              <table class="tbl">
+                <tr><th>分类</th><th style="text-align:right;">笔数</th><th style="text-align:right;">金额</th><th style="text-align:right;">占比</th></tr>
+                <tr><td>🏠 房贷</td><td style="text-align:right;">2</td><td class="amt-out" style="text-align:right;">¥ 3,800</td><td style="text-align:right;color:var(--sub);">30.4%</td></tr>
+                <tr><td>👶 宝宝</td><td style="text-align:right;">18</td><td class="amt-out" style="text-align:right;">¥ 2,960</td><td style="text-align:right;color:var(--sub);">23.7%</td></tr>
+                <tr><td>🍚 餐饮</td><td style="text-align:right;">42</td><td class="amt-out" style="text-align:right;">¥ 2,180</td><td style="text-align:right;color:var(--sub);">17.5%</td></tr>
+                <tr><td>🏥 康复</td><td style="text-align:right;">4</td><td class="amt-out" style="text-align:right;">¥ 1,860</td><td style="text-align:right;color:var(--sub);">14.9%</td></tr>
+                <tr><td>🚗 交通</td><td style="text-align:right;">15</td><td class="amt-out" style="text-align:right;">¥ 980</td><td style="text-align:right;color:var(--sub);">7.9%</td></tr>
+                <tr><td>📦 其他</td><td style="text-align:right;">8</td><td class="amt-out" style="text-align:right;">¥ 700</td><td style="text-align:right;color:var(--sub);">5.6%</td></tr>
+              </table>
+            </div>
+            <div class="card">
+              <div class="card-title">收入分类明细</div>
+              <table class="tbl">
+                <tr><th>分类</th><th style="text-align:right;">笔数</th><th style="text-align:right;">金额</th><th style="text-align:right;">占比</th></tr>
+                <tr><td>💰 工资</td><td style="text-align:right;">1</td><td class="amt-in" style="text-align:right;">¥ 20,000</td><td style="text-align:right;color:var(--sub);">71.4%</td></tr>
+                <tr><td>🧋 生意进账</td><td style="text-align:right;">3</td><td class="amt-in" style="text-align:right;">¥ 8,000</td><td style="text-align:right;color:var(--sub);">28.6%</td></tr>
+              </table>
+              <div style="font-size:11.5px;color:var(--faint);margin-top:12px;">支持切换：按分类 / 按账户 / 按币种</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 趋势 -->
+        <div class="report-panel" id="rpt-trend">
+          <div class="card">
+            <div class="card-title">近 12 个月收支趋势</div>
+            <div style="display:flex;align-items:flex-end;gap:4px;height:160px;margin-top:8px;">
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:55%;height:64px;background:#16A34A;opacity:.8;border-radius:3px 3px 0 0;"></div><div style="width:55%;height:40px;background:#DC2626;opacity:.72;border-radius:3px 3px 0 0;margin-top:-40px;"></div><span style="font-size:9px;color:var(--faint);">10</span></div>
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:55%;height:70px;background:#16A34A;opacity:.8;border-radius:3px 3px 0 0;"></div><div style="width:55%;height:44px;background:#DC2626;opacity:.72;border-radius:3px 3px 0 0;margin-top:-44px;"></div><span style="font-size:9px;color:var(--faint);">11</span></div>
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:55%;height:58px;background:#16A34A;opacity:.8;border-radius:3px 3px 0 0;"></div><div style="width:55%;height:52px;background:#DC2626;opacity:.72;border-radius:3px 3px 0 0;margin-top:-52px;"></div><span style="font-size:9px;color:var(--faint);">12</span></div>
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:55%;height:76px;background:#16A34A;opacity:.8;border-radius:3px 3px 0 0;"></div><div style="width:55%;height:46px;background:#DC2626;opacity:.72;border-radius:3px 3px 0 0;margin-top:-46px;"></div><span style="font-size:9px;color:var(--faint);">1月</span></div>
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:55%;height:80px;background:#16A34A;opacity:.8;border-radius:3px 3px 0 0;"></div><div style="width:55%;height:50px;background:#DC2626;opacity:.72;border-radius:3px 3px 0 0;margin-top:-50px;"></div><span style="font-size:9px;color:var(--faint);">2月</span></div>
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:55%;height:72px;background:#16A34A;opacity:.8;border-radius:3px 3px 0 0;"></div><div style="width:55%;height:56px;background:#DC2626;opacity:.72;border-radius:3px 3px 0 0;margin-top:-56px;"></div><span style="font-size:9px;color:var(--faint);">3月</span></div>
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:55%;height:86px;background:#16A34A;opacity:.8;border-radius:3px 3px 0 0;"></div><div style="width:55%;height:52px;background:#DC2626;opacity:.72;border-radius:3px 3px 0 0;margin-top:-52px;"></div><span style="font-size:9px;color:var(--faint);">4月</span></div>
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:55%;height:92px;background:#16A34A;opacity:.8;border-radius:3px 3px 0 0;"></div><div style="width:55%;height:60px;background:#DC2626;opacity:.72;border-radius:3px 3px 0 0;margin-top:-60px;"></div><span style="font-size:9px;color:var(--faint);">5月</span></div>
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:55%;height:88px;background:#16A34A;opacity:.8;border-radius:3px 3px 0 0;"></div><div style="width:55%;height:58px;background:#DC2626;opacity:.72;border-radius:3px 3px 0 0;margin-top:-58px;"></div><span style="font-size:9px;color:var(--faint);">6月</span></div>
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:55%;height:96px;background:#16A34A;opacity:.8;border-radius:3px 3px 0 0;"></div><div style="width:55%;height:66px;background:#DC2626;opacity:.72;border-radius:3px 3px 0 0;margin-top:-66px;"></div><span style="font-size:9px;color:var(--faint);">7月</span></div>
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:55%;height:100px;background:#16A34A;opacity:.8;border-radius:3px 3px 0 0;"></div><div style="width:55%;height:62px;background:#DC2626;opacity:.72;border-radius:3px 3px 0 0;margin-top:-62px;"></div><span style="font-size:9px;color:var(--faint);">8月</span></div>
+              <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;"><div style="width:55%;height:96px;background:#16A34A;opacity:.8;border-radius:3px 3px 0 0;"></div><div style="width:55%;height:46px;background:#DC2626;opacity:.72;border-radius:3px 3px 0 0;margin-top:-46px;"></div><span style="font-size:9px;color:var(--faint);">9月</span></div>
+            </div>
+            <div style="display:flex;gap:14px;margin-top:8px;font-size:11.5px;color:var(--sub);"><span><span class="dot" style="background:#16A34A;"></span> 收入</span><span><span class="dot" style="background:#DC2626;"></span> 支出</span></div>
+          </div>
+        </div>
+
+        <!-- 项目 -->
+        <div class="report-panel" id="rpt-project">
+          <div class="card">
+            <div class="card-title">项目盈亏</div>
+            <table class="tbl">
+              <tr><th>项目</th><th>收入</th><th>支出</th><th>结余</th><th>预算</th><th>预算使用率</th><th>状态</th></tr>
+              <tr><td>🧋 奶茶店</td><td class="amt-in">¥ 56,800</td><td class="amt-out">¥ 41,200</td><td class="amt-in">+¥ 15,600</td><td>¥ 50,000</td><td><div class="bar" style="width:120px;"><i style="width:82%;background:#D97706;"></i></div> 82%</td><td><span class="pill tag">进行中</span></td></tr>
+              <tr><td>👶 宝贝计划</td><td class="amt-in">¥ 0</td><td class="amt-out">¥ 12,900</td><td class="amt-out">-¥ 12,900</td><td>¥ 15,000</td><td><div class="bar" style="width:120px;"><i style="width:86%;"></i></div> 86%</td><td><span class="pill">已完成</span></td></tr>
+            </table>
+          </div>
+        </div>
+
+        <!-- 标签 -->
+        <div class="report-panel" id="rpt-tag">
+          <div class="card">
+            <div class="card-title">按标签统计</div>
+            <div style="display:flex;flex-direction:column;gap:11px;">
+              <div><div style="display:flex;justify-content:space-between;font-size:12.5px;"><span><span class="dot" style="background:#EA6668;"></span> 宝宝</span><span style="color:var(--sub);">¥ 8,940 · 26 笔</span></div><div class="bar"><i style="width:76%;background:#EA6668;"></i></div></div>
+              <div><div style="display:flex;justify-content:space-between;font-size:12.5px;"><span><span class="dot" style="background:#C9A7E8;"></span> 康复</span><span style="color:var(--sub);">¥ 6,280 · 4 笔</span></div><div class="bar"><i style="width:54%;background:#C9A7E8;"></i></div></div>
+              <div><div style="display:flex;justify-content:space-between;font-size:12.5px;"><span><span class="dot" style="background:#F4B393;"></span> 出差</span><span style="color:var(--sub);">¥ 3,260 · 9 笔</span></div><div class="bar"><i style="width:28%;background:#F4B393;"></i></div></div>
+              <div><div style="display:flex;justify-content:space-between;font-size:12.5px;"><span><span class="dot" style="background:#8BC8EA;"></span> 房贷</span><span style="color:var(--sub);">¥ 2,400 · 2 笔</span></div><div class="bar"><i style="width:20%;background:#8BC8EA;"></i></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 资产 -->
+        <div class="report-panel" id="rpt-asset">
+          <div class="grid g2">
+            <div class="card">
+              <div class="card-title">资产分布（按账户类型）</div>
+              <div style="display:flex;flex-direction:column;gap:12px;">
+                <div><div style="display:flex;justify-content:space-between;font-size:12.5px;"><span>📈 股票</span><span style="color:var(--sub);">¥ 152,000 · 38.5%</span></div><div class="bar"><i style="width:38%;background:#F4B393;"></i></div></div>
+                <div><div style="display:flex;justify-content:space-between;font-size:12.5px;"><span>💳 储蓄</span><span style="color:var(--sub);">¥ 128,080 · 32.4%</span></div><div class="bar"><i style="width:32%;background:#0D9488;"></i></div></div>
+                <div><div style="display:flex;justify-content:space-between;font-size:12.5px;"><span>🛡️ 国债</span><span style="color:var(--sub);">¥ 80,000 · 20.2%</span></div><div class="bar"><i style="width:20%;background:#8BC8EA;"></i></div></div>
+                <div><div style="display:flex;justify-content:space-between;font-size:12.5px;"><span>💎 贵金属</span><span style="color:var(--sub);">¥ 26,440 · 6.7%</span></div><div class="bar"><i style="width:7%;background:#C9A7E8;"></i></div></div>
+                <div><div style="display:flex;justify-content:space-between;font-size:12.5px;"><span>🌐 外币</span><span style="color:var(--sub);">≈¥ 8,580 · 2.2%</span></div><div class="bar"><i style="width:3%;background:#9EACEA;"></i></div></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-title">账户余额明细</div>
+              <table class="tbl">
+                <tr><th>账户</th><th>类型</th><th style="text-align:right;">余额</th><th>计入资产</th></tr>
+                <tr><td>A 股账户</td><td>investment</td><td class="amt-in" style="text-align:right;">¥ 152,000</td><td><span class="asset-tag">是</span></td></tr>
+                <tr><td>招行储蓄卡</td><td>debit_card</td><td class="amt-in" style="text-align:right;">¥ 118,460</td><td><span class="asset-tag">是</span></td></tr>
+                <tr><td>国债</td><td>bond</td><td class="amt-in" style="text-align:right;">¥ 80,000</td><td><span class="asset-tag">是</span></td></tr>
+                <tr><td>黄金定投</td><td>precious_metal</td><td class="amt-in" style="text-align:right;">¥ 26,440</td><td><span class="asset-tag">是</span></td></tr>
+                <tr><td>美元账户</td><td>foreign_currency</td><td class="amt-in" style="text-align:right;">$ 1,200</td><td><span class="asset-tag">是</span></td></tr>
+                <tr><td>招行信用卡</td><td>credit_card</td><td class="amt-out" style="text-align:right;">-¥ 4,860</td><td style="color:var(--faint);font-size:11px;">否（负债）</td></tr>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- 年度 -->
+        <div class="report-panel" id="rpt-year">
+          <div class="card">
+            <div class="card-title">2026 年度收支汇总</div>
+            <table class="tbl">
+              <tr><th>月份</th><th style="text-align:right;">收入</th><th style="text-align:right;">支出</th><th style="text-align:right;">结余</th></tr>
+              <tr><td>1 月</td><td class="amt-in" style="text-align:right;">¥ 24,500</td><td class="amt-out" style="text-align:right;">¥ 13,200</td><td class="amt-in" style="text-align:right;">+¥ 11,300</td></tr>
+              <tr><td>2 月</td><td class="amt-in" style="text-align:right;">¥ 26,000</td><td class="amt-out" style="text-align:right;">¥ 14,600</td><td class="amt-in" style="text-align:right;">+¥ 11,400</td></tr>
+              <tr><td>3 月</td><td class="amt-in" style="text-align:right;">¥ 25,000</td><td class="amt-out" style="text-align:right;">¥ 13,800</td><td class="amt-in" style="text-align:right;">+¥ 11,200</td></tr>
+              <tr><td>4 月</td><td class="amt-in" style="text-align:right;">¥ 24,000</td><td class="amt-out" style="text-align:right;">¥ 13,000</td><td class="amt-in" style="text-align:right;">+¥ 11,000</td></tr>
+              <tr><td>5 月</td><td class="amt-in" style="text-align:right;">¥ 28,000</td><td class="amt-out" style="text-align:right;">¥ 15,200</td><td class="amt-in" style="text-align:right;">+¥ 12,800</td></tr>
+              <tr><td>6 月</td><td class="amt-in" style="text-align:right;">¥ 26,000</td><td class="amt-out" style="text-align:right;">¥ 14,000</td><td class="amt-in" style="text-align:right;">+¥ 12,000</td></tr>
+              <tr><td>7 月</td><td class="amt-in" style="text-align:right;">¥ 30,000</td><td class="amt-out" style="text-align:right;">¥ 17,200</td><td class="amt-in" style="text-align:right;">+¥ 12,800</td></tr>
+              <tr><td>8 月</td><td class="amt-in" style="text-align:right;">¥ 31,000</td><td class="amt-out" style="text-align:right;">¥ 16,000</td><td class="amt-in" style="text-align:right;">+¥ 15,000</td></tr>
+              <tr><td>9 月</td><td class="amt-in" style="text-align:right;">¥ 28,000</td><td class="amt-out" style="text-align:right;">¥ 12,480</td><td class="amt-in" style="text-align:right;">+¥ 15,520</td></tr>
+              <tr style="font-weight:700;"><td>年度合计</td><td class="amt-in" style="text-align:right;">¥ 242,500</td><td class="amt-out" style="text-align:right;">¥ 129,480</td><td class="amt-in" style="text-align:right;">+¥ 113,020</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== 余额表（账户余额快照 / 期末对账） ===== -->
+      <div class="page" id="p-balance">
+        <div class="page-head">
+          <div><div class="page-title">余额表</div><div class="page-sub">账户余额快照 · 期末对账</div></div>
+          <div style="margin-left:auto;display:flex;gap:8px;"><button class="btn sm" onclick="toast('导入银行 / 微信 / 支付宝对账单 Excel 示意')">导入对账单</button><button class="btn sm" onclick="recordBalance()">记录余额快照</button></div>
+        </div>
+        <div class="grid g3">
+          <div class="card stat"><div class="lbl">期末余额合计</div><div class="val">¥ 395,100</div><div class="delta">8 个账户（含 1 张信用卡）</div></div>
+          <div class="card stat"><div class="lbl">已对账</div><div class="val amt-in">7 / 8</div><div class="delta">账户余额与流水一致</div></div>
+          <div class="card stat"><div class="lbl">待处理差异</div><div class="val amt-out">¥ 50</div><div class="delta">现金账户 · 待核对</div></div>
+        </div>
+        <div class="card">
+          <div class="card-title">账户余额对账表 <span style="font-size:11px;color:var(--faint);font-weight:400;">· 当前余额 = 期初余额 + 流水实时汇总；快照用于期末核对</span></div>
+          <table class="tbl">
+            <tr><th>账户</th><th>类型</th><th style="text-align:right;">期初余额</th><th style="text-align:right;">本期收入</th><th style="text-align:right;">本期支出</th><th style="text-align:right;">当前余额</th><th>最近快照</th><th>状态</th></tr>
+            <tr><td>💵 现金</td><td>cash</td><td style="text-align:right;">¥ 2,800</td><td class="amt-in" style="text-align:right;">+¥ 3,600</td><td class="amt-out" style="text-align:right;">-¥ 3,200</td><td class="amt-in" style="text-align:right;">¥ 3,200</td><td>09-01 · ¥ 3,150</td><td><span class="pill tag">待对账</span></td></tr>
+            <tr><td>🏦 招行储蓄卡</td><td>debit_card</td><td style="text-align:right;">¥ 110,000</td><td class="amt-in" style="text-align:right;">+¥ 18,460</td><td class="amt-out" style="text-align:right;">-¥ 10,000</td><td class="amt-in" style="text-align:right;">¥ 118,460</td><td>09-01 · 一致</td><td><span class="pill">已对账</span></td></tr>
+            <tr><td>💳 招行信用卡</td><td>credit_card</td><td style="text-align:right;">-¥ 4,200</td><td style="text-align:right;">—</td><td class="amt-out" style="text-align:right;">-¥ 660</td><td class="amt-out" style="text-align:right;">-¥ 4,860</td><td>09-01 · 一致</td><td><span class="pill">已对账</span></td></tr>
+            <tr><td>💬 微信</td><td>wechat</td><td style="text-align:right;">¥ 5,800</td><td class="amt-in" style="text-align:right;">+¥ 2,120</td><td class="amt-out" style="text-align:right;">-¥ 1,500</td><td class="amt-in" style="text-align:right;">¥ 6,420</td><td>09-01 · 一致</td><td><span class="pill">已对账</span></td></tr>
+            <tr><td>📈 A 股</td><td>investment</td><td style="text-align:right;">¥ 148,000</td><td class="amt-in" style="text-align:right;">+¥ 4,000</td><td style="text-align:right;">—</td><td class="amt-in" style="text-align:right;">¥ 152,000</td><td>09-01 · 一致</td><td><span class="pill">已对账</span></td></tr>
+            <tr><td>🌐 美元账户</td><td>foreign_currency</td><td style="text-align:right;">$ 1,150</td><td class="amt-in" style="text-align:right;">+$ 50</td><td style="text-align:right;">—</td><td class="amt-in" style="text-align:right;">$ 1,200</td><td>09-01 · 一致</td><td><span class="pill">已对账</span></td></tr>
+            <tr><td>🛡️ 国债</td><td>bond</td><td style="text-align:right;">¥ 80,000</td><td style="text-align:right;">—</td><td style="text-align:right;">—</td><td class="amt-in" style="text-align:right;">¥ 80,000</td><td>09-01 · 一致</td><td><span class="pill">已对账</span></td></tr>
+            <tr><td>💎 黄金</td><td>precious_metal</td><td style="text-align:right;">¥ 25,000</td><td class="amt-in" style="text-align:right;">+¥ 1,440</td><td style="text-align:right;">—</td><td class="amt-in" style="text-align:right;">¥ 26,440</td><td>09-01 · 一致</td><td><span class="pill">已对账</span></td></tr>
+          </table>
+        </div>
+        <div class="grid g2">
+          <div class="card">
+            <div class="card-title">快照历史（现金账户）</div>
+            <div style="display:flex;flex-direction:column;gap:10px;font-size:12.5px;">
+              <div style="display:flex;align-items:center;gap:10px;"><span class="dot" style="background:#D97706;"></span><span>2026-09-01</span><span style="font-weight:600;">¥ 3,150</span><span style="color:var(--faint);margin-left:auto;">与流水差 ¥50 · 待核对</span></div>
+              <div style="display:flex;align-items:center;gap:10px;"><span class="dot" style="background:#16A34A;"></span><span>2026-08-01</span><span style="font-weight:600;">¥ 2,800</span><span style="color:var(--faint);margin-left:auto;">一致 ✓</span></div>
+              <div style="display:flex;align-items:center;gap:10px;"><span class="dot" style="background:#16A34A;"></span><span>2026-07-01</span><span style="font-weight:600;">¥ 2,750</span><span style="color:var(--faint);margin-left:auto;">一致 ✓</span></div>
+              <div style="display:flex;align-items:center;gap:10px;"><span class="dot" style="background:#16A34A;"></span><span>2026-06-01</span><span style="font-weight:600;">¥ 2,680</span><span style="color:var(--faint);margin-left:auto;">一致 ✓</span></div>
+            </div>
+            <div style="font-size:11.5px;color:var(--faint);margin-top:10px;">按月 / 按周 / 按自定义日期记录快照，形成账户余额时间线</div>
+          </div>
+          <div class="card">
+            <div class="card-title">余额表说明</div>
+            <div style="font-size:12.5px;color:var(--sub);line-height:1.8;">
+              <p style="margin:0 0 8px;">· <b>当前余额</b>由流水实时汇总（期初余额 + 收入 − 支出），不落库、不重复记账。</p>
+              <p style="margin:0 0 8px;">· <b>余额快照</b>为每个账户定期记录的账面数，用于期末与流水对账，及时发现漏记 / 错记 / 手续费差异。</p>
+              <p style="margin:0 0 8px;">· 支持导入银行、微信、支付宝对账单 Excel 自动比对；差异可人工标记"已对账"。</p>
+              <p style="margin:0;">· 全部快照写入 <b>balances</b> 表，操作计入审计日志。</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== 项目 ===== -->
+      <div class="page" id="p-projects">
+        <div class="page-head"><div><div class="page-title">项目</div><div class="page-sub">把一笔生意的收支归集，看整体盈亏与预算</div></div>
+          <div style="margin-left:auto;"><button class="btn brand sm" onclick="toast('新建项目示意')">+ 新建项目</button></div></div>
+        <div class="grid g3">
+          <div class="card"><div style="display:flex;align-items:center;gap:10px;"><div class="ledger-ico" style="background:#E0F2F1;">🧋</div><div><div style="font-weight:600;">奶茶店</div><div style="font-size:11px;color:var(--faint);">进行中</div></div></div>
+            <div style="display:flex;justify-content:space-between;margin-top:14px;font-size:12px;"><span style="color:var(--sub);">结余</span><span class="amt-in" style="font-weight:600;">+¥ 15,600</span></div>
+            <div style="margin-top:8px;"><div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--sub);"><span>预算使用 ¥41,200 / ¥50,000</span><span>82%</span></div><div class="bar"><i style="width:82%;background:#D97706;"></i></div></div>
+          </div>
+          <div class="card"><div style="display:flex;align-items:center;gap:10px;"><div class="ledger-ico" style="background:#F0E9FA;">👶</div><div><div style="font-weight:600;">宝贝计划</div><div style="font-size:11px;color:var(--faint);">已完成</div></div></div>
+            <div style="display:flex;justify-content:space-between;margin-top:14px;font-size:12px;"><span style="color:var(--sub);">结余</span><span class="amt-out" style="font-weight:600;">-¥ 12,900</span></div>
+            <div style="margin-top:8px;"><div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--sub);"><span>预算使用 ¥12,900 / ¥15,000</span><span>86%</span></div><div class="bar"><i style="width:86%;"></i></div></div>
+          </div>
+          <div class="card" style="border-style:dashed;display:flex;align-items:center;justify-content:center;color:var(--faint);cursor:pointer;" onclick="toast('新建项目示意')">+ 新建项目</div>
+        </div>
+      </div>
+
+      <!-- ===== 标签 ===== -->
+      <div class="page" id="p-tags">
+        <div class="page-head"><div><div class="page-title">标签</div><div class="page-sub">多对多标记流水 · 按标签筛选与统计</div></div>
+          <div style="margin-left:auto;"><button class="btn brand sm" onclick="toast('新建标签示意')">+ 新建标签</button></div></div>
+        <div class="grid g3">
+          <div class="card"><div style="display:flex;align-items:center;gap:10px;"><span class="dot" style="background:#EA6668;width:12px;height:12px;"></span><div><div style="font-weight:600;">宝宝</div><div style="font-size:11px;color:var(--faint);">26 笔 · ¥8,940</div></div></div></div>
+          <div class="card"><div style="display:flex;align-items:center;gap:10px;"><span class="dot" style="background:#8BC8EA;width:12px;height:12px;"></span><div><div style="font-weight:600;">出差</div><div style="font-size:11px;color:var(--faint);">9 笔 · ¥3,260</div></div></div></div>
+          <div class="card"><div style="display:flex;align-items:center;gap:10px;"><span class="dot" style="background:#A2DDAA;width:12px;height:12px;"></span><div><div style="font-weight:600;">房贷</div><div style="font-size:11px;color:var(--faint);">2 笔 · ¥2,400</div></div></div></div>
+          <div class="card"><div style="display:flex;align-items:center;gap:10px;"><span class="dot" style="background:#C9A7E8;width:12px;height:12px;"></span><div><div style="font-weight:600;">康复</div><div style="font-size:11px;color:var(--faint);">4 笔 · ¥6,280</div></div></div></div>
+          <div class="card"><div style="display:flex;align-items:center;gap:10px;"><span class="dot" style="background:#F4B393;width:12px;height:12px;"></span><div><div style="font-weight:600;">投资</div><div style="font-size:11px;color:var(--faint);">6 笔 · ¥18,000</div></div></div></div>
+          <div class="card" style="border-style:dashed;display:flex;align-items:center;justify-content:center;color:var(--faint);cursor:pointer;" onclick="toast('新建标签示意')">+ 新建标签</div>
+        </div>
+      </div>
+
+      <!-- ===== 操作日志 ===== -->
+      <div class="page" id="p-logs">
+        <div class="page-head"><div><div class="page-title">操作日志</div><div class="page-sub">所有增 / 查 / 改 / 删留痕 · 保存 90 天</div></div>
+          <div style="margin-left:auto;display:flex;gap:8px;"><button class="btn sm" onclick="toast('导出日志示意')">导出</button><button class="btn sm ghost" onclick="toast('确认后清理 90 天前日志')">清理超期</button></div></div>
+        <div class="filterbar">
+          <select><option>全部动作</option><option>新增</option><option>查看</option><option>修改</option><option>删除</option></select>
+          <select><option>全部对象</option><option>流水</option><option>账户</option><option>设置</option><option>导入导出</option></select>
+          <input type="text" placeholder="搜索操作者 / 对象 ID" style="width:180px;">
+        </div>
+        <div class="batchbar" id="logbar">已选 <b id="logSelCount">0</b> 条日志 &nbsp;<button class="btn sm danger" onclick="logBatchDel()">批量删除</button><button class="btn sm" onclick="logClearSel()">取消选择</button></div>
+        <div class="card" style="padding:8px 18px;">
+          <table class="tbl">
+            <tr><th style="width:34px;"><input type="checkbox" class="chk" onclick="logToggleAll(this)" title="全选"></th><th>时间</th><th>操作者</th><th>动作</th><th>对象</th><th>对象 ID / 摘要</th><th>IP</th></tr>
+            <tr><td><input type="checkbox" class="chk txchk" onchange="logSel()"></td><td style="color:var(--sub);">09-04 14:32</td><td>管理员</td><td><span class="log-act act-c">新增</span></td><td>流水</td><td>山姆会员店 · -¥486.00</td><td style="color:var(--faint);">192.168.1.10</td></tr>
+            <tr><td><input type="checkbox" class="chk txchk" onchange="logSel()"></td><td style="color:var(--sub);">09-04 09:12</td><td>管理员</td><td><span class="log-act act-u">修改</span></td><td>设置</td><td>audit_log_retention_days: 60 → 90</td><td style="color:var(--faint);">192.168.1.10</td></tr>
+            <tr><td><input type="checkbox" class="chk txchk" onchange="logSel()"></td><td style="color:var(--sub);">09-03 18:05</td><td>管理员</td><td><span class="log-act act-c">新增</span></td><td>账户</td><td>黄金定投（贵金属）</td><td style="color:var(--faint);">192.168.1.10</td></tr>
+            <tr><td><input type="checkbox" class="chk txchk" onchange="logSel()"></td><td style="color:var(--sub);">09-03 10:44</td><td>管理员</td><td><span class="log-act act-r">查看</span></td><td>报表</td><td>导出 Excel：2026-08 月度报表</td><td style="color:var(--faint);">192.168.1.10</td></tr>
+            <tr><td><input type="checkbox" class="chk txchk" onchange="logSel()"></td><td style="color:var(--sub);">09-02 21:30</td><td>管理员</td><td><span class="log-act act-d">删除</span></td><td>流水</td><td>删除重复流水 · -¥32.00</td><td style="color:var(--faint);">192.168.1.10</td></tr>
+          </table>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0 4px;font-size:12px;color:var(--sub);"><span>共 3,842 条</span><button class="btn sm">下一页</button></div>
+        </div>
+      </div>
+
+      <!-- ===== 全局设置 ===== -->
+      <div class="page" id="p-settings">
+        <div class="page-head"><div><div class="page-title">全局设置</div><div class="page-sub">仅管理员可见 · 修改即生效并写入操作日志</div></div></div>
+
+        <div class="set-group">
+          <div class="set-group-title">基础设置</div>
+          <div class="card">
+            <div class="set-row">
+              <div><div class="set-lbl">程序名称</div><div class="set-desc">显示在标题栏、浏览器标签、登录页</div></div>
+              <div class="set-right"><input type="text" value="ratcount" style="padding:8px 10px;border:1px solid var(--line);border-radius:9px;width:160px;"><button class="btn sm brand">保存</button></div>
+            </div>
+            <div class="set-row">
+              <div><div class="set-lbl">默认语言</div><div class="set-desc">游客与新用户的初始界面语言</div></div>
+              <div class="set-right"><select style="padding:8px 10px;border:1px solid var(--line);border-radius:9px;"><option>中文</option><option>English</option></select></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="set-group">
+          <div class="set-group-title">安全设置</div>
+          <div class="card">
+            <div class="set-row">
+              <div><div class="set-lbl">允许注册</div><div class="set-desc">关闭后注册页显示"暂未开放"，注册接口拒绝</div></div>
+              <div class="set-right"><span class="switch on"></span></div>
+            </div>
+            <div class="set-row">
+              <div><div class="set-lbl">登录验证码</div><div class="set-desc">自研轻量图形验证码，零成本</div></div>
+              <div class="set-right"><span class="switch on"></span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="set-group">
+          <div class="set-group-title">币种管理</div>
+          <div class="card">
+            <table class="tbl">
+              <tr><th>代码</th><th>符号</th><th>名称</th><th style="text-align:right;">对基准汇率</th><th>基准</th><th>启用</th></tr>
+              <tr><td><b>CNY</b></td><td>¥</td><td>人民币</td><td style="text-align:right;color:var(--faint);">1.0000</td><td><span class="pill tag">基准</span></td><td><span class="switch on" style="transform:scale(.8);transform-origin:left;"></span></td></tr>
+              <tr><td>USD</td><td>$</td><td>美元</td><td style="text-align:right;">7.1520</td><td>—</td><td><span class="switch on" style="transform:scale(.8);transform-origin:left;"></span></td></tr>
+              <tr><td>EUR</td><td>€</td><td>欧元</td><td style="text-align:right;">7.8210</td><td>—</td><td><span class="switch on" style="transform:scale(.8);transform-origin:left;"></span></td></tr>
+              <tr><td>JPY</td><td>¥</td><td>日元</td><td style="text-align:right;">0.0492</td><td>—</td><td><span class="switch on" style="transform:scale(.8);transform-origin:left;"></span></td></tr>
+              <tr><td>HKD</td><td>HK$</td><td>港币</td><td style="text-align:right;">0.9170</td><td>—</td><td><span class="switch on" style="transform:scale(.8);transform-origin:left;"></span></td></tr>
+            </table>
+            <div style="margin-top:12px;"><button class="btn sm">+ 新增币种</button><span style="font-size:11.5px;color:var(--faint);margin-left:10px;">汇率管理员手动维护，可后续接免费汇率 API 自动更新</span></div>
+          </div>
+        </div>
+
+        <div class="set-group">
+          <div class="set-group-title">日志管理</div>
+          <div class="card">
+            <div class="set-row">
+              <div><div class="set-lbl">操作日志保存天数</div><div class="set-desc">超期日志在写入时自动清理，也可手动清理</div></div>
+              <div class="set-right"><input type="number" value="90" style="padding:8px 10px;border:1px solid var(--line);border-radius:9px;width:90px;"><span style="font-size:12px;color:var(--sub);">天</span></div>
+            </div>
+            <div class="set-row">
+              <div><div class="set-lbl">日志管理</div><div class="set-desc">查看、筛选、导出、手动清理全部操作记录</div></div>
+              <div class="set-right"><button class="btn sm" onclick="go('logs',document.querySelector('[data-p=logs]'))">进入日志页</button></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="set-group">
+          <div class="set-group-title">数据管理</div>
+          <div class="card">
+            <div class="set-row">
+              <div><div class="set-lbl">导出数据（Excel）</div><div class="set-desc">按账本导出：流水 / 账户 / 分类，3 个 Sheet，可作备份</div></div>
+              <div class="set-right"><button class="btn sm" onclick="toast('导出 Excel 示意')">导出</button></div>
+            </div>
+            <div class="set-row">
+              <div><div class="set-lbl">导入数据（Excel）</div><div class="set-desc">下载模板 → 上传 → 校验 → 预览 → 确认，返回逐行结果报告</div></div>
+              <div class="set-right"><button class="btn sm brand" onclick="toast('导入向导示意')">导入</button></div>
+            </div>
+            <div class="set-row">
+              <div><div class="set-lbl">下载导入模板</div><div class="set-desc">带列头说明的 xlsx 模板（流水 / 账户 / 分类）</div></div>
+              <div class="set-right"><button class="btn sm" onclick="toast('模板下载示意')">下载模板</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== 个人设置 ===== -->
+      <div class="page" id="p-profile">
+        <div class="page-head">
+          <div><div class="page-title">个人设置</div><div class="page-sub">仅影响当前账号 · 不改变系统全局设置</div></div>
+        </div>
+
+        <div class="set-group">
+          <div class="set-group-title">风格设置</div>
+          <div class="card">
+            <div class="set-row">
+              <div><div class="set-lbl">外观模式</div><div class="set-desc">浅色 / 深色 / 跟随系统，可实时预览切换</div></div>
+              <div class="set-right" style="gap:6px;">
+                <button class="theme-opt btn sm sel" data-theme="light" onclick="setTheme('light')">浅色</button>
+                <button class="theme-opt btn sm" data-theme="dark" onclick="setTheme('dark')">深色</button>
+                <button class="theme-opt btn sm" data-theme="system" onclick="setTheme('system')">跟随系统</button>
+              </div>
+            </div>
+            <div class="set-row">
+              <div><div class="set-lbl">主题色</div><div class="set-desc">应用于按钮、选中态、图表与导航高亮</div></div>
+              <div class="set-right">
+                <span class="accent-opt sel" data-accent="#0D9488" onclick="setAccent('#0D9488')" style="width:24px;height:24px;border-radius:8px;background:#0D9488;display:inline-block;cursor:pointer;border:2px solid transparent;margin:0 4px;"></span>
+                <span class="accent-opt" data-accent="#2563EB" onclick="setAccent('#2563EB')" style="width:24px;height:24px;border-radius:8px;background:#2563EB;display:inline-block;cursor:pointer;border:2px solid transparent;margin:0 4px;"></span>
+                <span class="accent-opt" data-accent="#7C3AED" onclick="setAccent('#7C3AED')" style="width:24px;height:24px;border-radius:8px;background:#7C3AED;display:inline-block;cursor:pointer;border:2px solid transparent;margin:0 4px;"></span>
+                <span class="accent-opt" data-accent="#EA580C" onclick="setAccent('#EA580C')" style="width:24px;height:24px;border-radius:8px;background:#EA580C;display:inline-block;cursor:pointer;border:2px solid transparent;margin:0 4px;"></span>
+              </div>
+            </div>
+            <div class="set-row">
+              <div><div class="set-lbl">列表密度</div><div class="set-desc">流水列表行高与信息密度</div></div>
+              <div class="set-right"><select style="padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--input-bg);"><option>舒适</option><option>紧凑</option></select></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="set-group">
+          <div class="set-group-title">语言设置</div>
+          <div class="card">
+            <div class="set-row">
+              <div><div class="set-lbl">界面语言</div><div class="set-desc">覆盖系统默认语言，仅影响你的界面显示</div></div>
+              <div class="set-right"><select style="padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--input-bg);"><option>中文</option><option>English</option></select></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="set-group">
+          <div class="set-group-title">数据管理</div>
+          <div class="card">
+            <div class="set-row">
+              <div><div class="set-lbl">导出我的数据</div><div class="set-desc">导出你有权限的账本数据（Excel，可作备份）</div></div>
+              <div class="set-right"><button class="btn sm" onclick="toast('导出我的数据示意')">导出</button></div>
+            </div>
+            <div class="set-row">
+              <div><div class="set-lbl">导入数据</div><div class="set-desc">从模板或旧账本导入到当前账本</div></div>
+              <div class="set-right"><button class="btn sm brand" onclick="toast('导入向导示意')">导入</button></div>
+            </div>
+            <div class="set-row">
+              <div><div class="set-lbl">账号信息</div><div class="set-desc">demo@example.com · 角色：管理员 · 加入于 2026-06</div></div>
+              <div class="set-right"><button class="btn sm ghost" onclick="toast('修改密码示意')">修改密码</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ===== 移动端抽屉菜单 ===== -->
+<div class="drawer-overlay" id="drawerOverlay" onclick="toggleDrawer(false)"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-head">
+    <div class="logo-badge" style="width:30px;height:30px;font-size:15px;border-radius:8px;">R</div>
+    <div><div style="font-weight:700;font-size:14px;">ratcount</div><div style="font-size:11px;color:var(--faint);">本地模式 · 家庭账本</div></div>
+  </div>
+  <div class="ledger-box">
+    <div class="ledger-title">账本</div>
+    <div class="ledger-item active"><span class="ledger-ico">🏠</span> 家庭账本</div>
+    <div class="ledger-item"><span class="ledger-ico">💼</span> 奶茶店</div>
+    <div class="ledger-item"><span class="ledger-ico">👤</span> 个人零花</div>
+  </div>
+  <div class="side-label">菜单</div>
+  <div class="nav-item active" data-p="dashboard" onclick="go('dashboard',this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg> 仪表盘</div>
+  <div class="nav-item" data-p="flow" onclick="go('flow',this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg> 流水明细</div>
+  <div class="nav-item" data-p="add" onclick="go('add',this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg> 记一笔</div>
+  <div class="nav-item" data-p="accounts" onclick="go('accounts',this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M16 12h.01"/></svg> 账户</div>
+  <div class="nav-item" data-p="reports" onclick="go('reports',this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg> 报表</div>
+  <div class="nav-item" data-p="balance" onclick="go('balance',this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h12a1 1 0 0 1 1 1v18l-3-2-3 2-3-2-3 2V3a1 1 0 0 1 1-1z"/><path d="M9 10l2 2 4-4"/></svg> 余额表</div>
+  <div class="side-label">管理</div>
+  <div class="nav-item" data-p="projects" onclick="go('projects',this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg> 项目</div>
+  <div class="nav-item" data-p="tags" onclick="go('tags',this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l9-9 9 9-9 9z"/><circle cx="9" cy="9" r="1.4"/></svg> 标签</div>
+  <div class="nav-item" data-p="logs" onclick="go('logs',this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h12a1 1 0 0 1 1 1v18l-3-2-3 2-3-2-3 2V3a1 1 0 0 1 1-1z"/></svg> 操作日志</div>
+  <div class="nav-item" data-p="settings" onclick="go('settings',this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.5-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.5 2 1.5A7 7 0 0 0 5 12a7 7 0 0 0 .1 1.2l-2 1.5 2 3.5 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.5-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.5-2-1.5c.06-.4.1-.8.1-1.2z"/></svg> 全局设置</div>
+  <div class="nav-item" data-p="profile" onclick="go('profile',this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h13M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg> 个人设置</div>
+</div>
+
+<!-- ===== 移动端底部 Tab 导航 ===== -->
+<div class="tabbar" id="tabbar">
+  <a data-p="dashboard" class="active" onclick="go('dashboard',document.querySelector('.nav-item[data-p=dashboard]'))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>仪表盘</a>
+  <a data-p="flow" onclick="go('flow',document.querySelector('.nav-item[data-p=flow]'))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>流水</a>
+  <a data-p="add" onclick="go('add',document.querySelector('.nav-item[data-p=add]'))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>记一笔</a>
+  <a data-p="reports" onclick="go('reports',document.querySelector('.nav-item[data-p=reports]'))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>报表</a>
+  <a data-p="settings" onclick="go('settings',document.querySelector('.nav-item[data-p=settings]'))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.5-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.5 2 1.5A7 7 0 0 0 5 12a7 7 0 0 0 .1 1.2l-2 1.5 2 3.5 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.5-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.5-2-1.5c.06-.4.1-.8.1-1.2z"/></svg>设置</a>
+</div>
+
+<!-- ===== 全局确认对话框（写操作执行前弹出，确认后才执行） ===== -->
+<div class="modal-overlay" id="confirmOverlay" onclick="closeConfirm()"></div>
+<div class="confirm-modal" id="confirmModal">
+  <div class="confirm-ico" id="confirmIco">⚠️</div>
+  <div class="confirm-title" id="confirmTitle">确认操作</div>
+  <div class="confirm-desc" id="confirmDesc">该操作将执行，请确认。</div>
+  <div class="confirm-btns">
+    <button class="btn" onclick="closeConfirm()">取消</button>
+    <button class="btn brand" id="confirmOk" onclick="doConfirm()">确认</button>
+  </div>
+</div>
+
+<script>
+  var cur = 'dashboard';
+  function go(page, el){
+    var p = document.getElementById('p-'+page);
+    if(!p) return;
+    var pages = document.querySelectorAll('.page');
+    for(var i=0;i<pages.length;i++){ pages[i].classList.remove('active'); }
+    p.classList.add('active');
+    var navs = document.querySelectorAll('.nav-item');
+    for(var j=0;j<navs.length;j++){ navs[j].classList.remove('active'); }
+    if(el) el.classList.add('active');
+    var tabs = document.querySelectorAll('.tabbar a');
+    for(var k=0;k<tabs.length;k++){ tabs[k].classList.toggle('active', tabs[k].getAttribute('data-p')===page); }
+    toggleDrawer(false);
+    cur = page;
+  }
+  function toggleDrawer(open){
+    var d = document.getElementById('drawer');
+    var o = document.getElementById('drawerOverlay');
+    if(!d || !o) return;
+    if(open){ d.classList.add('open'); o.classList.add('show'); }
+    else{ d.classList.remove('open'); o.classList.remove('show'); }
+  }
+  function setTheme(mode){
+    var b = document.body;
+    if(mode === 'dark'){ b.classList.add('dark'); }
+    else if(mode === 'light'){ b.classList.remove('dark'); }
+    else { b.classList.toggle('dark', !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)); }
+    var btns = document.querySelectorAll('.theme-opt');
+    for(var i=0;i<btns.length;i++){ btns[i].classList.toggle('sel', btns[i].getAttribute('data-theme')===mode); }
+    try{ localStorage.setItem('theme', mode); }catch(e){}
+  }
+  function setAccent(c){
+    document.documentElement.style.setProperty('--brand', c);
+    document.documentElement.style.setProperty('--brand-deep', c);
+    var cells = document.querySelectorAll('.accent-opt');
+    for(var i=0;i<cells.length;i++){ cells[i].classList.toggle('sel', cells[i].getAttribute('data-accent')===c); }
+    try{ localStorage.setItem('accent', c); }catch(e){}
+  }
+
+  /* 确认对话框：所有写操作执行前必须先确认，用户确认后才真正执行
+     Confirm dialog: every write operation must be confirmed before it really runs */
+  var confirmCb = null;
+  function askConfirm(title, desc, cb, okText, variant){
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmDesc').textContent = desc;
+    var ico = document.getElementById('confirmIco');
+    ico.className = 'confirm-ico' + (variant === 'danger' ? ' danger' : (variant === 'warn' ? ' warn' : ''));
+    ico.textContent = variant === 'danger' ? '!' : (variant === 'warn' ? '⚠️' : '✓');
+    var ok = document.getElementById('confirmOk');
+    ok.textContent = okText || '确认';
+    ok.className = 'btn ' + (variant === 'danger' ? 'danger' : 'brand');
+    confirmCb = cb;
+    document.getElementById('confirmOverlay').classList.add('show');
+    document.getElementById('confirmModal').classList.add('show');
+  }
+  function closeConfirm(){
+    document.getElementById('confirmOverlay').classList.remove('show');
+    document.getElementById('confirmModal').classList.remove('show');
+    confirmCb = null;
+  }
+  function doConfirm(){
+    var cb = confirmCb; closeConfirm(); if(cb) cb();
+  }
+
+  /* 报表页签切换（总览/分类/趋势/项目/标签/资产/年度）
+     Report tab switching */
+  function goReport(name, el){
+    var panels = document.querySelectorAll('.report-panel');
+    for(var i=0;i<panels.length;i++){ panels[i].classList.remove('active'); }
+    var t = document.getElementById('rpt-'+name); if(t) t.classList.add('active');
+    var tabs = document.querySelectorAll('.report-tab');
+    for(var j=0;j<tabs.length;j++){ tabs[j].classList.remove('active'); }
+    if(el) el.classList.add('active');
+  }
+
+  /* 复制交易：周期账单重复 —— 基于原交易一键生成一条新记录
+     Duplicate a transaction: quickly create a new record from an existing one */
+  function copyTx(name){
+    askConfirm('复制交易', '将基于「'+name+'」生成一条新记录（周期账单重复），发生日期更新为今天，可再编辑。', function(){ toast('已复制为新交易 · 写入审计日志'); }, '复制');
+  }
+
+  /* 删除单笔流水 / Delete a single transaction */
+  function delTx(name){
+    askConfirm('删除交易', '确定删除「'+name+'」吗？删除后不可恢复。', function(){ toast('已删除 · 写入审计日志'); }, '删除', 'danger');
+  }
+
+  /* 批量选择与批量删除 / Batch selection & batch delete */
+  function toggleAll(cb){
+    var chks = document.querySelectorAll('#p-flow .txchk');
+    for(var i=0;i<chks.length;i++){ chks[i].checked = cb.checked; }
+    updateSel();
+  }
+  function selTx(){ updateSel(); }
+  function updateSel(){
+    var n = document.querySelectorAll('#p-flow .txchk:checked').length;
+    var bar = document.getElementById('batchbar');
+    if(!bar) return;
+    if(n > 0){ bar.classList.add('show'); document.getElementById('selCount').textContent = n; }
+    else{ bar.classList.remove('show'); }
+  }
+  function clearSel(){
+    var chks = document.querySelectorAll('#p-flow .txchk');
+    for(var i=0;i<chks.length;i++){ chks[i].checked = false; }
+    var all = document.querySelector('#p-flow .chk'); if(all) all.checked = false;
+    updateSel();
+  }
+  function batchDel(){
+    var n = document.querySelectorAll('#p-flow .txchk:checked').length;
+    if(n === 0) return;
+    askConfirm('批量删除', '将删除选中的 '+n+' 条流水，此操作不可恢复。', function(){ toast('已删除 '+n+' 条流水 · 写入审计日志'); clearSel(); }, '删除', 'danger');
+  }
+
+  /* 记录余额快照（写操作，需确认） / Record a balance snapshot (needs confirmation) */
+  function recordBalance(){
+    askConfirm('记录余额快照', '将为当前账户记录今日的余额快照，用于期末对账，可随时修改或删除。', function(){ toast('已记录余额快照 · 写入审计日志'); }, '记录', '');
+  }
+
+  /* 操作日志：多选与批量删除 / Audit log: multi-select & batch delete */
+  function logToggleAll(cb){
+    var chks = document.querySelectorAll('#p-logs .txchk');
+    for(var i=0;i<chks.length;i++){ chks[i].checked = cb.checked; }
+    logUpdateSel();
+  }
+  function logSel(){ logUpdateSel(); }
+  function logUpdateSel(){
+    var n = document.querySelectorAll('#p-logs .txchk:checked').length;
+    var bar = document.getElementById('logbar');
+    if(!bar) return;
+    if(n > 0){ bar.classList.add('show'); document.getElementById('logSelCount').textContent = n; }
+    else{ bar.classList.remove('show'); }
+  }
+  function logClearSel(){
+    var chks = document.querySelectorAll('#p-logs .txchk');
+    for(var i=0;i<chks.length;i++){ chks[i].checked = false; }
+    var all = document.querySelector('#p-logs .chk'); if(all) all.checked = false;
+    logUpdateSel();
+  }
+  function logBatchDel(){
+    var n = document.querySelectorAll('#p-logs .txchk:checked').length;
+    if(n === 0) return;
+    askConfirm('批量删除日志', '将删除选中的 '+n+' 条操作日志，此操作不可恢复。本次删除动作本身也会写入新的审计记录（自反留痕）。', function(){ toast('已删除 '+n+' 条日志 · 删除动作已写入审计'); logClearSel(); }, '删除', 'danger');
+  }
+
+  /* 退出登录（写操作，需确认） / Logout (a write-like action, needs confirmation) */
+  function logout(){
+    askConfirm('退出登录', '确定要退出当前账号吗？', function(){
+      document.getElementById('app').style.display = 'none';
+      document.getElementById('page-login').style.display = 'flex';
+      toast('已退出登录');
+    }, '退出登录', 'warn');
+  }
+  function enterApp(){
+    document.getElementById('page-login').style.display='none';
+    document.getElementById('app').style.display='block';
+    toast('已登录 · 演示数据');
+  }
+  var toastTimer=null;
+  function toast(msg){
+    var t=document.getElementById('toast');
+    t.textContent=msg; t.style.display='block';
+    if(toastTimer) clearTimeout(toastTimer);
+    toastTimer=setTimeout(function(){ t.style.display='none'; }, 1800);
+  }
+  /* 登录页：动态 SVG 验证码 / Captcha generator */
+  var captchaCode = '';
+  function refreshCaptcha(){
+    var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; /* 排除易混淆字符 0/O/1/I */
+    var code = '';
+    for(var i=0;i<4;i++){ code += chars.charAt(Math.floor(Math.random()*chars.length)); }
+    captchaCode = code;
+    var svg = '<svg width="96" height="40" viewBox="0 0 96 40" xmlns="http://www.w3.org/2000/svg">';
+    for(var l=0;l<3;l++){ /* 干扰线 */
+      var x1=Math.random()*40, y1=Math.random()*40, x2=40+Math.random()*56, y2=Math.random()*40;
+      svg += '<line x1="'+x1.toFixed(0)+'" y1="'+y1.toFixed(0)+'" x2="'+x2.toFixed(0)+'" y2="'+y2.toFixed(0)+'" stroke="#8CC8BC" stroke-width="1" opacity="0.6"/>';
+    }
+    for(var j=0;j<4;j++){ /* 旋转字符 */
+      var x=12+j*21, y=26+(Math.random()*6-3), rot=(Math.random()*24-12).toFixed(0);
+      svg += '<text x="'+x+'" y="'+y.toFixed(0)+'" font-size="20" font-weight="700" fill="#0D9488" transform="rotate('+rot+' '+x+' '+y.toFixed(0)+')" text-anchor="middle">'+code.charAt(j)+'</text>';
+    }
+    svg += '</svg>';
+    document.getElementById('capBox').innerHTML = svg;
+  }
+
+  /* 登录校验（演示）：账号/密码/验证码齐全且验证码正确才进入 / Login validation */
+  function doLogin(){
+    var acct = document.getElementById('loginAccount').value.trim();
+    var pwd  = document.getElementById('loginPassword').value;
+    var cap  = document.getElementById('loginCaptcha').value.trim().toUpperCase();
+    if(!acct || !pwd){ toast('请输入账号和密码'); return; }
+    if(cap !== captchaCode){ toast('验证码错误，已自动刷新'); refreshCaptcha(); document.getElementById('loginCaptcha').value=''; return; }
+    enterApp();
+  }
+
+  /* i18n 演示：登录页中英文切换 / zh-en toggle on login page */
+  function toggleLang(l, el){
+    var links = document.querySelectorAll('.lang-link');
+    for(var i=0;i<links.length;i++){ links[i].classList.toggle('active', links[i]===el); }
+    if(l === 'en'){
+      document.getElementById('loginSub').textContent = 'Personal / Family / Business bookkeeping · data under your control';
+      document.getElementById('lblAcct').textContent = 'Account';
+      document.getElementById('lblPwd').textContent = 'Password';
+      document.getElementById('lblCap').textContent = 'Captcha ';
+      document.getElementById('btnLogin').textContent = 'Sign In';
+      document.getElementById('linkRegister').textContent = "Don't have an account? Sign up";
+    } else {
+      document.getElementById('loginSub').textContent = '个人 / 家庭 / 生意 记账 · 数据本地可控';
+      document.getElementById('lblAcct').textContent = '账号';
+      document.getElementById('lblPwd').textContent = '密码';
+      document.getElementById('lblCap').textContent = '验证码 ';
+      document.getElementById('btnLogin').textContent = '登 录';
+      document.getElementById('linkRegister').textContent = '没有账号？立即注册';
+    }
+  }
+
+  /* 默认先展示登录页；点击"登 录"通过后进入主界面 / Start at login page */
+  window.addEventListener('load', function(){
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('page-login').style.display = 'flex';
+    refreshCaptcha();
+  });
+</script>
+</body>
+</html>

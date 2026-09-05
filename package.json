@@ -1,0 +1,44 @@
+{
+  "name": "ratcount",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ratcount",
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "db:seed": "tsx db/seed.ts",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.15.0",
+    "bcryptjs": "^3.0.2",
+    "drizzle-orm": "^0.44.0",
+    "jose": "^6.0.0",
+    "next": "^16.0.0",
+    "next-auth": "^5.0.0-beta.29",
+    "next-intl": "^4.0.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "xlsx": "^0.18.5",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "drizzle-kit": "^0.31.0",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "^16.0.0",
+    "tailwindcss": "^4.1.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.9.0"
+  }
+}
