@@ -27,7 +27,7 @@ async function main() {
   // 1) 管理员用户 admin@example.com / demo1234
   const [admin] = await db.insert(users).values({
     email: "admin@example.com",
-    passwordHash: await bcrypt.hash("demo1234", 10),
+    passwordHash: await bcrypt.hash("demo1234", 12),
     name: "管理员",
     role: "admin",
   }).returning();

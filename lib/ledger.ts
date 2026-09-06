@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { cache } from "react";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { ledgerMembers, ledgers } from "@/db/schema";
@@ -28,9 +29,9 @@ export async function getCurrentLedgerId(): Promise<string | null> {
 }
 
 /** 当前账本对象 / Current ledger record */
-export async function getCurrentLedger() {
+export const getCurrentLedger = cache(async () => {
   const id = await getCurrentLedgerId();
   if (!id) return null;
   const [ledger] = await db.select().from(ledgers).where(eq(ledgers.id, id)).limit(1);
   return ledger ?? null;
-}
+});

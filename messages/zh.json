@@ -37,6 +37,7 @@
     "accountRequired": "请选择账户", "toAccountRequired": "请选择转入账户",
     "balanceRequired": "请输入余额", "categoryRequired": "请选择分类",
     "prev": "上一页", "next": "下一页", "month": "月",
+    "byYear": "按年", "byMonth": "按月", "currentYear": "本年", "yearSuffix": "年",
     "selectColor": "选择颜色", "customColor": "自定义颜色", "selectIcon": "选择图标"
   },
   "layout": {
@@ -72,7 +73,8 @@
     "rowAmountInvalid": "第 {line} 行：金额格式不正确",
     "rowAmountPositive": "第 {line} 行：金额需大于 0",
     "rowWriteFailed": "第 {line} 行：写入失败",
-    "importComplete": "导入完成：成功 {success} 行，失败 {failed} 行"
+    "importComplete": "导入完成：成功 {success} 行，失败 {failed} 行",
+    "importFailed": "批次解析失败，未导入任何数据"
   },
   "login": {
     "title": "登录", "subtitle": "个人 / 家庭 / 生意 记账 · 数据本地可控",
@@ -96,6 +98,7 @@
   "dashboard": {
     "title": "仪表盘", "netWorth": "净资产", "assets": "资产", "liabilities": "负债",
     "monthIncome": "本月收入", "monthExpense": "本月支出", "monthBalance": "本月结余",
+    "incomeWithCount": "收入（{count}笔）", "expenseWithCount": "支出（{count}笔）",
     "balanceRate": "结余率", "trend": "月度趋势", "trend6m": "月度趋势（近 6 月）",
     "assetDist": "资产分布（按账户类型）", "recent": "近期流水", "viewAll": "查看全部",
     "noData": "暂无资产数据", "noFlow": "暂无流水，点击右上角「记一笔」开始",
@@ -151,12 +154,18 @@
   "reports": {
     "title": "报表", "overview": "总览", "category": "分类", "trend": "趋势",
     "project": "项目", "tag": "标签", "asset": "资产", "year": "年度",
-    "expenseCat": "本月支出分类占比", "incomeCat": "本月收入分类占比",
+    "expenseCat": "支出分类占比", "incomeCat": "收入分类占比",
     "trend6m": "近 6 月收支趋势", "yearTrend": "{year} 年度收支",
     "income": "收入", "expense": "支出", "balance": "结余", "budget": "预算",
     "progress": "进度", "status": "状态", "active": "进行中", "completed": "已完成",
-    "assetDist": "资产分布（总额 ¥{total}）", "noData": "暂无数据",
-    "projectName": "项目", "unclassified": "未分类", "tagCount": "{count} 笔流水"
+    "assetDist": "资产分布（总额 ¥{total}）", "assetDetail": "资产明细", "noData": "暂无数据",
+    "projectName": "项目", "unclassified": "未分类", "tagCount": "{count} 笔流水",
+    "txCount": "交易笔数",
+    "txCountValue": "{count} 笔", "txCountSub": "收入 {income} · 支出 {expense}",
+    "monthlyTrend": "月度收支趋势",
+    "projectExpensePie": "项目支出占比", "projectIncomePie": "项目收入占比",
+    "tagExpensePie": "标签支出占比", "tagIncomePie": "标签收入占比",
+    "periodMonth": "{year}年{month}", "periodYear": "{year}年"
   },
   "projects": {
     "title": "项目管理", "add": "新增", "name": "项目名称", "icon": "图标",
@@ -168,7 +177,7 @@
     "empty": "暂无项目", "budgetPrefix": "预算 ¥{amount}"
   },
   "tags": {
-    "title": "分类与标签", "expenseCat": "支出分类", "incomeCat": "收入分类",
+    "title": "标签", "expenseCat": "支出分类", "incomeCat": "收入分类",
     "add": "添加", "newCat": "新分类名", "newIncomeCat": "新收入分类名",
     "newTag": "新标签名", "icon": "图标", "color": "颜色", "empty": "暂无",
     "add": "新增", "remarkPlaceholder": "选填，备注说明",
@@ -327,6 +336,22 @@
     "securityHint": "安全提示：请使用强密码并定期更换。密码经过 bcrypt 加密存储，无法查看明文。"
   },
   "i18n": { "switchHint": "中 / EN", "zh": "中文", "en": "English" },
+  "import": {
+    "guide": "填写说明",
+    "field": "字段",
+    "required": "必填",
+    "allowed": "取值",
+    "example": "示例",
+    "guideNote": "注意：请删除示例行后再上传；单次最多 1000 行；支持 .xlsx / .csv",
+    "accountHint": "已存在账户名则匹配；不存在则自动创建",
+    "toAccountHint": "仅转账类型填写，指转入方账户",
+    "categoryHint": "已存在分类名则匹配；不存在则自动创建；转账留空",
+    "projectHint": "已存在项目名则匹配；不存在则自动创建",
+    "amountHint": "数字，单位：元，大于 0",
+    "remarkHint": "任意文字",
+    "tagHint": "多个标签用「、」分隔",
+    "remarkExample": "午饭"
+  },
   "userMgmt": {
     "title": "用户管理", "manageDesc": "管理系统用户，支持增加、编辑、删除、重置密码",
     "searchPlaceholder": "搜索",
@@ -368,6 +393,6 @@
   "acctType": {
     "cash": "现金", "debitCard": "储蓄卡", "creditCard": "信用账户", "wechat": "虚拟账户",
     "savings": "定期", "investment": "股票", "fund": "基金", "preciousMetal": "贵金属",
-    "bond": "国债", "foreignCurrency": "外币账户", "custom": "自定义"
+    "bond": "国债", "foreignCurrency": "外币账户", "realEstate": "不动产", "custom": "自定义"
   }
 }

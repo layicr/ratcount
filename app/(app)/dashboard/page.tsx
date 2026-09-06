@@ -7,6 +7,7 @@ import { formatCents } from "@/lib/money";
 import { getLocale, getDictionary } from "@/lib/i18n";
 import { TxOps } from "./tx-ops";
 import { TxTypeBadge } from "../components/badges";
+import { MonthlyTrendChart } from "../components/monthly-trend-chart";
 
 /** 仪表盘：净资产 / 本月收支 / 资产分布 / 月度趋势 */
 export default async function DashboardPage() {
@@ -16,16 +17,23 @@ export default async function DashboardPage() {
   const s = await dashboardStats(ledger.id);
   const d = getDictionary(await getLocale());
 
-  const maxTrend = Math.max(
-    1,
-    ...s.trend.map((t) => Math.max(t.income, t.expense)),
-  );
-
   // 账户类型 → i18n key（snake_case → camelCase）
   const typeKey: Record<string, string> = {
     cash: "cash", debit_card: "debitCard", credit_card: "creditCard", wechat: "wechat",
     savings: "savings", investment: "investment", fund: "fund", precious_metal: "preciousMetal",
-    bond: "bond", foreign_currency: "foreignCurrency", custom: "custom",
+    bond: "bond", foreign_currency: "foreignCurrency", real_estate: "realEstate", custom: "custom",
+  };
+  // 进度条每行颜色
+  const BAR_COLORS = [
+    "#ef4444", "#f97316", "#eab308", "#22c55e", "#14b8a6",
+    "#3b82f6", "#8b5cf6", "#ec4899", "#64748b", "#f43f5e",
+    "#84cc16", "#06b6d4",
+  ];
+  // 账户类型 → 图标
+  const TYPE_ICON: Record<string, string> = {
+    cash: "💵", debit_card: "💳", credit_card: "💳", wechat: "💬",
+    savings: "🏦", investment: "📈", fund: "📊", precious_metal: "🥇",
+    bond: "📜", foreign_currency: "💱", real_estate: "🏠", custom: "📦",
   };
 
   return (
@@ -52,32 +60,7 @@ export default async function DashboardPage() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         {/* 月度趋势（近 6 月） */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-4">
-          <h2 className="mb-3 text-sm font-semibold text-slate-700">{d.dashboard.trend6m}</h2>
-          <div className="flex h-40 items-end gap-2">
-            {s.trend.map((t) => (
-              <div key={t.m} className="flex flex-1 flex-col items-center gap-1">
-                <div className="flex h-32 items-end gap-1">
-                  <div
-                    className="w-3 rounded-t bg-green-500/80"
-                    style={{ height: `${(t.income / maxTrend) * 100}%` }}
-                    title={`${d.common.income} ¥${formatCents(t.income)}`}
-                  />
-                  <div
-                    className="w-3 rounded-t bg-red-500/75"
-                    style={{ height: `${(t.expense / maxTrend) * 100}%` }}
-                    title={`${d.common.expense} ¥${formatCents(t.expense)}`}
-                  />
-                </div>
-                <span className="text-[10px] text-slate-400">{t.m.slice(5)}{d.common.month}</span>
-              </div>
-            ))}
-          </div>
-          <div className="mt-2 flex gap-4 text-xs text-slate-500">
-            <span><span className="mr-1 inline-block h-2 w-2 rounded-sm bg-green-500/80" />{d.dashboard.legendIncome}</span>
-            <span><span className="mr-1 inline-block h-2 w-2 rounded-sm bg-red-500/75" />{d.dashboard.legendExpense}</span>
-          </div>
-        </div>
+        <MonthlyTrendChart data={s.trend} />
 
         {/* 资产分布 */}
         <div className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -86,14 +69,18 @@ export default async function DashboardPage() {
             <p className="py-8 text-center text-sm text-slate-400">{d.dashboard.noData}</p>
           ) : (
             <div className="space-y-3">
-              {s.distribution.map((dist) => (
+              {s.distribution.map((dist, i) => (
                 <div key={dist.type}>
                   <div className="flex justify-between text-xs">
-                    <span className="text-slate-600">{(d.acctType as Record<string, string>)[typeKey[dist.type]] ?? dist.type}</span>
+                    <span className="text-slate-600">
+                      <span className="mr-4 inline-block w-5 text-right text-sm font-bold text-slate-500">{i + 1}</span>
+                      <span className="mr-1">{TYPE_ICON[dist.type] ?? "📦"}</span>
+                      {(d.acctType as Record<string, string>)[typeKey[dist.type]] ?? dist.type}
+                    </span>
                     <span className="text-slate-400">¥ {formatCents(dist.cents)} · {dist.pct}%</span>
                   </div>
                   <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100">
-                    <div className="h-full rounded-full bg-teal-500" style={{ width: `${Math.max(2, dist.pct)}%` }} />
+                    <div className="h-full rounded-full" style={{ width: `${Math.max(2, dist.pct)}%`, background: BAR_COLORS[i % BAR_COLORS.length] }} />
                   </div>
                 </div>
               ))}

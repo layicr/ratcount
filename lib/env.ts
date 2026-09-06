@@ -10,6 +10,11 @@ const envSchema = z.object({
   // 数据库
   DATABASE_MODE: z.string().default("file"), // file=本地SQLite / libsql=Turso云端
   DATABASE_URL: z.string().min(1, "DATABASE_URL 不能为空"),
+  // 数据库健壮性配置（可用环境变量覆盖，均有默认值）
+  DB_CONCURRENCY: z.coerce.number().default(20), // 驱动层并发上限（最接近“连接池”的杠杆）
+  DB_STATEMENT_TIMEOUT_MS: z.coerce.number().default(5_000), // 单条语句软超时
+  DB_MAX_RETRIES: z.coerce.number().default(3), // 瞬时错误最大重试次数
+  DB_RETRY_BASE_DELAY_MS: z.coerce.number().default(200), // 重试基础退避（指数增长）
   // 认证
   AUTH_SECRET: z.string().min(16, "AUTH_SECRET 至少 16 位（生产环境建议 32 位以上强随机密钥）"),
   // 应用
@@ -53,6 +58,10 @@ export const env = parsed.success
   : {
       DATABASE_MODE: process.env.DATABASE_MODE ?? "file",
       DATABASE_URL: process.env.DATABASE_URL ?? "file:./data/ratcount.db",
+      DB_CONCURRENCY: Number(process.env.DB_CONCURRENCY ?? 20),
+      DB_STATEMENT_TIMEOUT_MS: Number(process.env.DB_STATEMENT_TIMEOUT_MS ?? 5_000),
+      DB_MAX_RETRIES: Number(process.env.DB_MAX_RETRIES ?? 3),
+      DB_RETRY_BASE_DELAY_MS: Number(process.env.DB_RETRY_BASE_DELAY_MS ?? 200),
       AUTH_SECRET: process.env.AUTH_SECRET ?? "dev-secret-ratcount-local-2026",
       NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME ?? "ratcount",
       TURSO_DATABASE_URL: process.env.TURSO_DATABASE_URL,

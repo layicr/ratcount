@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/scope";
 import { getCurrentLedger } from "@/lib/ledger";
 import { getLocale, getDictionary } from "@/lib/i18n";
-import { getPaginationConfig } from "@/lib/pagination";
+import { getPaginationConfig, parsePage, resolvePageSize } from "@/lib/pagination";
 import { listUsers, countUsers } from "@/app/actions/users";
 import { UsersManager } from "./users-manager";
 
@@ -32,10 +32,8 @@ export default async function UsersPage({
 
   const params = await searchParams;
   const search = params.q ?? "";
-  const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
-  const pageSize = allowedPageSizes.includes(parseInt(params.pageSize ?? "", 10))
-    ? parseInt(params.pageSize!, 10)
-    : defaultPageSize;
+  const page = parsePage(params.page);
+  const pageSize = resolvePageSize(params.pageSize, allowedPageSizes, defaultPageSize);
 
   const [users, total] = await Promise.all([
     listUsers(search, page, pageSize),

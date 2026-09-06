@@ -1,4 +1,5 @@
 import { eq, and } from "drizzle-orm";
+import { cache } from "react";
 import { db } from "@/lib/db";
 import { settings } from "@/db/schema";
 
@@ -9,14 +10,14 @@ import { settings } from "@/db/schema";
  */
 const GLOBAL = "global";
 
-export async function getSetting(key: string): Promise<string | null> {
+export const getSetting = cache(async (key: string): Promise<string | null> => {
   const [row] = await db
     .select()
     .from(settings)
     .where(and(eq(settings.userId, GLOBAL), eq(settings.key, key)))
     .limit(1);
   return row?.value ?? null;
-}
+});
 
 /** 读取布尔设置 / Read boolean setting */
 export async function getBoolSetting(key: string, fallback = false): Promise<boolean> {
@@ -26,16 +27,14 @@ export async function getBoolSetting(key: string, fallback = false): Promise<boo
 }
 
 /** 读取全部全局设置 / Read all global settings */
-export async function getAllSettings() {
-  return db.select().from(settings).where(eq(settings.userId, GLOBAL));
-}
+export const getAllSettings = cache(async () => db.select().from(settings).where(eq(settings.userId, GLOBAL)));
 
 /** 读取用户级设置（userId 维度）/ Read a per-user setting */
-export async function getSettingForUser(userId: string, key: string): Promise<string | null> {
+export const getSettingForUser = cache(async (userId: string, key: string): Promise<string | null> => {
   const [row] = await db
     .select()
     .from(settings)
     .where(and(eq(settings.userId, userId), eq(settings.key, key)))
     .limit(1);
   return row?.value ?? null;
-}
+});

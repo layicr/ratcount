@@ -4,7 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useT } from "@/components/i18n-provider";
-import { ConfirmButton } from "../../components/confirm";
+import { buildPageWindow, computeTotalPages } from "@/lib/pagination-util";
+import { ConfirmButton, DeleteButton } from "../../components/confirm";
 import { deleteUser, resetUserPassword } from "@/app/actions/users";
 
 /** 用户类型 / User type */
@@ -53,7 +54,7 @@ export function UsersManager({
   const [resetTarget, setResetTarget] = useState<User | null>(null);
   const [newPassword, setNewPassword] = useState("");
 
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const totalPages = computeTotalPages(total, pageSize);
 
   function flash(ok: boolean, text: string) {
     setMsg({ ok, text });
@@ -217,17 +218,13 @@ export function UsersManager({
                       </button>
                       {/* 删除 / Delete */}
                       {user.id !== currentUserId && (
-                        <ConfirmButton
-                          danger
+                        <DeleteButton
                           action={() => handleDelete(user)}
                           title={t("userMgmt.deleteTitle")}
                           desc={t("userMgmt.deleteDesc", { name: user.name, email: user.email })}
                           okText={t("common.delete")}
-                        >
-                          <span className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50">
-                            {t("common.delete")}
-                          </span>
-                        </ConfirmButton>
+                          label={<span className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50">{t("common.delete")}</span>}
+                        />
                       )}
                     </div>
                   </td>
@@ -268,27 +265,20 @@ export function UsersManager({
                 {t("userMgmt.prevPage")}
               </button>
               {/* 页码按钮（最多显示 5 个） */}
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                let p: number;
-                if (totalPages <= 5) p = i + 1;
-                else if (page <= 3) p = i + 1;
-                else if (page >= totalPages - 2) p = totalPages - 4 + i;
-                else p = page - 2 + i;
-                return (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => goToPage(p)}
-                    className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs ${
-                      p === page
-                        ? "bg-teal-600 text-white"
-                        : "border border-slate-200 text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    {p}
-                  </button>
-                );
-              })}
+              {buildPageWindow(page, totalPages).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => goToPage(p)}
+                  className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs ${
+                    p === page
+                      ? "bg-teal-600 text-white"
+                      : "border border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  {p}
+                </button>
+              ))}
               <button
                 type="button"
                 onClick={() => goToPage(page + 1)}

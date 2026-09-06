@@ -1,8 +1,8 @@
 /**
  * ratcount · 数据库 Schema（Drizzle ORM）
- * 共 13 张表：users / ledgers / ledger_members / settings / currencies /
+ * 共 14 张表：users / ledgers / ledger_members / settings / currencies /
  *             accounts / categories / tags / projects / transactions /
- *             transaction_tags / audit_logs / balances
+ *             transaction_tags / audit_logs / balances / recurring_plans
  *
  * 核心设计口径：
  *  - 金额一律存整数"分"（*_cents），前端只展示
@@ -39,12 +39,14 @@ export type UserRole = (typeof userRoles)[number];
 export const memberRoles = ["owner", "editor", "viewer"] as const;
 export type MemberRole = (typeof memberRoles)[number];
 
-/** 账户类型（11 种）：cash 现金 / debit_card 储蓄卡 / credit_card 信用账户 /
+/** 账户类型（12 种）：cash 现金 / debit_card 储蓄卡 / credit_card 信用账户 /
  *  wechat 虚拟账户 / savings 定期 / investment 股票 / fund 基金 /
- *  precious_metal 贵金属 / bond 国债 / foreign_currency 外币账户 / custom 自定义 */
+ *  precious_metal 贵金属 / bond 国债 / foreign_currency 外币账户 /
+ *  real_estate 不动产 / custom 自定义 */
 export const accountTypes = [
   "cash", "debit_card", "credit_card", "wechat", "savings",
-  "investment", "fund", "precious_metal", "bond", "foreign_currency", "custom",
+  "investment", "fund", "precious_metal", "bond", "foreign_currency",
+  "real_estate", "custom",
 ] as const;
 export type AccountType = (typeof accountTypes)[number];
 

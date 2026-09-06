@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { ledgerMembers, users } from "@/db/schema";
@@ -14,7 +15,7 @@ import { auth } from "@/auth";
 export type SessionUser = { id: string; role: string; name?: string | null; email?: string | null };
 
 /** 必须登录 / Require a signed-in user */
-export async function requireUser(): Promise<SessionUser> {
+export const requireUser = cache(async (): Promise<SessionUser> => {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
@@ -42,7 +43,7 @@ export async function requireUser(): Promise<SessionUser> {
     name: session.user.name,
     email: session.user.email,
   };
-}
+});
 
 /** 必须为账本成员（可选最小角色）/ Require membership in a ledger */
 export async function requireLedgerAccess(

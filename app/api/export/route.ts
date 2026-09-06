@@ -1,11 +1,11 @@
 import { requireUser } from "@/lib/scope";
 import { getCurrentLedger } from "@/lib/ledger";
-import { listTransactions, listAccountsWithBalance, ACCOUNT_TYPE_LABELS } from "@/lib/queries";
+import { listTransactions, listAccountsWithBalance } from "@/lib/queries";
 import { db } from "@/lib/db";
 import { categories, tags, projects } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getLocale, getDictionary } from "@/lib/i18n";
-import * as XLSX from "xlsx";
+import * as XLSX from "@e965/xlsx";
 
 /** 导出 Excel：流水 / 账户 / 分类 / 标签 / 项目 五张表 */
 export async function GET() {
@@ -14,57 +14,100 @@ export async function GET() {
   const d = getDictionary(await getLocale());
   if (!ledger) return Response.json({ error: d.errors.noLedger }, { status: 400 });
 
-  const [txs, accts, cats, tgs, projs] = await Promise.all([
-    listTransactions(ledger.id, {}),
+  // 账户/分类/标签/项目数据量小，全量加载；流水分页分批拉取并增量写表，避免一次性把全量流水载入内存
+  const [accts, cats, tgs, projs] = await Promise.all([
     listAccountsWithBalance(ledger.id),
     db.select().from(categories).where(eq(categories.ledgerId, ledger.id)),
     db.select().from(tags).where(eq(tags.ledgerId, ledger.id)),
     db.select().from(projects).where(eq(projects.ledgerId, ledger.id)),
   ]);
 
-  const typeLabel: Record<string, string> = { income: "收入", expense: "支出", transfer: "转账" };
+  const TX_BATCH = 5000;
+  const txHeader = [d.tx.type, d.tx.date, d.tx.account, d.add.toAccount, d.tx.category, d.tx.project, d.tx.amount, d.common.remark, d.tx.tag];
+
+  // 账户类型：DB 存 snake_case，i18n 用 camelCase key，做一层映射
+  const acctTypeKey: Record<string, keyof typeof d.acctType> = {
+    cash: "cash", debit_card: "debitCard", credit_card: "creditCard", wechat: "wechat",
+    savings: "savings", investment: "investment", fund: "fund", precious_metal: "preciousMetal",
+    bond: "bond", foreign_currency: "foreignCurrency", real_estate: "realEstate", custom: "custom",
+  };
 
   const wb = XLSX.utils.book_new();
 
-  const txRows = txs.map((t) => ({
-    类型: typeLabel[t.type] ?? t.type,
-    日期: t.txDate,
-    账户: t.account?.name ?? "",
-    转入账户: t.toAccount?.name ?? "",
-    分类: t.category?.name ?? "",
-    项目: t.project?.name ?? "",
-    金额: t.amountCents / 100,
-    备注: t.remark ?? "",
-    标签: t.tagList.map((x) => x.name).join("、"),
-  }));
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(txRows), "流水");
+  // 流水：分页分批拉取，逐批追加到 worksheet（同一时刻只有单批交易对象驻留内存）
+  let txWs: XLSX.WorkSheet | undefined;
+  let offset = 0;
+  for (;;) {
+    const batch = await listTransactions(ledger.id, { limit: TX_BATCH, offset });
+    if (batch.length === 0) break;
+    const rows = batch.map((t) => [
+      d.common[t.type] ?? t.type,
+      t.txDate,
+      t.account?.name ?? "",
+      t.toAccount?.name ?? "",
+      t.category?.name ?? "",
+      t.project?.name ?? "",
+      t.amountCents / 100,
+      t.remark ?? "",
+      t.tagList.map((x) => x.name).join("、"),
+    ]);
+    if (!txWs) {
+      txWs = XLSX.utils.aoa_to_sheet([txHeader]);
+      XLSX.utils.sheet_add_aoa(txWs, rows, { origin: -1 });
+    } else {
+      XLSX.utils.sheet_add_aoa(txWs, rows, { origin: -1 });
+    }
+    if (batch.length < TX_BATCH) break;
+    offset += TX_BATCH;
+  }
+  if (!txWs) txWs = XLSX.utils.aoa_to_sheet([txHeader]);
+  XLSX.utils.book_append_sheet(wb, txWs, d.nav.transactions);
 
   XLSX.utils.book_append_sheet(
     wb,
     XLSX.utils.json_to_sheet(
       accts.map((a) => ({
-        名称: a.name, 类型: ACCOUNT_TYPE_LABELS[a.type] ?? a.type, 图标: a.icon,
-        币种: a.currencyCode, 期初余额: a.openingBalanceCents / 100,
-        计入资产: a.isAsset ? "是" : "否", 备注: a.remark ?? "",
+        [d.common.name]: a.name,
+        类型: d.acctType[acctTypeKey[a.type] ?? "custom"] ?? a.type,
+        [d.common.icon]: a.icon,
+        [d.settings.currency]: a.currencyCode,
+        [d.accounts.opening]: a.openingBalanceCents / 100,
+        [d.accounts.isAsset]: a.isAsset ? d.common.yes : d.common.no,
+        [d.common.remark]: a.remark ?? "",
       })),
     ),
-    "账户",
+    d.nav.accounts,
   );
 
   XLSX.utils.book_append_sheet(
     wb,
-    XLSX.utils.json_to_sheet(cats.map((c) => ({ 类型: c.type === "income" ? "收入" : "支出", 名称: c.name, 图标: c.icon }))),
-    "分类",
+    XLSX.utils.json_to_sheet(cats.map((c) => {
+      const typeLabel = c.type === "income" ? d.common.income : d.common.expense;
+      return {
+        类型: typeLabel,
+        [d.common.name]: c.name,
+        [d.common.icon]: c.icon,
+      };
+    })),
+    d.tx.category,
   );
   XLSX.utils.book_append_sheet(
     wb,
-    XLSX.utils.json_to_sheet(tgs.map((t) => ({ 名称: t.name, 颜色: t.color }))),
-    "标签",
+    XLSX.utils.json_to_sheet(tgs.map((t) => ({ [d.common.name]: t.name, [d.tags.color]: t.color }))),
+    d.tx.tag,
   );
   XLSX.utils.book_append_sheet(
     wb,
-    XLSX.utils.json_to_sheet(projs.map((p) => ({ 名称: p.name, 图标: p.icon, 预算: p.budgetCents / 100, 状态: p.status === "active" ? "进行中" : "已完成" }))),
-    "项目",
+    XLSX.utils.json_to_sheet(projs.map((p) => {
+      const statusLabel = p.status === "active" ? d.projects.active : d.projects.completed;
+      return {
+        [d.common.name]: p.name,
+        [d.common.icon]: p.icon,
+        [d.projects.budget]: p.budgetCents / 100,
+        状态: statusLabel,
+      };
+    })),
+    d.tx.project,
   );
 
   // 查询/导出类操作不记录审计日志（按需求：查询的日志不记录）

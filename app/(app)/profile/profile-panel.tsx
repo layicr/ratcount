@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useT, useLocale } from "@/components/i18n-provider";
@@ -203,18 +204,9 @@ export function ProfilePanel({ userName, email }: { userName: string; email: str
           <a href="/api/export" className="block rounded-lg bg-teal-600 py-2 text-center text-white hover:bg-teal-700">
             {t("profile.export")}
           </a>
-          <label className="block cursor-pointer rounded-lg border border-slate-200 py-2 text-center text-slate-600 hover:bg-slate-50">
+          <Link href="/import" className="block rounded-lg border border-slate-200 py-2 text-center text-slate-600 hover:bg-slate-50">
             {t("profile.import")}
-            <input type="file" accept=".xlsx" className="hidden" onChange={async (e) => {
-              const f = e.target.files?.[0];
-              if (!f) return;
-              const fd = new FormData();
-              fd.append("file", f);
-              const r = await fetch("/api/import", { method: "POST", body: fd });
-              const j = await r.json().catch(() => ({}));
-              flash(j.message ?? t("profile.importDone"));
-            }} />
-          </label>
+          </Link>
         </div>
         {msg && <p className="mt-3 rounded-lg bg-teal-50 px-3 py-2 text-xs text-teal-700">{msg}</p>}
       </div>

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { createProject, updateProject, deleteProject } from "@/app/actions/meta";
 import { useT } from "@/components/i18n-provider";
-import { ConfirmButton } from "../components/confirm";
+import { ConfirmButton, DeleteButton } from "../components/confirm";
 import { IconPicker } from "../components/icon-picker";
 import { formatCents } from "@/lib/money";
 
@@ -143,15 +143,13 @@ export function ProjectsManager({ projects }: { projects: Proj[] }) {
                 <div className="flex items-center gap-2">
                   <a href={`/transactions?projectId=${p.id}`} className="text-xs text-teal-600 hover:underline">{t("common.viewTx")}</a>
                   <button type="button" onClick={() => startEdit(p)} className="text-xs text-slate-500 hover:text-teal-600 hover:underline">{t("common.edit")}</button>
-                  <ConfirmButton
-                    danger
+                  <DeleteButton
                     action={async () => { await deleteProject(p.id); }}
                     title={t("projects.delTitle")}
                     desc={t("projects.delDesc", { name: p.name })}
                     okText={t("common.delete")}
-                  >
-                    <span className="text-xs text-red-500 hover:underline">{t("common.delete")}</span>
-                  </ConfirmButton>
+                    label={<span className="text-xs text-red-500 hover:underline">{t("common.delete")}</span>}
+                  />
                 </div>
               </div>
               <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">

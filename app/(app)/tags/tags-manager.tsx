@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { createCategory, deleteCategory, updateCategory, createTag, deleteTag, updateTag } from "@/app/actions/meta";
 import { useT } from "@/components/i18n-provider";
-import { ConfirmButton } from "../components/confirm";
+import { ConfirmButton, DeleteButton } from "../components/confirm";
 import { IconPicker } from "../components/icon-picker";
 import { ColorPicker } from "../components/color-picker";
 
@@ -184,15 +184,13 @@ export function CategoriesManager({ cats }: { cats: Cat[] }) {
                 >
                   {t("common.edit")}
                 </button>
-                <ConfirmButton
-                  danger
+                <DeleteButton
                   action={async () => { await deleteCategory(c.id); }}
                   title={t("tags.delTitle")}
                   desc={t("tags.delDesc", { name: c.name })}
                   okText={t("common.delete")}
-                >
-                  <span className="text-xs text-red-500 hover:underline">{t("common.delete")}</span>
-                </ConfirmButton>
+                  label={<span className="text-xs text-red-500 hover:underline">{t("common.delete")}</span>}
+                />
               </div>
             </div>
             {c.remark && (
@@ -359,15 +357,13 @@ export function TagsManager({ tags }: { tags: Tag[] }) {
                 >
                   {t("common.edit")}
                 </button>
-                <ConfirmButton
-                  danger
+                <DeleteButton
                   action={async () => { await deleteTag(tg.id); }}
                   title={t("tags.delTagTitle")}
                   desc={t("tags.delTagDesc", { name: tg.name })}
                   okText={t("common.delete")}
-                >
-                  <span className="text-xs text-red-500 hover:underline">{t("common.delete")}</span>
-                </ConfirmButton>
+                  label={<span className="text-xs text-red-500 hover:underline">{t("common.delete")}</span>}
+                />
               </div>
             </div>
             {tg.remark && (

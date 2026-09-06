@@ -8,7 +8,7 @@ import {
   runRecurringPlan,
 } from "@/app/actions/recurring";
 import { useT, useLocale } from "@/components/i18n-provider";
-import { ConfirmButton } from "../components/confirm";
+import { ConfirmButton, DeleteButton } from "../components/confirm";
 import { TxTypeBadge } from "../components/badges";
 import { formatCents } from "@/lib/money";
 
@@ -250,15 +250,13 @@ export function RecurringManager({
                   {p.status === "active" ? t("recurring.pause") : t("recurring.resume")}
                 </span>
               </ConfirmButton>
-              <ConfirmButton
-                danger
+              <DeleteButton
                 action={async () => { await deleteRecurringPlan(p.id); }}
                 title={t("recurring.delTitle")}
                 desc={t("recurring.delDesc", { name: p.name })}
                 okText={t("common.delete")}
-              >
-                <span className="text-xs text-red-500 hover:underline">{t("common.delete")}</span>
-              </ConfirmButton>
+                label={<span className="text-xs text-red-500 hover:underline">{t("common.delete")}</span>}
+              />
             </div>
           </div>
         ))}

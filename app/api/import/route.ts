@@ -1,12 +1,14 @@
-import { requireUser } from "@/lib/scope";
+import { requireUser, requireLedgerAccess } from "@/lib/scope";
 import { getCurrentLedger } from "@/lib/ledger";
 import { db } from "@/lib/db";
 import { transactions, accounts, categories } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { withAudit, writeAudit } from "@/lib/audit";
+import { withAudit } from "@/lib/audit";
 import { yuanToCents } from "@/lib/money";
 import { getLocale, getDictionary } from "@/lib/i18n";
-import * as XLSX from "xlsx";
+import * as XLSX from "@e965/xlsx";
+import zhDict from "@/messages/zh.json";
+import enDict from "@/messages/en.json";
 
 /** 导入 Excel（流水）：行级校验，账户/分类按名称匹配或自动创建，返回行级报告 */
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB 文件大小上限
@@ -19,6 +21,9 @@ export async function POST(req: Request) {
   const ledger = await getCurrentLedger();
   const d = getDictionary(await getLocale());
   if (!ledger) return Response.json({ ok: false, message: d.errors.noLedger }, { status: 400 });
+
+  // 角色校验：viewer 无权导入写流水，至少 editor / Require editor+ to import transactions
+  await requireLedgerAccess(ledger.id, "editor");
 
   const form = await req.formData();
   const file = form.get("file");
@@ -40,7 +45,8 @@ export async function POST(req: Request) {
 
   const buf = Buffer.from(await file.arrayBuffer());
   const wb = XLSX.read(buf, { type: "buffer" });
-  const sheetName = wb.SheetNames.find((n) => n.includes("流水")) ?? wb.SheetNames[0];
+  const txSheetNames = [zhDict.nav.transactions, enDict.nav.transactions].map((s) => String(s).trim());
+  const sheetName = wb.SheetNames.find((n) => txSheetNames.includes(n.trim())) ?? wb.SheetNames.find((n) => n.includes("流水")) ?? wb.SheetNames[0];
   const ws = wb.Sheets[sheetName];
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" }) as Record<string, unknown>[];
 
@@ -56,7 +62,6 @@ export async function POST(req: Request) {
   ]);
   const acctByName = new Map(accts.map((a) => [a.name, a]));
   const catByName = new Map(cats.map((c) => [c.name, c]));
-  const typeOf: Record<string, "income" | "expense"> = { 收入: "income", income: "income" };
 
   // 日期规范化：文本原样保留；Excel 序列号/Date 对象统一转 YYYY-MM-DD
   function normalizeDate(v: unknown): string {
@@ -77,20 +82,51 @@ export async function POST(req: Request) {
 
   let success = 0;
   const errors: string[] = [];
-  const typeLabel: Record<string, "income" | "expense" | "transfer"> = {
-    收入: "income", income: "income",
-    支出: "expense", expense: "expense",
-    转账: "transfer", transfer: "transfer",
+
+  // 双语表头 / 类型标签匹配：导入兼容中英文导出的文件（与当前界面语言无关）
+  const DICTS = [zhDict as Record<string, any>, enDict as Record<string, any>];
+  const h = (getter: (d: any) => string) => DICTS.map(getter).map((s) => String(s).trim());
+  const typeCandidates = h((d) => d.tx.type);
+  const dateCandidates = h((d) => d.tx.date);
+  const accountCandidates = h((d) => d.tx.account);
+  const amountCandidates = h((d) => d.tx.amount);
+  const categoryCandidates = h((d) => d.tx.category);
+  const remarkCandidates = h((d) => d.common.remark);
+
+  const typeLabelMap: Record<string, "income" | "expense" | "transfer"> = {};
+  for (const d of DICTS) {
+    typeLabelMap[String(d.common.income).trim()] = "income";
+    typeLabelMap[String(d.common.expense).trim()] = "expense";
+    typeLabelMap[String(d.common.transfer).trim()] = "transfer";
+  }
+
+  // 按候选表头取单元格值（忽略首尾空白）
+  function cell(row: Record<string, unknown>, candidates: string[]): unknown {
+    const norm = new Map<string, unknown>();
+    for (const [k, v] of Object.entries(row)) norm.set(k.trim(), v);
+    for (const c of candidates) if (norm.has(c)) return norm.get(c);
+    return undefined;
+  }
+
+  type ParsedRow = {
+    lineNo: number;
+    type: "income" | "expense" | "transfer";
+    date: string;
+    acctName: string;
+    catName: string;
+    cents: number;
+    remark: string;
   };
 
-  // 按行插入（事务外逐行，便于收集行级错误）
+  // 解析阶段：逐行校验，收集可导入行与解析错误（不写库）
+  const parsed: ParsedRow[] = [];
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
     const lineNo = i + 2; // 表头占 1 行
-    const type = typeLabel[String(r["类型"] ?? "").trim()];
-    const date = normalizeDate(r["日期"]);
-    const acctName = String(r["账户"] ?? "").trim();
-    const amount = r["金额"];
+    const type = typeLabelMap[String(cell(r, typeCandidates) ?? "").trim()];
+    const date = normalizeDate(cell(r, dateCandidates));
+    const acctName = String(cell(r, accountCandidates) ?? "").trim();
+    const amount = cell(r, amountCandidates);
 
     if (!type || !date || !acctName || amount === "") {
       errors.push(d.errors.rowRequired.replace("{line}", String(lineNo)));
@@ -100,65 +136,70 @@ export async function POST(req: Request) {
     if (typeof amount === "number") {
       cents = Math.round(amount * 100);
     } else {
-      const parsed = yuanToCents(String(amount));
-      if (parsed === null) {
+      const parsedAmt = yuanToCents(String(amount));
+      if (parsedAmt === null) {
         errors.push(d.errors.rowAmountInvalid.replace("{line}", String(lineNo)));
         continue;
       }
-      cents = parsed;
+      cents = parsedAmt;
     }
     if (cents <= 0) { errors.push(d.errors.rowAmountPositive.replace("{line}", String(lineNo))); continue; }
 
-    // 账户匹配或自动创建（现金/储蓄卡）
-    let acctId = acctByName.get(acctName)?.id;
-    if (!acctId) {
-      const [row] = await db.insert(accounts).values({
-        ledgerId: ledger.id, name: acctName, type: "custom", icon: "💳",
-        currencyCode: "CNY", openingBalanceCents: 0, isAsset: true, createdBy: user.id,
-      }).returning();
-      acctId = row.id;
-      acctByName.set(acctName, row);
-    }
-
-    // 分类匹配或自动创建
-    const catName = String(r["分类"] ?? "").trim();
-    let catId: string | null = null;
-    if (catName) {
-      catId = catByName.get(catName)?.id ?? null;
-      if (!catId) {
-        const [row] = await db.insert(categories).values({
-          ledgerId: ledger.id, name: catName,
-          type: type === "income" ? "income" : "expense", icon: "📦",
-        }).returning();
-        catId = row.id;
-        catByName.set(catName, row);
-      }
-    }
-
-    const remark = String(r["备注"] ?? "").trim();
-    try {
-      await withAudit(
-        { userId: user.id, action: "C", entity: "transaction", summary: `Excel 导入 ${remark || "流水"}`, requestBody: JSON.stringify({ line: lineNo, type, accountId: acctId, categoryId: type === "transfer" ? null : catId, amountCents: cents, txDate: date, remark: remark || null }), responseBody: '{"result":"created"}' },
-        async (tx) => {
-          await tx.insert(transactions).values({
-            ledgerId: ledger.id, accountId: acctId, type,
-            categoryId: type === "transfer" ? null : catId,
-            amountCents: cents, txDate: date, remark: remark || null, createdBy: user.id,
-          });
-        },
-      );
-      success++;
-    } catch {
-      errors.push(d.errors.rowWriteFailed.replace("{line}", String(lineNo)));
-    }
+    const catName = String(cell(r, categoryCandidates) ?? "").trim();
+    parsed.push({ lineNo, type, date, acctName, catName, cents, remark: String(cell(r, remarkCandidates) ?? "").trim() });
   }
 
-  await writeAudit({
-    userId: user.id, action: "C", entity: "import",
-    summary: `Excel 导入：成功 ${success} 行，失败 ${errors.length} 行`,
-    requestBody: JSON.stringify({ fileName: file.name, total: rows.length, success, failed: errors.length }),
-    responseBody: JSON.stringify({ ok: true, success, failed: errors.length }),
-  }).catch(() => {});
+  // 写入阶段：单事务批量插入（审计与业务同事务，仅一条汇总审计，避免逐行事务开销）
+  const planned = parsed.length;
+  if (planned > 0) {
+    try {
+      await withAudit(
+        {
+          userId: user.id, action: "C", entity: "import",
+          summary: `Excel 导入：写入 ${planned} 行（解析失败 ${errors.length} 行已跳过）`,
+          requestBody: JSON.stringify({ fileName: file.name, total: rows.length, planned, parseFailed: errors.length }),
+          responseBody: '{"result":"created"}',
+        },
+        async (tx) => {
+          // 自动创建缺失账户（cash/储蓄卡）
+          const missingAccts = [...new Set(parsed.map((p) => p.acctName).filter((n) => !acctByName.has(n)))];
+          for (const name of missingAccts) {
+            const [row] = await tx
+              .insert(accounts)
+              .values({ ledgerId: ledger.id, name, type: "custom", icon: "💳", currencyCode: "CNY", openingBalanceCents: 0, isAsset: true, createdBy: user.id })
+              .returning();
+            acctByName.set(name, row);
+          }
+          // 自动创建缺失分类
+          const missingCats = [...new Set(parsed.map((p) => p.catName).filter((n) => n && !catByName.has(n)))];
+          for (const name of missingCats) {
+            const t = parsed.find((p) => p.catName === name)!.type;
+            const [row] = await tx
+              .insert(categories)
+              .values({ ledgerId: ledger.id, name, type: t === "income" ? "income" : "expense", icon: "📦" })
+              .returning();
+            catByName.set(name, row);
+          }
+          // 批量插入流水
+          await tx.insert(transactions).values(
+            parsed.map((p) => ({
+              ledgerId: ledger.id,
+              accountId: acctByName.get(p.acctName)!.id,
+              type: p.type,
+              categoryId: p.type === "transfer" ? null : (p.catName ? (catByName.get(p.catName)?.id ?? null) : null),
+              amountCents: p.cents,
+              txDate: p.date,
+              remark: p.remark || null,
+              createdBy: user.id,
+            })),
+          );
+        },
+      );
+      success = planned;
+    } catch {
+      errors.push(d.errors.importFailed);
+    }
+  }
 
   return Response.json({
     ok: true,

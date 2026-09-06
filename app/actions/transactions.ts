@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { transactions, transactionTags } from "@/db/schema";
+import { transactions, transactionTags, auditLogs } from "@/db/schema";
 import { requireLedgerAccess } from "@/lib/scope";
 import { getCurrentLedgerId } from "@/lib/ledger";
 import { withAudit } from "@/lib/audit";
@@ -12,6 +12,9 @@ import { transactionSchema, type TransactionInput } from "@/lib/validators";
 
 /** 交易入参 schema（前后端共用，见 lib/validators） */
 const txSchema = transactionSchema;
+
+/** 内部哨兵：更新 0 行（目标流水不存在/无权限），用于跳过审计 */
+class TransactionNotUpdatedError extends Error {}
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -106,33 +109,50 @@ export async function updateTransaction(id: string, input: TransactionInput) {
       categoryId: d.categoryId ?? null, projectId: d.projectId ?? null,
       amountYuan: d.amountYuan, txDate: d.txDate, remark: d.remark ?? null, tagIds: d.tagIds ?? [],
     });
-    await withAudit(
-      { userId: user.id, action: "U", entity: "transaction", entityId: id, summary, requestBody: reqBody, responseBody: '{"result":"updated"}' },
-      async (tx) => {
-        await tx
-          .update(transactions)
-          .set({
-            accountId: d.accountId,
-            toAccountId: d.type === "transfer" ? d.toAccountId : null,
-            type: d.type,
-            categoryId: d.type === "transfer" ? null : (d.categoryId ?? null),
-            projectId: d.projectId ?? null,
-            amountCents,
-            txDate: d.txDate,
-            remark: d.remark ?? null,
-            updatedAt: new Date().toISOString(),
-          })
-          .where(and(eq(transactions.id, id), eq(transactions.ledgerId, ledgerId)));
-        // 更新标签：先删后插
-        await tx.delete(transactionTags).where(eq(transactionTags.transactionId, id));
-        if (d.tagIds?.length) {
-          await tx.insert(transactionTags).values(
-            d.tagIds.map((tagId) => ({ transactionId: id, tagId })),
-          );
-        }
-      },
-    );
+    await db.transaction(async (tx) => {
+      const upd = await tx
+        .update(transactions)
+        .set({
+          accountId: d.accountId,
+          toAccountId: d.type === "transfer" ? d.toAccountId : null,
+          type: d.type,
+          categoryId: d.type === "transfer" ? null : (d.categoryId ?? null),
+          projectId: d.projectId ?? null,
+          amountCents,
+          txDate: d.txDate,
+          remark: d.remark ?? null,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(and(eq(transactions.id, id), eq(transactions.ledgerId, ledgerId)));
+      const rowsAffected = (upd as { rowsAffected: number }).rowsAffected ?? 0;
+
+      // 更新标签：先删后插
+      await tx.delete(transactionTags).where(eq(transactionTags.transactionId, id));
+      if (d.tagIds?.length) {
+        await tx.insert(transactionTags).values(
+          d.tagIds.map((tagId) => ({ transactionId: id, tagId })),
+        );
+      }
+
+      // 0 行更新：目标流水不存在/不属于该账本，跳过审计（事务回滚）
+      if (rowsAffected === 0) {
+        throw new TransactionNotUpdatedError();
+      }
+
+      await tx.insert(auditLogs).values({
+        userId: user.id,
+        action: "U",
+        entity: "transaction",
+        entityId: id,
+        summary,
+        requestBody: reqBody,
+        responseBody: '{"result":"updated"}',
+      });
+    });
   } catch (e) {
+    if (e instanceof TransactionNotUpdatedError) {
+      return { ok: false as const, error: "common.txNotFound" };
+    }
     return { ok: false as const, error: "common.saveFailed" };
   }
   revalidatePath("/transactions");

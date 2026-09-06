@@ -1,11 +1,9 @@
-import { desc, eq, or, like, and, sql } from "drizzle-orm";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/scope";
 import { getLocale, getDictionary } from "@/lib/i18n";
-import { db } from "@/lib/db";
-import { auditLogs, users } from "@/db/schema";
-import { getPaginationConfig } from "@/lib/pagination";
+import { getPaginationConfig, parsePage, resolvePageSize } from "@/lib/pagination";
+import { listAuditLogs } from "@/lib/queries";
 import { LogsManager } from "../../logs/logs-manager";
 
 /** 操作日志（全局设置入口）：写操作留痕（C/U/D）+ 分页 + 搜索 + 批量删除 + 清理；按用户维度隔离 */
@@ -28,63 +26,16 @@ export default async function SettingsLogsPage({
 
   // Next.js 16: searchParams 是 Promise，必须 await
   const sp = await searchParams;
-  const page = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
+  const page = parsePage(sp.page);
   const q = (sp.q ?? "").trim();
   // 每页条数：只接受全局设置中允许的值，否则用默认值
-  const rawSize = parseInt(sp.pageSize ?? "", 10);
-  const pageSize = allowedPageSizes.includes(rawSize) ? rawSize : defaultPageSize;
-  const offset = (page - 1) * pageSize;
+  const pageSize = resolvePageSize(sp.pageSize, allowedPageSizes, defaultPageSize);
 
-  // 搜索条件：summary / entity / action / 用户昵称 / 用户邮箱 / 用户编号 模糊匹配
-  const searchCond = q
-    ? or(
-        like(auditLogs.summary, `%${q}%`),
-        like(auditLogs.entity, `%${q}%`),
-        like(auditLogs.action, `%${q}%`),
-        like(users.name, `%${q}%`),
-        like(users.email, `%${q}%`),
-        like(auditLogs.userId, `%${q}%`),
-      )
-    : undefined;
-
-  // 管理员查看全部日志；普通用户仅查看自己的日志
-  const baseWhere = user.role === "admin"
-    ? searchCond
-    : searchCond ? and(eq(auditLogs.userId, user.id), searchCond) : eq(auditLogs.userId, user.id);
-
-  // 总数（用于分页）：需要 join users 表，因为搜索条件包含 users.name / users.email
-  const [countRow] = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(auditLogs)
-    .leftJoin(users, eq(auditLogs.userId, users.id))
-    .where(baseWhere as any);
-  const total = Number(countRow?.count ?? 0);
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-
-  // 分页查询
-  const rows = await db
-    .select({ log: auditLogs, email: users.email, name: users.name })
-    .from(auditLogs)
-    .leftJoin(users, eq(auditLogs.userId, users.id))
-    .where(baseWhere as any)
-    .orderBy(desc(auditLogs.createdAt))
-    .limit(pageSize)
-    .offset(offset);
-
-  const data = rows.map((r) => ({
-    id: r.log.id,
-    userId: r.log.userId,
-    action: r.log.action,
-    entity: r.log.entity,
-    entityId: r.log.entityId,
-    summary: r.log.summary,
-    requestBody: (r.log as any).requestBody ?? null,
-    responseBody: (r.log as any).responseBody ?? null,
-    ip: (r.log as any).ip ?? null,
-    email: r.email ?? "-",
-    name: r.name ?? "",
-    createdAt: r.log.createdAt,
-  }));
+  const { rows: data, total, totalPages } = await listAuditLogs({
+    search: q,
+    page,
+    pageSize,
+  });
 
   return (
     <div className="space-y-4">

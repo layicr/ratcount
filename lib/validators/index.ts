@@ -3,5 +3,5 @@
  *  - 按领域拆分到子文件，此处统一重新导出
  *  - 用法：import { transactionSchema, registerSchema } from "@/lib/validators"
  */
-export { transactionSchema, type TransactionInput } from "./transaction";
+export { transactionSchema, txTypeFilterSchema, txListFilterSchema, type TransactionInput, type TxTypeFilter, type TxListFilter } from "./transaction";
 export { registerSchema, loginSchema, type RegisterInput, type LoginInput } from "./auth";

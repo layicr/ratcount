@@ -22,8 +22,13 @@ test("yuanToCents: 元字符串 → 分", () => {
 test("yuanToCents: 非法输入返回 null", () => {
   assert.strictEqual(yuanToCents("abc"), null);
   assert.strictEqual(yuanToCents("1.234"), null);
-  assert.strictEqual(yuanToCents("-5"), null);
   assert.strictEqual(yuanToCents(""), null);
+});
+
+test("yuanToCents: 支持负数（期初余额为负）", () => {
+  assert.strictEqual(yuanToCents("-5"), -500);
+  assert.strictEqual(yuanToCents("-5.5"), -550);
+  assert.strictEqual(yuanToCents("-4860"), -486000);
 });
 
 test("convertCents: 汇率折算", () => {

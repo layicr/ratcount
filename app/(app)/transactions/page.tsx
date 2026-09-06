@@ -5,7 +5,8 @@ import { listTransactions, countTransactions } from "@/lib/queries";
 import { db } from "@/lib/db";
 import { categories } from "@/db/schema";
 import { getLocale, getDictionary } from "@/lib/i18n";
-import { getPaginationConfig } from "@/lib/pagination";
+import { getPaginationConfig, parsePage, resolvePageSize, computeOffset, computeTotalPages, buildPageWindow } from "@/lib/pagination";
+import { txListFilterSchema } from "@/lib/validators";
 import { TxList } from "./tx-list";
 import { ImportButton } from "./import-button";
 
@@ -18,21 +19,21 @@ export default async function TransactionsPage({
   const user = await requireUser();
   const ledger = await getCurrentLedger();
   const sp = await searchParams;
-  const type = sp.type ?? "";
-  const categoryId = sp.categoryId ?? "";
-  const q = sp.q ?? "";
-  const accountId = sp.accountId ?? "";
-  const projectId = sp.projectId ?? "";
-  const startDate = sp.startDate ?? "";
-  const endDate = sp.endDate ?? "";
-  const minAmount = sp.minAmount ?? "";
-  const maxAmount = sp.maxAmount ?? "";
-  const page = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
+  // 全部筛选参数白名单/格式预校验（非法值回退为空/不过滤）
+  const f = txListFilterSchema.parse(sp);
+  const type = f.type;
+  const categoryId = f.categoryId ?? "";
+  const accountId = f.accountId ?? "";
+  const projectId = f.projectId ?? "";
+  const q = f.q ?? "";
+  const startDate = f.startDate ?? "";
+  const endDate = f.endDate ?? "";
+  const minAmount = f.minAmount ?? "";
+  const maxAmount = f.maxAmount ?? "";
+  const page = parsePage(sp.page);
   // 从全局设置读取分页配置 / Read pagination config from global settings
   const { allowedPageSizes, defaultPageSize } = await getPaginationConfig();
-  const pageSize = allowedPageSizes.includes(parseInt(sp.pageSize ?? "", 10))
-    ? parseInt(sp.pageSize!, 10)
-    : defaultPageSize;
+  const pageSize = resolvePageSize(sp.pageSize, allowedPageSizes, defaultPageSize);
   const d = getDictionary(await getLocale());
 
   if (!ledger) return <p className="text-slate-500">{d.common.noLedger}</p>;
@@ -44,16 +45,15 @@ export default async function TransactionsPage({
   const filterOpts = { type: type || undefined, categoryId: categoryId || undefined, q: q || undefined, accountId: accountId || undefined, projectId: projectId || undefined, startDate: startDate || undefined, endDate: endDate || undefined, minAmount: minAmountCents, maxAmount: maxAmountCents };
   const [total, txs] = await Promise.all([
     countTransactions(ledger.id, filterOpts),
-    listTransactions(ledger.id, { ...filterOpts, limit: pageSize, offset: (page - 1) * pageSize }),
+    listTransactions(ledger.id, { ...filterOpts, limit: pageSize, offset: computeOffset(page, pageSize) }),
   ]);
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const totalPages = computeTotalPages(total, pageSize);
   const cats = await db.select().from(categories).where(eq(categories.ledgerId, ledger.id));
 
   // 分页链接保留筛选参数（服务端预生成，避免传函数给客户端）
   const qs = (p: number) => `?type=${type}&categoryId=${categoryId}&q=${encodeURIComponent(q)}&accountId=${accountId}&projectId=${projectId}&startDate=${startDate}&endDate=${endDate}&minAmount=${minAmount}&maxAmount=${maxAmount}&pageSize=${pageSize}&page=${p}`;
   // 预生成当前页附近的页码链接
-  const pageStart = Math.max(1, Math.min(page - 2, totalPages - 4));
-  const pageNumbers = Array.from({ length: Math.min(5, totalPages) }, (_, i) => pageStart + i).filter((p) => p <= totalPages);
+  const pageNumbers = buildPageWindow(page, totalPages);
   const pagination = {
     page,
     totalPages,

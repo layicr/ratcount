@@ -20,9 +20,11 @@ export function formatCents(cents: Cents): string {
 /** 元字符串/数字 → 分（最多两位小数）；非法返回 null / Yuan to cents */
 export function yuanToCents(input: string | number): Cents | null {
   const n = typeof input === "number" ? String(input) : input.trim();
-  if (!/^\d+(\.\d{1,2})?$/.test(n)) return null;
-  const [i, f = ""] = n.split(".");
-  return parseInt(i, 10) * 100 + parseInt((f + "00").slice(0, 2), 10);
+  // 允许负号：期初余额（如信用卡）可为负
+  if (!/^-?\d+(\.\d{1,2})?$/.test(n)) return null;
+  const sign = n.startsWith("-") ? -1 : 1;
+  const [i, f = ""] = n.replace(/^-/, "").split(".");
+  return sign * (parseInt(i, 10) * 100 + parseInt((f + "00").slice(0, 2), 10));
 }
 
 /** 汇率折算：amountCents（源币种）→ 目标币种分值（保留分）
@@ -31,5 +33,10 @@ export function yuanToCents(input: string | number): Cents | null {
 export function convertCents(amountCents: Cents, fromRate: string, toRate: string): Cents {
   const from = parseFloat(fromRate) || 1;
   const to = parseFloat(toRate) || 1;
-  return Math.round((amountCents * from) / to);
+  // 定点整数缩放，避免大数 * 浮点汇率的精度误差（rate 以文本存 DECIMAL，解析后仍可能浮点）
+  const SCALE = 1_000_000;
+  const f = Math.round(from * SCALE);
+  const t = Math.round(to * SCALE);
+  if (t === 0) return 0;
+  return Math.round((amountCents * f) / t);
 }

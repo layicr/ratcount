@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createLedger, updateLedger, deleteLedger } from "@/app/actions/ledgers";
 import { useT } from "@/components/i18n-provider";
-import { ConfirmButton } from "../components/confirm";
+import { ConfirmButton, DeleteButton } from "../components/confirm";
 import { IconPicker } from "../components/icon-picker";
 
 type Ledger = {
@@ -186,15 +186,13 @@ export function LedgersManager({
                   <button onClick={() => startEdit(l)} className="text-xs text-slate-500 hover:text-teal-600">
                     {t("common.edit")}
                   </button>
-                  <ConfirmButton
-                    danger
+                  <DeleteButton
                     action={async () => { await deleteLedger(l.id); }}
                     title={t("ledgers.delTitle")}
                     desc={t("ledgers.delDesc", { name: l.name })}
                     okText={t("common.delete")}
-                  >
-                    <span className="text-xs text-red-500 hover:underline">{t("common.delete")}</span>
-                  </ConfirmButton>
+                    label={<span className="text-xs text-red-500 hover:underline">{t("common.delete")}</span>}
+                  />
                 </>
               )}
             </div>

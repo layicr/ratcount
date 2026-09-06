@@ -6,7 +6,7 @@ import {
   createCurrency, updateCurrency, deleteCurrency,
 } from "@/app/actions/settings";
 import { useT } from "@/components/i18n-provider";
-import { ConfirmButton } from "../../components/confirm";
+import { ConfirmButton, DeleteButton } from "../../components/confirm";
 
 type Currency = { code: string; name: string; symbol: string; rate: number; isActive: boolean; isBase: boolean; remark: string | null };
 
@@ -221,15 +221,13 @@ export function CurrencyManager({ currencies }: { currencies: Currency[] }) {
                     <div className="flex justify-end gap-2">
                       <button onClick={() => startEdit(c)} className="text-xs text-slate-500 hover:text-teal-600">{t("common.edit")}</button>
                       {!c.isBase && (
-                        <ConfirmButton
-                          danger
+                        <DeleteButton
                           action={async () => { await deleteCurrency(c.code); }}
                           title={t("currency.delTitle")}
                           desc={t("currency.delDesc", { code: c.code })}
                           okText={t("common.delete")}
-                        >
-                          <span className="text-xs text-red-500 hover:underline">{t("common.delete")}</span>
-                        </ConfirmButton>
+                          label={<span className="text-xs text-red-500 hover:underline">{t("common.delete")}</span>}
+                        />
                       )}
                     </div>
                   </td>

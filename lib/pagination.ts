@@ -59,3 +59,12 @@ export async function getPaginationConfig(): Promise<{
 export function validatePageSize(pageSize: number, allowedPageSizes: number[]): number {
   return allowedPageSizes.includes(pageSize) ? pageSize : allowedPageSizes[0];
 }
+
+// —— 纯函数分页助手（无 DB 依赖，Server / Client 组件共用）——
+export {
+  parsePage,
+  resolvePageSize,
+  computeOffset,
+  computeTotalPages,
+  buildPageWindow,
+} from "./pagination-util";

@@ -2,8 +2,9 @@
 
 import { Fragment, useState } from "react";
 import { deleteAuditLogs, clearExpiredLogs } from "@/app/actions/logs";
+import { buildPageWindow } from "@/lib/pagination-util";
 import { useT } from "@/components/i18n-provider";
-import { ConfirmButton } from "../components/confirm";
+import { ConfirmButton, DeleteButton } from "../components/confirm";
 
 type Log = {
   id: string;
@@ -125,18 +126,16 @@ export function LogsManager({
             >
               <span className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50">{t("logs.clearExpired")}</span>
             </ConfirmButton>
-            <ConfirmButton
-              danger
+            <DeleteButton
               disabled={sel.size === 0}
               action={async () => { await deleteAuditLogs([...sel]); setSel(new Set()); }}
               title={t("logs.delTitle")}
               desc={t("logs.delDesc", { count: sel.size })}
               okText={t("common.delete")}
-            >
-              <span className={`rounded-lg px-3 py-1.5 text-xs ${sel.size ? "bg-red-50 text-red-600" : "bg-slate-50 text-slate-300"}`}>
+              label={<span className={`rounded-lg px-3 py-1.5 text-xs ${sel.size ? "bg-red-50 text-red-600" : "bg-slate-50 text-slate-300"}`}>
                 {t("common.batchDelete")}{sel.size ? `（${sel.size}）` : ""}
-              </span>
-            </ConfirmButton>
+              </span>}
+            />
           </div>
         )}
       </div>
@@ -250,26 +249,19 @@ export function LogsManager({
               {t("logs.prevPage")}
             </button>
             {/* 页码按钮（最多显示 5 个） */}
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              let p: number;
-              if (totalPages <= 5) p = i + 1;
-              else if (page <= 3) p = i + 1;
-              else if (page >= totalPages - 2) p = totalPages - 4 + i;
-              else p = page - 2 + i;
-              return (
-                <button
-                  key={p}
-                  onClick={() => goPage(p)}
-                  className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs ${
-                    p === page
-                      ? "bg-teal-600 text-white"
-                      : "border border-slate-200 text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-                  {p}
-                </button>
-              );
-            })}
+            {buildPageWindow(page, totalPages).map((p) => (
+              <button
+                key={p}
+                onClick={() => goPage(p)}
+                className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs ${
+                  p === page
+                    ? "bg-teal-600 text-white"
+                    : "border border-slate-200 text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                {p}
+              </button>
+            ))}
             <button
               onClick={() => goPage(page + 1)}
               disabled={page >= totalPages}

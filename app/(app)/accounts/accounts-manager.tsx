@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { createAccount, updateAccount, deleteAccount } from "@/app/actions/accounts";
 import { useT } from "@/components/i18n-provider";
-import { ConfirmButton } from "../components/confirm";
+import { ConfirmButton, DeleteButton } from "../components/confirm";
 import { IconPicker } from "../components/icon-picker";
 import { AccountTypeBadge } from "../components/badges";
 import { formatCents } from "@/lib/money";
@@ -13,7 +13,7 @@ const TYPES = [
   { v: "cash", key: "acctType.cash" }, { v: "debit_card", key: "acctType.debitCard" }, { v: "credit_card", key: "acctType.creditCard" },
   { v: "wechat", key: "acctType.wechat" }, { v: "savings", key: "acctType.savings" }, { v: "investment", key: "acctType.investment" },
   { v: "fund", key: "acctType.fund" }, { v: "precious_metal", key: "acctType.preciousMetal" }, { v: "bond", key: "acctType.bond" },
-  { v: "foreign_currency", key: "acctType.foreignCurrency" }, { v: "custom", key: "acctType.custom" },
+  { v: "foreign_currency", key: "acctType.foreignCurrency" }, { v: "real_estate", key: "acctType.realEstate" }, { v: "custom", key: "acctType.custom" },
 ];
 
 type Acct = {
@@ -172,15 +172,13 @@ export function AccountsManager({
                     <div className="mt-3 flex items-center justify-end gap-2">
                       <a href={`/transactions?accountId=${a.id}`} className="text-xs text-teal-600 hover:underline">{tt("common.viewTx")}</a>
                       <button onClick={() => startEdit(a)} className="text-xs text-slate-500 hover:text-teal-600">{tt("common.edit")}</button>
-                      <ConfirmButton
-                        danger
+                      <DeleteButton
                         action={async () => { await deleteAccount(a.id); }}
                         title={tt("accounts.delTitle")}
                         desc={tt("accounts.delDesc", { name: a.name })}
                         okText={tt("common.delete")}
-                      >
-                        <span className="text-xs text-red-500 hover:underline">{tt("common.delete")}</span>
-                      </ConfirmButton>
+                        label={<span className="text-xs text-red-500 hover:underline">{tt("common.delete")}</span>}
+                      />
                     </div>
                   </div>
                 ))}

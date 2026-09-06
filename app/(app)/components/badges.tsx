@@ -24,7 +24,7 @@ export function AccountTypeBadge({ type }: { type: string }) {
     cash: "acctType.cash", debit_card: "acctType.debitCard", credit_card: "acctType.creditCard",
     wechat: "acctType.wechat", savings: "acctType.savings", investment: "acctType.investment",
     fund: "acctType.fund", precious_metal: "acctType.preciousMetal", bond: "acctType.bond",
-    foreign_currency: "acctType.foreignCurrency", custom: "acctType.custom",
+    foreign_currency: "acctType.foreignCurrency", real_estate: "acctType.realEstate", custom: "acctType.custom",
   };
   return (
     <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">

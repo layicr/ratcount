@@ -1,6 +1,6 @@
 {
   "name": "ratcount",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "ratcount",
   "scripts": {
@@ -13,22 +13,25 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx db/seed.ts",
-    "test": "node --test"
+    "test": "tsx --test \"test/*.test.ts\"",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@e965/xlsx": "^0.20.3",
     "@libsql/client": "^0.15.0",
     "bcryptjs": "^3.0.2",
-    "drizzle-orm": "^0.44.0",
+    "drizzle-orm": "^0.45.2",
+    "echarts": "^6.1.0",
     "jose": "^6.0.0",
     "next": "^16.0.0",
-    "next-auth": "^5.0.0-beta.29",
+    "next-auth": "^5.0.0-beta.32",
     "next-intl": "^4.0.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "xlsx": "^0.18.5",
     "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4.1.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^24.0.0",
@@ -40,5 +43,10 @@
     "tailwindcss": "^4.1.0",
     "tsx": "^4.19.0",
     "typescript": "^5.9.0"
+  },
+  "overrides": {
+    "@esbuild-kit/core-utils": {
+      "esbuild": "^0.25.12"
+    }
   }
 }

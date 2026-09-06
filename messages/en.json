@@ -37,6 +37,7 @@
     "accountRequired": "Please select an account", "toAccountRequired": "Please select a target account",
     "balanceRequired": "Please enter a balance", "categoryRequired": "Please select a category",
     "prev": "Prev", "next": "Next", "month": "",
+    "byYear": "By Year", "byMonth": "By Month", "currentYear": "This Year", "yearSuffix": "",
     "selectColor": "Select Color", "customColor": "Custom Color", "selectIcon": "Select Icon"
   },
   "layout": {
@@ -72,7 +73,8 @@
     "rowAmountInvalid": "Row {line}: invalid amount format",
     "rowAmountPositive": "Row {line}: amount must be greater than 0",
     "rowWriteFailed": "Row {line}: write failed",
-    "importComplete": "Import complete: {success} success, {failed} failed"
+    "importComplete": "Import complete: {success} success, {failed} failed",
+    "importFailed": "Batch parse failed, nothing imported"
   },
   "login": {
     "title": "Sign in", "subtitle": "Personal / Family / Business bookkeeping · data under your control",
@@ -96,6 +98,7 @@
   "dashboard": {
     "title": "Dashboard", "netWorth": "Net Worth", "assets": "Assets", "liabilities": "Liabilities",
     "monthIncome": "Income (MTD)", "monthExpense": "Expense (MTD)", "monthBalance": "Balance (MTD)",
+    "incomeWithCount": "Income ({count})", "expenseWithCount": "Expense ({count})",
     "balanceRate": "Savings rate", "trend": "Monthly trend", "trend6m": "Monthly trend (last 6 months)",
     "assetDist": "Asset distribution (by account type)", "recent": "Recent transactions", "viewAll": "View all",
     "noData": "No asset data", "noFlow": "No transactions yet — tap \"Add\" to start",
@@ -151,12 +154,18 @@
   "reports": {
     "title": "Reports", "overview": "Overview", "category": "Category", "trend": "Trend",
     "project": "Project", "tag": "Tag", "asset": "Asset", "year": "Year",
-    "expenseCat": "Expense breakdown (MTD)", "incomeCat": "Income breakdown (MTD)",
+    "expenseCat": "Expense breakdown", "incomeCat": "Income breakdown",
     "trend6m": "Income / expense trend (6M)", "yearTrend": "{year} yearly trend",
     "income": "Income", "expense": "Expense", "balance": "Balance", "budget": "Budget",
     "progress": "Progress", "status": "Status", "active": "Active", "completed": "Completed",
-    "assetDist": "Asset distribution (total ¥{total})", "noData": "No data",
-    "projectName": "Project", "unclassified": "Uncategorized", "tagCount": "{count} transactions"
+    "assetDist": "Asset distribution (total ¥{total})", "assetDetail": "Asset details", "noData": "No data",
+    "projectName": "Project", "unclassified": "Uncategorized", "tagCount": "{count} transactions",
+    "txCount": "Transactions",
+    "txCountValue": "{count} transactions", "txCountSub": "Income {income} · Expense {expense}",
+    "monthlyTrend": "Monthly Income / Expense Trend",
+    "projectExpensePie": "Project expense breakdown", "projectIncomePie": "Project income breakdown",
+    "tagExpensePie": "Tag expense breakdown", "tagIncomePie": "Tag income breakdown",
+    "periodMonth": "{month} {year}", "periodYear": "{year}"
   },
   "projects": {
     "title": "Project Management", "add": "Add", "name": "Project name", "icon": "Icon",
@@ -168,7 +177,7 @@
     "empty": "No projects", "budgetPrefix": "Budget ¥{amount}"
   },
   "tags": {
-    "title": "Categories & Tags", "expenseCat": "Expense categories", "incomeCat": "Income categories",
+    "title": "Tags", "expenseCat": "Expense categories", "incomeCat": "Income categories",
     "add": "Add", "newCat": "New category", "newIncomeCat": "New income category",
     "newTag": "New tag", "icon": "Icon", "color": "Color", "empty": "None",
     "add": "Add", "remarkPlaceholder": "Optional notes",
@@ -327,6 +336,22 @@
     "securityHint": "Security tip: Use a strong password and change it regularly. Passwords are encrypted with bcrypt and cannot be viewed in plaintext."
   },
   "i18n": { "switchHint": "中 / EN", "zh": "中文", "en": "English" },
+  "import": {
+    "guide": "Instructions",
+    "field": "Field",
+    "required": "Required",
+    "allowed": "Allowed values",
+    "example": "Example",
+    "guideNote": "Note: delete the example rows before uploading; up to 1000 rows per import; supports .xlsx / .csv",
+    "accountHint": "Matches an existing account; auto-created if not found",
+    "toAccountHint": "Only for transfers; the receiving account",
+    "categoryHint": "Matches an existing category; auto-created if not found; leave blank for transfers",
+    "projectHint": "Matches an existing project; auto-created if not found",
+    "amountHint": "Number, in yuan (¥), greater than 0",
+    "remarkHint": "Any text",
+    "tagHint": "Separate multiple tags with 「、」",
+    "remarkExample": "Lunch"
+  },
   "userMgmt": {
     "title": "User Management", "manageDesc": "Manage system users: create, edit, delete, reset password",
     "searchPlaceholder": "Search",
@@ -368,6 +393,6 @@
   "acctType": {
     "cash": "Cash", "debitCard": "Debit card", "creditCard": "Credit", "wechat": "Virtual",
     "savings": "Time deposit", "investment": "Stock", "fund": "Fund", "preciousMetal": "Precious metal",
-    "bond": "Treasury bond", "foreignCurrency": "Foreign currency", "custom": "Custom"
+    "bond": "Treasury bond", "foreignCurrency": "Foreign currency", "realEstate": "Real estate", "custom": "Custom"
   }
 }

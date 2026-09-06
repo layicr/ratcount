@@ -8,6 +8,7 @@ import { settings, currencies, balances, accounts } from "@/db/schema";
 import { requireUser } from "@/lib/scope";
 import { getCurrentLedgerId } from "@/lib/ledger";
 import { withAudit } from "@/lib/audit";
+import { yuanToCents } from "@/lib/money";
 
 /** 全局设置仅管理员可改 / Global settings are admin-only */
 async function requireAdmin() {
@@ -63,8 +64,14 @@ export async function updateSetting(key: string, value: string) {
   await withAudit(
     { userId: user.id, action: "U", entity: "setting", summary: `设置 ${key}: ${value}`, requestBody: JSON.stringify({ key, value }), responseBody: '{"result":"updated"}' },
     async (tx) => {
-      await tx.delete(settings).where(and(eq(settings.userId, "global"), inArray(settings.key, [key])));
-      await tx.insert(settings).values({ key, value, userId: "global", updatedBy: user.id });
+      // upsert：基于 (user_id, key) 唯一约束，避免 delete + insert 丢失主键与 updated_at 语义
+      await tx
+        .insert(settings)
+        .values({ key, value, userId: "global", updatedBy: user.id })
+        .onConflictDoUpdate({
+          target: [settings.userId, settings.key],
+          set: { value, updatedBy: user.id },
+        });
     },
   );
   revalidatePath("/settings");
@@ -192,8 +199,9 @@ export async function recordBalance(input: z.infer<typeof balanceSchema>) {
   const parsed = balanceSchema.safeParse(input);
   if (!parsed.success) return { ok: false as const, error: "errors.invalidInput" };
   const d = parsed.data;
-  const cents = Math.round(parseFloat(d.balanceYuan) * 100);
-  if (!isFinite(cents)) return { ok: false as const, error: "errors.amountInvalid" };
+  // 统一走 yuanToCents（支持负余额快照，且与其他 action 口径一致）
+  const cents = yuanToCents(d.balanceYuan);
+  if (cents === null) return { ok: false as const, error: "errors.amountInvalid" };
 
   const ledgerId = await getCurrentLedgerId();
   if (!ledgerId) return { ok: false as const, error: "errors.noLedger" };

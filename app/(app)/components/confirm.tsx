@@ -109,6 +109,31 @@ export function ConfirmButton({
   );
 }
 
+/** 通用删除按钮：危险态确认（封装 ConfirmButton danger），消除各 manager 的重复删除块 */
+export function DeleteButton({
+  action,
+  title,
+  desc,
+  label,
+  okText,
+  disabled,
+  beforeOpen,
+}: {
+  action: () => Promise<unknown>;
+  title: string;
+  desc: string;
+  label: React.ReactNode;
+  okText?: string;
+  disabled?: boolean;
+  beforeOpen?: () => boolean;
+}) {
+  return (
+    <ConfirmButton danger action={action} title={title} desc={desc} okText={okText} disabled={disabled} beforeOpen={beforeOpen}>
+      {label}
+    </ConfirmButton>
+  );
+}
+
 /* ================= 全局轻提示 Toast（替代原生 alert，界面更友好） ================= */
 
 let toastShow: ((msg: string) => void) | null = null;
