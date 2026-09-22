@@ -38,8 +38,13 @@ function isRetryable(err: unknown): boolean {
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** 软超时：到点即 reject（驱动无 abort，底层请求不取消，仅丢弃其结果）/ Soft timeout: reject on expiry (driver has no abort; underlying request isn't cancelled, only its result is dropped) */
+/** 软超时：到点即 reject（驱动无 abort，底层请求不取消，仅丢弃其结果）。
+ *  ms ≤ 0 或非有限值视为「不设超时」，直接返回原 Promise——避免配置为 0 时 setTimeout(...,0)
+ *  在下一个 tick 立即 reject，把所有语句误判为「超时」。
+ *  Soft timeout: reject on expiry (no abort; result dropped). ms ≤ 0 or non-finite disables the timeout,
+ *  so a 0 value can't make every statement fail instantly via setTimeout(...,0). */
 function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  if (!(ms > 0)) return p; // 未配置 / ≤0 → 关闭软超时 / unset or ≤ 0 → disabled
   return new Promise<T>((resolve, reject) => {
     const t = setTimeout(() => reject(new Error(`[db] ${label} 超时（>${ms}ms）`)), ms);
     p.then(

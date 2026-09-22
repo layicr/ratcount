@@ -16,16 +16,30 @@ export function resolveDbMode(url: string): "file" | "libsql" {
   return url.trim().toLowerCase().startsWith("file:") ? "file" : "libsql";
 }
 
+/**
+ * 数值型环境变量 schema：空白字符串按「未设置」处理，避免 Number("")=0 绕过 .default()。
+ * 反例：DB_STATEMENT_TIMEOUT_MS=（空）→ 0 → setTimeout(...,0) 令所有语句瞬间「超时」。
+ * Numeric env schema: treat blank strings as unset so Number("")=0 can't bypass .default().
+ */
+const numericEnv = (def: number) =>
+  z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? undefined : v), z.coerce.number().default(def));
+
+/** 读取数值环境变量：未设/空白/非有限值时回退默认值（兜底分支用）/ Read numeric env, falling back on unset/blank/non-finite */
+const numOr = (raw: string | undefined, def: number): number => {
+  const n = raw === undefined || raw.trim() === "" ? def : Number(raw);
+  return Number.isFinite(n) ? n : def;
+};
+
 const envSchema = z.object({
   // 数据库：DATABASE_URL 以 file: 开头即本地 SQLite，否则为 Turso 云端（见 resolveDbMode）/ Database: `file:` prefix → local SQLite, otherwise Turso cloud (see resolveDbMode)
   DATABASE_URL: z.string().trim().min(1, "DATABASE_URL 不能为空"),
   // 应用默认名（仅作兜底；运行时优先使用 settings 表 app_name）/ App default name (fallback only; settings.app_name wins at runtime)
   APP_NAME: z.string().default("ratcount"),
   // 数据库健壮性配置（可用环境变量覆盖，均有默认值）/ DB robustness knobs (overridable via env vars, all have defaults)
-  DB_CONCURRENCY: z.coerce.number().default(20), // 驱动层并发上限（最接近“连接池”的杠杆）/ Driver-level concurrency cap (closest thing to a connection pool)
-  DB_STATEMENT_TIMEOUT_MS: z.coerce.number().default(5_000), // 单条语句软超时 / Per-statement soft timeout (ms)
-  DB_MAX_RETRIES: z.coerce.number().default(3), // 瞬时错误最大重试次数 / Max retries for transient errors
-  DB_RETRY_BASE_DELAY_MS: z.coerce.number().default(200), // 重试基础退避（毫秒，指数增长）/ Retry base backoff (ms, exponential)
+  DB_CONCURRENCY: numericEnv(20), // 驱动层并发上限（最接近“连接池”的杠杆）/ Driver-level concurrency cap (closest thing to a connection pool)
+  DB_STATEMENT_TIMEOUT_MS: numericEnv(5_000), // 单条语句软超时（毫秒；≤0 关闭）/ Per-statement soft timeout (ms; ≤0 disables)
+  DB_MAX_RETRIES: numericEnv(3), // 瞬时错误最大重试次数 / Max retries for transient errors
+  DB_RETRY_BASE_DELAY_MS: numericEnv(200), // 重试基础退避（毫秒，指数增长）/ Retry base backoff (ms, exponential)
   // 认证 / Auth
   AUTH_SECRET: z.string().min(16, "AUTH_SECRET 至少 16 位（生产环境建议 32 位以上强随机密钥）"),
   // Turso 云端令牌（云端模式必填，见 superRefine；库地址直接用 DATABASE_URL）/ Turso cloud auth token (required in cloud mode, see superRefine; the DB address itself is DATABASE_URL)
@@ -86,10 +100,10 @@ export const env = parsed.success
       DATABASE_URL: fallbackUrl,
       DATABASE_MODE: resolveDbMode(fallbackUrl),
       APP_NAME: process.env.APP_NAME ?? "ratcount",
-      DB_CONCURRENCY: Number(process.env.DB_CONCURRENCY ?? 20),
-      DB_STATEMENT_TIMEOUT_MS: Number(process.env.DB_STATEMENT_TIMEOUT_MS ?? 5_000),
-      DB_MAX_RETRIES: Number(process.env.DB_MAX_RETRIES ?? 3),
-      DB_RETRY_BASE_DELAY_MS: Number(process.env.DB_RETRY_BASE_DELAY_MS ?? 200),
+      DB_CONCURRENCY: numOr(process.env.DB_CONCURRENCY, 20),
+      DB_STATEMENT_TIMEOUT_MS: numOr(process.env.DB_STATEMENT_TIMEOUT_MS, 5_000),
+      DB_MAX_RETRIES: numOr(process.env.DB_MAX_RETRIES, 3),
+      DB_RETRY_BASE_DELAY_MS: numOr(process.env.DB_RETRY_BASE_DELAY_MS, 200),
       AUTH_SECRET: fallbackAuthSecret,
       TURSO_AUTH_TOKEN: process.env.TURSO_AUTH_TOKEN,
       NODE_ENV: (process.env.NODE_ENV as NodeEnv) ?? NODE_ENV.production,
