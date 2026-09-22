@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { nodeEnvs, NODE_ENV, type NodeEnv } from "@/lib/constants";
 
 /**
  * 环境变量类型定义与运行时校验 / Environment variable schema & runtime validation
@@ -30,7 +31,7 @@ const envSchema = z.object({
   // Turso 云端令牌（云端模式必填，见 superRefine；库地址直接用 DATABASE_URL）/ Turso cloud auth token (required in cloud mode, see superRefine; the DB address itself is DATABASE_URL)
   TURSO_AUTH_TOKEN: z.string().optional(),
   // Node 环境 / Node environment
-  NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+  NODE_ENV: z.enum(nodeEnvs).default(NODE_ENV.production),
 });
 
 // 云端模式（DATABASE_URL 非 file:）下校验 TURSO 令牌必填 / In cloud mode (DATABASE_URL without `file:`) the Turso token becomes mandatory
@@ -44,7 +45,7 @@ const parsed = tursoRequired.safeParse(process.env);
 
 if (!parsed.success) {
   const issues = parsed.error.issues.map((i) => `  - ${i.path.join(".")}: ${i.message}`).join("\n");
-  if (process.env.NODE_ENV === "production") {
+  if (process.env.NODE_ENV === NODE_ENV.production) {
     // 生产环境严格校验，缺失关键变量直接报错 / Production: strict — abort startup when a required variable is missing
     console.error(`[env] 环境变量校验失败：\n${issues}`);
     throw new Error("环境变量校验失败，请检查 .env.local");
@@ -73,7 +74,7 @@ function ephemeralAuthSecret(): string {
 }
 
 const fallbackAuthSecret = process.env.AUTH_SECRET ?? ephemeralAuthSecret();
-if (!process.env.AUTH_SECRET && process.env.NODE_ENV !== "production") {
+if (!process.env.AUTH_SECRET && process.env.NODE_ENV !== NODE_ENV.production) {
   console.warn(
     "[env] 未设置 AUTH_SECRET：已生成本进程的随机密钥（重启后会话失效）。生产环境必须配置强随机 AUTH_SECRET。",
   );
@@ -91,6 +92,6 @@ export const env = parsed.success
       DB_RETRY_BASE_DELAY_MS: Number(process.env.DB_RETRY_BASE_DELAY_MS ?? 200),
       AUTH_SECRET: fallbackAuthSecret,
       TURSO_AUTH_TOKEN: process.env.TURSO_AUTH_TOKEN,
-      NODE_ENV: (process.env.NODE_ENV as "development" | "production" | "test") ?? "development",
+      NODE_ENV: (process.env.NODE_ENV as NodeEnv) ?? NODE_ENV.production,
     };
 export type Env = typeof env;

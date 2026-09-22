@@ -43,6 +43,11 @@ function ensureDatabaseFile(): void {
 /** 幂等建表 + 索引（供桌面主进程启动时调用一次） */
 export async function ensureSchema(): Promise<void> {
   ensureDatabaseFile();
+  // 本地 SQLite 强制 WAL 模式：Turso 嵌入式副本 / CLI 上传要求本地库为 WAL；
+  // 同时在写多读少场景下提升并发（读写互不阻塞）。仅对 file: 本地库生效，云端模式跳过。
+  if (env.DATABASE_MODE === "file") {
+    await db.run(sql.raw("PRAGMA journal_mode=WAL"));
+  }
   for (const table of TABLES) {
     const cfg = getTableConfig(table) as unknown as {
       name: string;

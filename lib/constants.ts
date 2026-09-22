@@ -452,3 +452,13 @@ export type MenuDeviceType = (typeof menuDeviceTypes)[number];
 
 /** 菜单设备类型值常量（对象式访问，运行时可比 `DEVICE.mobile` === menu.deviceType）/ Menu device type value constants (object-style; at runtime `DEVICE.mobile` === menu.deviceType) */
 export const DEVICE = Object.fromEntries(menuDeviceTypes.map((r) => [r, r])) as { [K in MenuDeviceType]: K };
+
+/* ===== Node 运行环境 / Node runtime environment ===== */
+
+/** Node 运行环境：development 开发 / production 生产 / test 测试（与 process.env.NODE_ENV 取值一致）/ Node runtime environment: development / production / test (matches process.env.NODE_ENV) */
+export const nodeEnvs = ["development", "production", "test"] as const;
+export type NodeEnv = (typeof nodeEnvs)[number];
+/** Node 运行环境值常量（对象式访问，运行时可比 `NODE_ENV.production` === process.env.NODE_ENV）/ Node env value constants (object-style; at runtime `NODE_ENV.production` === process.env.NODE_ENV) */
+export const NODE_ENV = Object.fromEntries(
+  nodeEnvs.map((s) => [s, s]),
+) as { [K in NodeEnv]: K };

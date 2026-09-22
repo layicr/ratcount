@@ -9,6 +9,8 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { createServer } from "node:net";
 import { mkdirSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
+import { DEPLOY_MODE_DESKTOP } from "../lib/runtime-types";
+import { NODE_ENV } from "../lib/constants";
 
 let serverProcess: ChildProcess | null = null;
 let mainWindow: BrowserWindow | null = null;
@@ -96,8 +98,8 @@ async function startLocalServer(port: number): Promise<void> {
       ELECTRON_RUN_AS_NODE: "1",
       DATABASE_URL: process.env.DATABASE_URL ?? dataFileUrl(),
       AUTH_SECRET: process.env.AUTH_SECRET ?? "change-me-in-production-desktop-secret",
-      NEXT_PUBLIC_DEPLOY_MODE: "desktop",
-      NODE_ENV: "production",
+      NEXT_PUBLIC_DEPLOY_MODE: DEPLOY_MODE_DESKTOP,
+      NODE_ENV: NODE_ENV.production,
       PORT: String(port),
       HOSTNAME: "127.0.0.1",
     },

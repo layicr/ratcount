@@ -138,7 +138,7 @@ Variables fall into two groups:
 | `DB_STATEMENT_TIMEOUT_MS` | `5000` | 单条语句软超时（毫秒）/ per-statement soft timeout (ms) |
 | `DB_MAX_RETRIES` | `3` | 瞬时错误最大重试次数 / max retries on transient errors |
 | `DB_RETRY_BASE_DELAY_MS` | `200` | 重试退避基数（毫秒，指数增长）/ retry backoff base (ms, exponential) |
-| `NODE_ENV` | `development` | 运行环境 / runtime env |
+| `NODE_ENV` | `production` | 运行环境（默认 `production`，未显式设置即按生产严格校验）/ runtime env (defaults to `production` → strict validation) |
 
 ### 2. 直接读取 / Read directly
 
@@ -146,7 +146,7 @@ Variables fall into two groups:
 |---|---|---|
 | `AUDIT_CLEANUP_MODE` | 自动判定 | 审计日志清理：空=自动 / `cron`=Vercel Cron / `local`=进程内定时器（见 `instrumentation.ts`）/ audit cleanup mode (see `instrumentation.ts`) |
 | `CRON_SECRET` | — | 部署到 Vercel 时必填（保护 `/api/cron/*` 端点）/ required on Vercel (protects `/api/cron/*`) |
-| `NEXT_PUBLIC_DEPLOY_MODE` | — | 部署模式：`desktop` 由 Electron 主进程启动子进程时强制注入；网页/自托管留空或设 `web` / deploy mode: `desktop` injected by Electron main; leave empty for web |
+| `NEXT_PUBLIC_DEPLOY_MODE` | — | 部署模式：`desktop` 由 Electron 主进程启动子进程时强制注入；网页/自托管留空或设 `server`（代码仅识别 `server`/`desktop` 两值，`web` 不被识别）/ deploy mode: `desktop` injected by Electron main; leave empty or set `server` (code only recognizes `server`/`desktop`; `web` is not valid) |
 
 > 全部变量以 `.env.example` / `.env` 为准。生产环境务必配置强随机 `AUTH_SECRET`。
 > All vars follow `.env.example` / `.env`. Always set a strong random `AUTH_SECRET` in production.
@@ -228,8 +228,9 @@ menu_groups / menus / user_menu_config / languages / user_profiles
   `languages` governs enabled/default/sort/display; `user_profiles` holds personal prefs.
 
 **自动建库 / Auto-create**：本地 `file:` 模式下，`instrumentation.ts` 在桌面态启动时调用 `lib/db/bootstrap.ts` 的 `ensureSchema()`，
-先 `mkdirSync` 确保数据库父目录存在，再用 `CREATE TABLE IF NOT EXISTS` 幂等建全部 21 张表与索引；数据库文件在首个写操作时由 libsql 惰性创建。
-Local `file:` mode auto-creates the dir + tables via `ensureSchema()` (idempotent); the DB file is lazily created by libsql on first write.
+先 `mkdirSync` 确保数据库父目录存在，再将本地库设为 WAL 模式（`PRAGMA journal_mode=WAL`，满足 Turso CLI / 嵌入式副本上传的 WAL 要求，并提升读写并发），
+最后用 `CREATE TABLE IF NOT EXISTS` 幂等建全部 21 张表与索引；数据库文件在首个写操作时由 libsql 惰性创建。
+Local `file:` mode auto-creates the dir + tables via `ensureSchema()` (idempotent) and switches the DB to WAL (`PRAGMA journal_mode=WAL`); the DB file is lazily created by libsql on first write.
 
 ---
 
@@ -370,8 +371,8 @@ The same codebase ships as an Electron desktop app, reusing `db/schema.ts` / `li
   Electron shell + local Next standalone server; `electron/main.ts` spawns `server.js` as a child process.
 - **数据文件位置 / Data location**：优先落在「RatCount.exe 同目录/data/ratcount.db」（便于随程序整体拷贝或放到 U 盘便携）；若该目录不可写（默认装到 `C:\Program Files` 且为非管理员），则自动回退到 `userData`（`%APPDATA%/RatCount/data/ratcount.db`），保证标准用户也能正常建库启动。也可将 `DATABASE_URL` 设为 `libsql:` 云端地址以切到 Turso（与 server 模式共用云端库）。
   Prefers exe-adjacent `data/ratcount.db`; falls back to `userData` when the install dir isn't writable (e.g. `C:\Program Files` without admin).
-- **自动建库 / Auto-create**：首次启动由 `instrumentation.ts` → `ensureSchema()` 幂等建库建表（先建父目录，再 `CREATE TABLE IF NOT EXISTS`），无需 drizzle-kit 迁移文件。
-  First launch auto-creates the DB + all 21 tables via `ensureSchema()` (idempotent; no migration files needed).
+- **自动建库 / Auto-create**：首次启动由 `instrumentation.ts` → `ensureSchema()` 幂等建库建表（先建父目录，设为 WAL 模式，再 `CREATE TABLE IF NOT EXISTS`），无需 drizzle-kit 迁移文件。
+  First launch auto-creates the DB (WAL mode) + all 21 tables via `ensureSchema()` (idempotent; no migration files needed).
 - **定时任务 / Tasks**：无 Vercel 环境时，审计清理由服务进程内 `setInterval` 执行（复用 `lib/audit-cleanup.ts`），无需 Cron。
 - **部署模式注入 / Deploy mode**：构建时 `build:desktop:next` 注入 `NEXT_PUBLIC_DEPLOY_MODE=desktop`；Electron 主进程启动子进程时也强制写入该环境变量，前端据此区分桌面/网页。
   `build:desktop:next` injects `NEXT_PUBLIC_DEPLOY_MODE=desktop`; Electron main also forces it on the child process.
