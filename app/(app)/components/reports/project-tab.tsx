@@ -1,13 +1,16 @@
-import { getLocale, getDictionary } from "@/lib/i18n";
-import { formatCents } from "@/lib/money";
+import { formatCurrency } from "@/lib/money";
 import { projectSummary, type StatsPeriod } from "@/lib/queries";
 import { TimeRangePicker } from "../time-range-picker";
 import { CategoryPieChart } from "../category-pie-chart";
 import { getPeriodLabel } from "./utils";
+import { getMessages, getLocale } from "next-intl/server";
+import { makeDictTranslator, type AppDict } from "@/i18n/dict";
+import { PROJECT_STATUS } from "@/lib/constants";
 
-export async function ProjectTab({ ledgerId, period }: { ledgerId: string; period: StatsPeriod }) {
+export async function ProjectTab({ ledgerId, period, currency }: { ledgerId: string; period: StatsPeriod; currency: string }) {
   const locale = await getLocale();
-  const d = getDictionary(locale);
+  const d = (await getMessages()) as unknown as AppDict;
+  const money = (c: number) => formatCurrency(c, currency, locale);
   const rows = await projectSummary(ledgerId, period);
   const totalIncome = rows.reduce((s, r) => s + r.income, 0);
   const totalExpense = rows.reduce((s, r) => s + r.expense, 0);
@@ -19,7 +22,7 @@ export async function ProjectTab({ ledgerId, period }: { ledgerId: string; perio
     category: { name: r.name, icon: r.icon }, cents: r.expense,
     pct: totalExpense ? Math.round((r.expense / totalExpense) * 1000) / 10 : 0,
   }));
-  const periodLabel = getPeriodLabel(period, locale, d);
+  const periodLabel = getPeriodLabel(period, locale, makeDictTranslator(d));
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -39,17 +42,17 @@ export async function ProjectTab({ ledgerId, period }: { ledgerId: string; perio
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400">{d.reports.noData}</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-400">{d.common.empty}</td></tr>}
             {rows.map((r) => {
               const pct = r.budgetCents ? Math.round((r.expense / r.budgetCents) * 100) : 0;
               return (
                 <tr key={r.id} className="border-b border-slate-50">
                   <td className="px-4 py-2 font-medium">{r.icon} {r.name}</td>
-                  <td>{r.status === "active" ? <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs text-green-700">{d.projects.active}</span> : <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">{d.projects.completed}</span>}</td>
-                  <td className="text-right text-green-600">+¥ {formatCents(r.income)}</td>
-                  <td className="text-right text-red-600">-¥ {formatCents(r.expense)}</td>
-                  <td className={`text-right font-semibold ${r.balance >= 0 ? "text-slate-800" : "text-red-600"}`}>¥ {formatCents(r.balance)}</td>
-                  <td className="text-right text-slate-400">¥ {formatCents(r.budgetCents)}</td>
+                  <td>{r.status === PROJECT_STATUS.active ? <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs text-green-700">{d.projects.active}</span> : <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">{d.projects.completed}</span>}</td>
+                  <td className="text-right text-green-600">+{money(r.income)}</td>
+                  <td className="text-right text-red-600">-{money(r.expense)}</td>
+                  <td className={`text-right font-semibold ${r.balance >= 0 ? "text-slate-800" : "text-red-600"}`}>{money(r.balance)}</td>
+                  <td className="text-right text-slate-400">{money(r.budgetCents)}</td>
                   <td className="text-right">
                     <div className="flex items-center justify-end gap-2">
                       <span className="text-xs text-slate-400">{pct}%</span>

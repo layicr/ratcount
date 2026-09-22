@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { useT } from "@/components/i18n-provider";
+import { useActionState, useState, useEffect } from "react";
+import { useTranslations } from "next-intl";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { registerAction } from "./actions";
+import { LOGIN_PATH } from "@/lib/constants";
 
 /** 注册表单（客户端）：昵称 / 邮箱 / 密码 / 验证码 + 中英切换 */
 export function RegisterForm({ captchaEnabled }: { captchaEnabled: boolean }) {
@@ -11,8 +12,11 @@ export function RegisterForm({ captchaEnabled }: { captchaEnabled: boolean }) {
     ok: false,
     error: null as string | null,
   });
-  const [capKey, setCapKey] = useState(() => Date.now());
-  const t = useT();
+  const [capKey, setCapKey] = useState<number | null>(null);
+  useEffect(() => {
+    setCapKey(Date.now());
+  }, []);
+  const t = useTranslations();
 
   return (
     <div className="relative w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-8 shadow-lg">
@@ -27,18 +31,18 @@ export function RegisterForm({ captchaEnabled }: { captchaEnabled: boolean }) {
       <form action={formAction} className="space-y-4">
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-600">
-            {t("register.nickname")}
+            {t("common.nickname")}
           </label>
           <input
             name="name"
             maxLength={30}
-            placeholder={t("register.nickname")}
+            placeholder={t("common.nickname")}
             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
           />
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-600">
-            {t("register.email")}
+            {t("common.email")}
           </label>
           <input
             name="email"
@@ -50,7 +54,7 @@ export function RegisterForm({ captchaEnabled }: { captchaEnabled: boolean }) {
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-600">
-            {t("register.password")}
+            {t("common.password")}
           </label>
           <input
             name="password"
@@ -66,7 +70,7 @@ export function RegisterForm({ captchaEnabled }: { captchaEnabled: boolean }) {
         {captchaEnabled && (
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">
-              {t("login.captcha")}
+              {t("common.captcha")}
             </label>
             <div className="flex gap-2">
               <input
@@ -77,11 +81,11 @@ export function RegisterForm({ captchaEnabled }: { captchaEnabled: boolean }) {
               />
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={`/api/captcha?t=${capKey}`}
+                src={capKey ? `/api/captcha?t=${capKey}` : undefined}
                 alt="captcha"
                 title={t("login.captchaPlaceholder")}
                 onClick={() => setCapKey(Date.now())}
-                className="h-[42px] w-[96px] cursor-pointer rounded-lg border border-slate-200"
+                className="h-[40px] w-[96px] cursor-pointer rounded-lg border border-slate-200"
               />
             </div>
           </div>
@@ -89,7 +93,7 @@ export function RegisterForm({ captchaEnabled }: { captchaEnabled: boolean }) {
 
         {state.error && (
           <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">
-            {t(state.error) !== state.error ? t(state.error) : state.error}
+            {t(state.error)}
           </p>
         )}
 
@@ -104,7 +108,7 @@ export function RegisterForm({ captchaEnabled }: { captchaEnabled: boolean }) {
 
       <div className="mt-5 text-center text-xs text-slate-400">
         {t("register.hasAccount")}{" "}
-        <a href="/login" className="text-teal-600 hover:underline">
+        <a href={LOGIN_PATH} className="text-teal-600 hover:underline">
           {t("register.goLogin")}
         </a>
       </div>

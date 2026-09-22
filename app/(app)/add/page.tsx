@@ -1,19 +1,22 @@
-import { redirect } from "next/navigation";
+import { projects, tags, categories } from "@/db/schema"
+import { requireUser } from "@/lib/scope"
 import { eq } from "drizzle-orm";
-import { requireUser } from "@/lib/scope";
-import { getCurrentLedger } from "@/lib/ledger";
+import { requireCurrentLedger } from "@/lib/ledger";
 import { listAccountsWithBalance } from "@/lib/queries";
 import { db } from "@/lib/db";
-import { categories, projects, tags } from "@/db/schema";
-import { getLocale, getDictionary } from "@/lib/i18n";
+
+
+
+
 import { AddForm } from "./add-form";
+import { getMessages } from "next-intl/server";
+import type { AppDict } from "@/i18n/dict";
 
 /** 记一笔：取账本基础数据交给客户端表单 */
 export default async function AddPage() {
   const user = await requireUser();
-  const ledger = await getCurrentLedger();
-  if (!ledger) redirect("/login");
-  const d = getDictionary(await getLocale());
+  const ledger = await requireCurrentLedger();
+  const d = (await getMessages()) as unknown as AppDict;
 
   const [accts, cats, projs, tgs] = await Promise.all([
     listAccountsWithBalance(ledger.id),
@@ -26,7 +29,7 @@ export default async function AddPage() {
     <div className="mx-auto max-w-lg">
       <h1 className="mb-4 text-lg font-bold text-slate-900">{d.add.title}</h1>
       <AddForm
-        accts={accts.map((a) => ({ id: a.id, name: a.name, icon: a.icon, balanceCents: a.balanceCents }))}
+        accts={accts.map((a) => ({ id: a.id, name: a.name, icon: a.icon, type: a.type, balanceCents: a.balanceCents }))}
         cats={cats.map((c) => ({ id: c.id, name: c.name, icon: c.icon, type: c.type }))}
         projs={projs.map((p) => ({ id: p.id, name: p.name, icon: p.icon }))}
         tgs={tgs.map((t) => ({ id: t.id, name: t.name, color: t.color }))}

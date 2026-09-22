@@ -3,9 +3,11 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useT, useLocale } from "@/components/i18n-provider";
+import { useTranslations, useLocale } from "next-intl";
+import { useMoney } from "@/components/currency-context";
 import { TxTypeBadge } from "../components/badges";
-import { formatCents } from "@/lib/money";
+import { getWeekdayShortNames } from "@/lib/datetime";
+import { TX } from "@/lib/constants";
 
 type Tx = {
   id: string; txDate: string; type: string; amountCents: number;
@@ -14,14 +16,13 @@ type Tx = {
 
 /** 收支日历：月历网格 + 每日收支 + 选中日流水明细 */
 export function CalendarView({ month, txs, today }: { month: string; txs: Tx[]; today: string }) {
-  const t = useT();
+  const t = useTranslations();
   const locale = useLocale();
+  const money = useMoney();
   const router = useRouter();
   const [sel, setSel] = useState<string | null>(null);
-  // 星期表头（周一为一周起点）
-  const heads = locale === "en"
-    ? ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
-    : ["一", "二", "三", "四", "五", "六", "日"];
+  // 星期表头（周一为一周起点），随 locale 自动变化
+  const heads = getWeekdayShortNames(locale);
 
   const [y, m] = month.split("-").map(Number);
   const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
@@ -34,8 +35,8 @@ export function CalendarView({ month, txs, today }: { month: string; txs: Tx[]; 
     for (const tx of txs) {
       const key = tx.txDate; // 完整日期 YYYY-MM-DD 作为 key
       const cur = map.get(key) ?? { income: 0, expense: 0, list: [] };
-      if (tx.type === "income") cur.income += tx.amountCents;
-      else if (tx.type === "expense") cur.expense += tx.amountCents;
+      if (tx.type === TX.income) cur.income += tx.amountCents;
+      else if (tx.type === TX.expense) cur.expense += tx.amountCents;
       cur.list.push(tx);
       map.set(key, cur);
     }
@@ -81,8 +82,8 @@ export function CalendarView({ month, txs, today }: { month: string; txs: Tx[]; 
           <Link href={nextMonth()} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm hover:bg-slate-50">›</Link>
         </div>
         <div className="flex items-center gap-3 text-sm">
-          <span className="text-green-600">+ ¥ {formatCents(totalIn)}</span>
-          <span className="text-red-600">- ¥ {formatCents(totalOut)}</span>
+          <span className="text-green-600">+ {money(totalIn)}</span>
+          <span className="text-red-600">- {money(totalOut)}</span>
         </div>
       </div>
 
@@ -114,8 +115,8 @@ export function CalendarView({ month, txs, today }: { month: string; txs: Tx[]; 
                   }`}
                 >
                   <span className={`text-[11px] ${isToday ? "font-bold text-teal-600" : "text-slate-400"}`}>{day}</span>
-                  {info?.income ? <span className="text-[10px] font-medium text-green-600">+{formatCents(info.income)}</span> : null}
-                  {info?.expense ? <span className="text-[10px] font-medium text-red-500">-{formatCents(info.expense)}</span> : null}
+                  {info?.income ? <span className="text-[10px] font-medium text-green-600">+{money(info.income)}</span> : null}
+                  {info?.expense ? <span className="text-[10px] font-medium text-red-500">-{money(info.expense)}</span> : null}
                 </button>
               );
             })}
@@ -130,7 +131,7 @@ export function CalendarView({ month, txs, today }: { month: string; txs: Tx[]; 
             {sel} · {t("calendar.daily")}
           </h2>
           {selDay.list.length === 0 ? (
-            <p className="py-4 text-center text-sm text-slate-400">{t("tx.empty")}</p>
+            <p className="py-4 text-center text-sm text-slate-400">{t("common.empty")}</p>
           ) : (
             <ul className="divide-y divide-slate-50">
               {selDay.list.map((tx) => (
@@ -140,8 +141,8 @@ export function CalendarView({ month, txs, today }: { month: string; txs: Tx[]; 
                     <span className="text-sm text-slate-600">{tx.remark ?? tx.category ?? "-"}</span>
                     <span className="text-xs text-slate-400">{tx.account}{tx.toAccount ? ` → ${tx.toAccount}` : ""}</span>
                   </div>
-                  <span className={`text-sm font-medium ${tx.type === "income" ? "text-green-600" : tx.type === "expense" ? "text-red-600" : "text-slate-500"}`}>
-                    {tx.type === "income" ? "+" : tx.type === "expense" ? "-" : ""}¥ {formatCents(tx.amountCents)}
+                  <span className={`text-sm font-medium ${tx.type === TX.income ? "text-green-600" : tx.type === TX.expense ? "text-red-600" : "text-slate-500"}`}>
+                    {tx.type === TX.income ? "+" : tx.type === TX.expense ? "-" : ""}{money(tx.amountCents)}
                   </span>
                 </li>
               ))}

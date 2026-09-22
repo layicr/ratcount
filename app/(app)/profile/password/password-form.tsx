@@ -3,13 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { useT } from "@/components/i18n-provider";
+import { useTranslations } from "next-intl";
 import { ConfirmButton } from "../../components/confirm";
 import { changePassword } from "@/app/actions/profile";
+import { LOGIN_PATH } from "@/lib/constants";
 
 /** 修改密码表单 / Change password form */
 export function PasswordForm() {
-  const t = useT();
+  const t = useTranslations();
   const router = useRouter();
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -56,10 +57,10 @@ export function PasswordForm() {
       setConfirmPassword("");
       // 3秒后退出登录，要求用新密码重新登录 / Sign out after 3 seconds
       setTimeout(async () => {
-        await signOut({ callbackUrl: "/login" });
+        await signOut({ callbackUrl: LOGIN_PATH });
       }, 2000);
     } else {
-      flash(false, t(r.error) !== r.error ? t(r.error) : r.error);
+      flash(false, t(r.error));
     }
   }
 

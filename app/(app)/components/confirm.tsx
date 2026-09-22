@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect, useRef } from "react";
-import { useT } from "@/components/i18n-provider";
+import { useTranslations } from "next-intl";
 
 /**
  * 通用确认按钮：所有写操作（删除/批量删除/复制/退出等）执行前必须确认
@@ -32,7 +32,7 @@ export function ConfirmButton({
 }) {
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
-  const t = useT();
+  const t = useTranslations();
 
   function handleClick() {
     if (beforeOpen && !beforeOpen()) return;

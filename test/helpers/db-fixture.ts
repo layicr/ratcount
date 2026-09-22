@@ -2,7 +2,7 @@
  * ratcount · DB 测试夹具（test helper）
  *  - 为 DB 相关测试（functional / security）提供独立临时 SQLite：
  *    1) 在 import lib/db 之前注入环境变量（指向临时文件 DB）
- *    2) 按 db/schema.ts 的真实 DDL 建表（14 张，含关键唯一索引）
+ *    2) 按 db/schema.ts 的真实 DDL 建表（15 张，含关键唯一索引）
  *    3) 提供种子数据（2 用户 / 2 账本 / 账户 / 分类 / 标签 / 项目 / 流水 / 标签关联 / 余额快照）
  *  - node --test 每个测试文件运行在独立进程，天然互不干扰
  */
@@ -20,6 +20,7 @@ const DDL_TABLES: string[] = [
     name TEXT NOT NULL DEFAULT '',
     role TEXT NOT NULL DEFAULT 'user',
     status TEXT NOT NULL DEFAULT 'active',
+    token_version INTEGER NOT NULL DEFAULT 0,
     remark TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
@@ -56,13 +57,15 @@ const DDL_TABLES: string[] = [
   `CREATE TABLE IF NOT EXISTS currencies (
     code TEXT PRIMARY KEY,
     symbol TEXT NOT NULL DEFAULT '¥',
-    name_zh TEXT NOT NULL DEFAULT '',
-    name_en TEXT NOT NULL DEFAULT '',
+    name TEXT NOT NULL DEFAULT '',
     rate TEXT NOT NULL DEFAULT '1',
     is_base INTEGER NOT NULL DEFAULT 0,
     is_active INTEGER NOT NULL DEFAULT 1,
     sort INTEGER NOT NULL DEFAULT 0,
-    remark TEXT
+    remark TEXT,
+    updated_by TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
   )`,
   `CREATE TABLE IF NOT EXISTS accounts (
     id TEXT PRIMARY KEY,
@@ -140,6 +143,8 @@ const DDL_TABLES: string[] = [
     entity TEXT NOT NULL,
     entity_id TEXT,
     summary TEXT,
+    summary_key TEXT,
+    summary_params TEXT,
     request_body TEXT,
     response_body TEXT,
     ip TEXT,
@@ -177,6 +182,80 @@ const DDL_TABLES: string[] = [
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   )`,
+  `CREATE TABLE IF NOT EXISTS investment_holdings (
+    id TEXT PRIMARY KEY,
+    ledger_id TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    type TEXT NOT NULL,
+    sub_type TEXT,
+    name TEXT NOT NULL,
+    code TEXT,
+    account_id TEXT,
+    payment_account_id TEXT,
+    quantity INTEGER NOT NULL DEFAULT 0,
+    cost_cents INTEGER NOT NULL DEFAULT 0,
+    fee_cents INTEGER NOT NULL DEFAULT 0,
+    current_value_cents INTEGER NOT NULL DEFAULT 0,
+    purchase_date TEXT,
+    maturity_date TEXT,
+    interest_rate TEXT,
+    location TEXT,
+    area_sqm INTEGER,
+    status TEXT NOT NULL DEFAULT 'active',
+    dividend_cents INTEGER NOT NULL DEFAULT 0,
+    remark TEXT,
+    project_id TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS holding_tags (
+    id TEXT PRIMARY KEY,
+    holding_id TEXT NOT NULL,
+    tag_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE (holding_id, tag_id)
+  )`,
+  `CREATE TABLE IF NOT EXISTS menu_groups (
+    menu_group_id TEXT PRIMARY KEY,
+    name TEXT DEFAULT '{}' NOT NULL,
+    sort INTEGER NOT NULL DEFAULT 0,
+    remark TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS menus (
+    menu_id TEXT PRIMARY KEY,
+    name TEXT DEFAULT '{}' NOT NULL,
+    icon TEXT NOT NULL DEFAULT '🛝',
+    menu_group_id TEXT NOT NULL,
+    sort INTEGER NOT NULL DEFAULT 0,
+    status_code TEXT NOT NULL DEFAULT 'active',
+    device_type TEXT NOT NULL DEFAULT 'desktop',
+    link TEXT NOT NULL,
+    remark TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS user_menu_config (
+    id TEXT PRIMARY KEY,
+    ledger_id TEXT NOT NULL,
+    user_id TEXT NOT NULL DEFAULT '',
+    menu_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE (ledger_id, user_id, menu_id)
+  )`,
+  `CREATE TABLE IF NOT EXISTS languages (
+    code TEXT PRIMARY KEY,
+    name TEXT NOT NULL DEFAULT '',
+    native_name TEXT NOT NULL DEFAULT '',
+    is_default INTEGER NOT NULL DEFAULT 0,
+    is_enabled INTEGER NOT NULL DEFAULT 1,
+    sort INTEGER NOT NULL DEFAULT 0,
+    created_by TEXT,
+    updated_by TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
 ];
 
 /** 初始化测试 DB：注入环境变量 + 动态 import lib/db（保证 env 先于模块求值生效）+ 建表 */
@@ -187,7 +266,6 @@ export async function setupTestDb() {
   process.env.DATABASE_MODE = "file";
   process.env.DATABASE_URL = `file:${dbFile.replace(/\\/g, "/")}`;
   process.env.AUTH_SECRET = "test-auth-secret-ratcount-20260101";
-  process.env.TURSO_DATABASE_URL = "";
   (process.env as any).TURSO_AUTH_TOKEN = "";
 
   const { db } = await import("../../lib/db");
@@ -223,8 +301,8 @@ export async function seedTestData(db: any) {
   ]);
 
   await db.insert(currencies).values([
-    { code: "CNY", symbol: "¥", nameZh: "人民币", nameEn: "CNY", rate: "1", isBase: true, isActive: true, sort: 0 },
-    { code: "USD", symbol: "$", nameZh: "美元", nameEn: "USD", rate: "7.2", isBase: false, isActive: true, sort: 1 },
+    { code: "CNY", symbol: "¥", name: "人民币 CNY", rate: "1", isBase: true, isActive: true, sort: 0 },
+    { code: "USD", symbol: "$", name: "美元 USD", rate: "7.2", isBase: false, isActive: true, sort: 1 },
   ]);
 
   const [ac1] = await db.insert(accounts).values({

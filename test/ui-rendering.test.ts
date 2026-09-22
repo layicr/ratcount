@@ -7,9 +7,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { fmt, getPeriodLabel, typeKey, MONTHS_ZH } from "../app/(app)/components/reports/utils";
+import { fmt, getPeriodLabel } from "../app/(app)/components/reports/utils";
+import { getMonthShortNames } from "../lib/datetime";
+import { ACCOUNT_TYPE_I18N_KEY } from "../lib/constants";
 import { formatCents, yuanToCents, convertCents } from "../lib/money";
-import { renderCaptchaSvg } from "../lib/auth/captcha";
+import { renderCaptchaPng } from "../lib/auth/captcha";
 
 /** 报表文案桩（模拟 i18n dict 中报表相关 key） */
 const dict = {
@@ -18,6 +20,9 @@ const dict = {
     periodMonth: "{year}年{month}",
   },
 };
+
+/** 桩 translator：从 dict 按 ns.key 取值，缺省返回 key（对齐 next-intl 行为） */
+const tl = (key: string) => key.split(".").reduce((o: unknown, p: string) => (o && typeof o === "object" ? (o as Record<string, unknown>)[p] : undefined) ?? "", dict) as unknown as string || key;
 
 /* ==================== 1. 报表工具 ==================== */
 
@@ -28,16 +33,16 @@ test("报表: fmt 模板插值（缺 key 原样保留）", () => {
 });
 
 test("报表: getPeriodLabel 年份/月度 + 中英文", () => {
-  assert.strictEqual(getPeriodLabel({ type: "year", year: 2026 }, "zh", dict), "2026年");
-  assert.strictEqual(getPeriodLabel({ type: "month", year: 2026, month: 9 }, "zh", dict), "2026年九月");
-  assert.strictEqual(getPeriodLabel({ type: "month", year: 2026, month: 1 }, "zh", dict), "2026年一月");
-  assert.strictEqual(getPeriodLabel({ type: "month", year: 2026, month: 9 }, "en", dict), "2026年September");
-  assert.strictEqual(getPeriodLabel({ type: "year", year: 2024 }, "en", dict), "2024年");
+  assert.strictEqual(getPeriodLabel({ type: "year", year: 2026 }, "zh-CN", tl), "2026年");
+  assert.strictEqual(getPeriodLabel({ type: "month", year: 2026, month: 9 }, "zh-CN", tl), "2026年9月");
+  assert.strictEqual(getPeriodLabel({ type: "month", year: 2026, month: 1 }, "zh-CN", tl), "2026年1月");
+  assert.strictEqual(getPeriodLabel({ type: "month", year: 2026, month: 9 }, "en", tl), "2026年Sep");
+  assert.strictEqual(getPeriodLabel({ type: "year", year: 2024 }, "en", tl), "2024年");
 });
 
-test("报表: MONTHS_ZH 12 个月文案齐全", () => {
-  assert.strictEqual(MONTHS_ZH.length, 12);
-  assert.strictEqual(MONTHS_ZH[8], "九月");
+test("报表: getMonthShortNames 12 个月文案齐全（随 locale 自动变化）", () => {
+  assert.strictEqual(getMonthShortNames("zh-CN").length, 12);
+  assert.strictEqual(getMonthShortNames("zh-CN")[8], "9月");
 });
 
 test("报表: typeKey 覆盖 accountTypes 各键（snake→camel）", () => {
@@ -46,9 +51,9 @@ test("报表: typeKey 覆盖 accountTypes 各键（snake→camel）", () => {
   const expected = ["cash", "debitCard", "creditCard", "wechat", "savings", "investment",
     "fund", "preciousMetal", "bond", "foreignCurrency", "custom"];
   for (const k of keys) {
-    assert.ok(typeKey[k], `typeKey 缺 ${k}`);
+    assert.ok(ACCOUNT_TYPE_I18N_KEY[k], `typeKey 缺 ${k}`);
   }
-  assert.deepStrictEqual(keys.map((k) => typeKey[k]), expected);
+  assert.deepStrictEqual(keys.map((k) => ACCOUNT_TYPE_I18N_KEY[k].replace("acctType.", "")), expected);
 });
 
 /* ==================== 2. 金额展示格式化 ==================== */
@@ -91,21 +96,27 @@ test("汇率: convertCents 四舍五入到分 + 空值兜底", () => {
   assert.strictEqual(convertCents(500, "", ""), 500);
 });
 
-/* ==================== 3. 验证码 SVG（UI 结构） ==================== */
+/* ==================== 3. 验证码位图（UI 结构） ==================== */
 
-test("SVG: 验证码画布尺寸/命名空间/防混淆字符集", () => {
-  const code = "K2M9";
-  const svg = renderCaptchaSvg(code);
-  assert.ok(svg.includes('xmlns="http://www.w3.org/2000/svg"'), "应含 SVG 命名空间");
-  assert.ok(svg.includes('width="96" height="40"'), "画布尺寸固定 96x40");
-  for (const ch of code) assert.ok(svg.includes(`>${ch}</text>`), `字符 ${ch} 应渲染为 <text>`);
-  // 干扰线存在（视觉防识别）
-  assert.ok((svg.match(/<line /g) || []).length >= 2, "应有多条干扰线");
+test("位图: 验证码 PNG 尺寸固定 96×40、灰度、非空", () => {
+  const png = renderCaptchaPng("K2M9", () => 0.5);
+  assert.deepStrictEqual(
+    [...png.subarray(0, 8)],
+    [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+    "应为 PNG 位图（非 SVG 文本）",
+  );
+  assert.strictEqual(png.readUInt32BE(16), 96, "与 <img> 96px 宽一致");
+  assert.strictEqual(png.readUInt32BE(20), 40, "与 <img> 40px 高一致");
+  assert.strictEqual(png[24], 8, "位深 8");
+  assert.strictEqual(png[25], 0, "颜色类型：灰度");
+  assert.ok(png.length > 100, "应含压缩像素数据（有内容）");
 });
 
-test("SVG: 渲染不含易混淆字符 0/O/1/I（安全字符集）", () => {
-  const svg = renderCaptchaSvg("AB12"); // 注：A/B/2 是允许字符，仅验证 text 内容受字符集约束
-  assert.ok(!svg.includes(">0</text>"));
-  assert.ok(!svg.includes(">O</text>"));
-  assert.ok(svg.includes(">A</text>"));
+test("位图: 响应体不含答案串（脚本无法直接读取明文）", () => {
+  const code = "AB23";
+  const png = renderCaptchaPng(code, () => 0.5);
+  const text = png.toString("latin1");
+  // 逐字符断言会因压缩字节偶然命中 ASCII 而 flaky，故断言整串答案不出现
+  assert.ok(!text.includes(code), "不得出现答案串");
+  assert.ok(!text.includes("<text"), "不得包含 SVG 文本节点");
 });

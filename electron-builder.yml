@@ -1,0 +1,38 @@
+appId: com.ratcount.app
+productName: RatCount
+# 复用本地已安装的 electron 运行时（node_modules/electron/dist），跳过下载+解包，
+# 既省网络也避免 windows 下 extractArchive 的 .tmp->win-unpacked rename 触发 EPERM。
+# Use the locally installed electron runtime; skips download/extract and the EPERM rename.
+electronDist: node_modules/electron/dist
+directories:
+  output: release
+  buildResources: build
+files:
+  - .next/standalone/**/*
+  - dist/main.js
+  - package.json
+# 原生模块重建：standalone 内的原生依赖（@libsql/@next/swc/sharp）均为 N-API 预编译，
+# 可直接在 Electron 运行时加载，无需以 Electron ABI 重建；关闭重建既能省去 VS 工具链，
+# 也避免 @electron/rebuild 联网下载 Electron 头文件（GitHub 不通时会 ETIMEDOUT）。
+# Native modules are N-API prebuilt and load fine in Electron; keep rebuild OFF to avoid
+# the VS toolchain and the Electron-headers GitHub download that times out behind a firewall.
+npmRebuild: true
+# 开启 asar 打包（消除 “asar disabled” 警告），但 standalone 服务与其 node_modules 需以真实文件存在
+# （内部相对路径依赖 / 运行时 require），故用 asarUnpack 解压出来；其余资源仍走 asar 压缩。
+# Enable asar (silences the warning); unpack standalone + its node_modules so the server runs from real files.
+asar: true
+asarUnpack:
+  - .next/standalone/**
+  - "**/node_modules/**"
+win:
+  target: nsis
+  artifactName: RatCount-${version}-setup.${ext}
+nsis:
+  allowToChangeInstallationDirectory: true
+  oneClick: false
+mac:
+  category: public.app-category.finance
+  target: dmg
+linux:
+  target: AppImage
+  category: Utility

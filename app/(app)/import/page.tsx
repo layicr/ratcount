@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useT } from "@/components/i18n-provider";
+import { useTranslations } from "next-intl";
 
 type ImportResult = {
   ok: boolean;
@@ -15,7 +15,7 @@ type ImportResult = {
 
 /** 导入数据页面（三步流程：上传文件 → 检查数据 → 导入数据） */
 export default function ImportPage() {
-  const t = useT();
+  const t = useTranslations();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<1 | 2 | 3>(1);

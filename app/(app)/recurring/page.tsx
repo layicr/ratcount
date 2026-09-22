@@ -1,18 +1,21 @@
-import { redirect } from "next/navigation";
+import { accounts, categories, recurringPlans } from "@/db/schema"
+import { requireUser } from "@/lib/scope"
 import { eq } from "drizzle-orm";
-import { requireUser } from "@/lib/scope";
-import { getCurrentLedger } from "@/lib/ledger";
-import { getLocale, getDictionary } from "@/lib/i18n";
+import { requireCurrentLedger } from "@/lib/ledger";
 import { db } from "@/lib/db";
-import { recurringPlans, accounts, categories } from "@/db/schema";
+
+
+
+
 import { RecurringManager } from "./recurring-manager";
+import { getMessages } from "next-intl/server";
+import type { AppDict } from "@/i18n/dict";
 
 /** 周期计划：按频率生成周期性流水（账单重复、固定收支等） */
 export default async function RecurringPage() {
   const user = await requireUser();
-  const ledger = await getCurrentLedger();
-  const d = getDictionary(await getLocale());
-  if (!ledger) redirect("/login");
+  const ledger = await requireCurrentLedger();
+  const d = (await getMessages()) as unknown as AppDict;
 
   const [plans, accts, cats] = await Promise.all([
     db.select().from(recurringPlans).where(eq(recurringPlans.ledgerId, ledger.id)),

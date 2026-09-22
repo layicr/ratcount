@@ -2,6 +2,7 @@
 
 import { signIn } from "@/auth";
 import { AuthError } from "next-auth";
+import { DASHBOARD_PATH } from "@/lib/constants";
 
 /**
  * 登录动作：交由 Auth.js 校验（含验证码与限流）
@@ -16,7 +17,7 @@ export async function loginAction(_prev: unknown, formData: FormData) {
       email,
       password,
       captcha,
-      redirectTo: "/dashboard",
+      redirectTo: DASHBOARD_PATH,
     });
     return { ok: true, error: null as string | null };
   } catch (error) {

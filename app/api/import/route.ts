@@ -1,14 +1,21 @@
-import { requireUser, requireLedgerAccess } from "@/lib/scope";
+import { accounts, categories, transactions } from "@/db/schema"
+import { type TransactionType, MR, AUDIT_ACTION, ENTITY, TX } from "@/lib/constants"
+import { requireUser, requireLedgerAccess } from "@/lib/scope"
+import { isTransfer } from "@/lib/constants"
+
+
 import { getCurrentLedger } from "@/lib/ledger";
 import { db } from "@/lib/db";
-import { transactions, accounts, categories } from "@/db/schema";
+
+
+
+
 import { eq } from "drizzle-orm";
 import { withAudit } from "@/lib/audit";
+import { ensureAccount, ensureCategory } from "@/lib/ledger-refs";
 import { yuanToCents } from "@/lib/money";
-import { getLocale, getDictionary } from "@/lib/i18n";
 import * as XLSX from "@e965/xlsx";
-import zhDict from "@/messages/zh.json";
-import enDict from "@/messages/en.json";
+import { readLocale, getMergedDict } from "@/i18n/dict";
 
 /** 导入 Excel（流水）：行级校验，账户/分类按名称匹配或自动创建，返回行级报告 */
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB 文件大小上限
@@ -19,11 +26,11 @@ const CSV_MIMES = ["text/csv", "application/csv", "text/plain"];
 export async function POST(req: Request) {
   const user = await requireUser();
   const ledger = await getCurrentLedger();
-  const d = getDictionary(await getLocale());
+  const d = getMergedDict(await readLocale());
   if (!ledger) return Response.json({ ok: false, message: d.errors.noLedger }, { status: 400 });
 
   // 角色校验：viewer 无权导入写流水，至少 editor / Require editor+ to import transactions
-  await requireLedgerAccess(ledger.id, "editor");
+  await requireLedgerAccess(ledger.id, MR.editor);
 
   const form = await req.formData();
   const file = form.get("file");
@@ -45,7 +52,7 @@ export async function POST(req: Request) {
 
   const buf = Buffer.from(await file.arrayBuffer());
   const wb = XLSX.read(buf, { type: "buffer" });
-  const txSheetNames = [zhDict.nav.transactions, enDict.nav.transactions].map((s) => String(s).trim());
+  const txSheetNames = [String(d.nav.transactions).trim()];
   const sheetName = wb.SheetNames.find((n) => txSheetNames.includes(n.trim())) ?? wb.SheetNames.find((n) => n.includes("流水")) ?? wb.SheetNames[0];
   const ws = wb.Sheets[sheetName];
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" }) as Record<string, unknown>[];
@@ -55,13 +62,13 @@ export async function POST(req: Request) {
     return Response.json({ ok: false, message: d.errors.tooManyRows.replace("{max}", String(MAX_ROWS)).replace("{count}", String(rows.length)) }, { status: 400 });
   }
 
-  // 现有映射（名称 → id）
+  // 现有映射（名称 → id），同时作为公共 ensure 工具的缓存（避免重复查库）
   const [accts, cats] = await Promise.all([
     db.select().from(accounts).where(eq(accounts.ledgerId, ledger.id)),
     db.select().from(categories).where(eq(categories.ledgerId, ledger.id)),
   ]);
-  const acctByName = new Map(accts.map((a) => [a.name, a]));
-  const catByName = new Map(cats.map((c) => [c.name, c]));
+  const acctIdByName = new Map(accts.map((a) => [a.name, a.id]));
+  const catIdByName = new Map(cats.map((c) => [`${c.type}::${c.name}`, c.id]));
 
   // 日期规范化：文本原样保留；Excel 序列号/Date 对象统一转 YYYY-MM-DD
   function normalizeDate(v: unknown): string {
@@ -83,22 +90,22 @@ export async function POST(req: Request) {
   let success = 0;
   const errors: string[] = [];
 
-  // 双语表头 / 类型标签匹配：导入兼容中英文导出的文件（与当前界面语言无关）
-  const DICTS = [zhDict as Record<string, any>, enDict as Record<string, any>];
-  const h = (getter: (d: any) => string) => DICTS.map(getter).map((s) => String(s).trim());
-  const typeCandidates = h((d) => d.tx.type);
-  const dateCandidates = h((d) => d.tx.date);
-  const accountCandidates = h((d) => d.tx.account);
-  const amountCandidates = h((d) => d.tx.amount);
-  const categoryCandidates = h((d) => d.tx.category);
-  const remarkCandidates = h((d) => d.common.remark);
+  // 表头 / 类型标签匹配（与当前界面语言一致）
+  // 先查 tx 命名空间，未命中再回退 common（如 remark 只在 common）
+  const h = (key: keyof typeof d.tx | keyof typeof d.common) =>
+    String((d.tx as Record<string, unknown>)[key] ?? (d.common as Record<string, unknown>)[key] ?? "").trim();
+  const typeCandidates = [h("type")];
+  const dateCandidates = [h("date")];
+  const accountCandidates = [h("account")];
+  const amountCandidates = [h("amount")];
+  const categoryCandidates = [h("category")];
+  const remarkCandidates = [h("remark")];
 
-  const typeLabelMap: Record<string, "income" | "expense" | "transfer"> = {};
-  for (const d of DICTS) {
-    typeLabelMap[String(d.common.income).trim()] = "income";
-    typeLabelMap[String(d.common.expense).trim()] = "expense";
-    typeLabelMap[String(d.common.transfer).trim()] = "transfer";
-  }
+  const typeLabelMap: Record<string, TransactionType> = {
+    [h("income")]: TX.income,
+    [h("expense")]: TX.expense,
+    [h("transfer")]: TX.transfer,
+  };
 
   // 按候选表头取单元格值（忽略首尾空白）
   function cell(row: Record<string, unknown>, candidates: string[]): unknown {
@@ -110,7 +117,7 @@ export async function POST(req: Request) {
 
   type ParsedRow = {
     lineNo: number;
-    type: "income" | "expense" | "transfer";
+    type: TransactionType;
     date: string;
     acctName: string;
     catName: string;
@@ -132,17 +139,13 @@ export async function POST(req: Request) {
       errors.push(d.errors.rowRequired.replace("{line}", String(lineNo)));
       continue;
     }
-    let cents: number;
-    if (typeof amount === "number") {
-      cents = Math.round(amount * 100);
-    } else {
-      const parsedAmt = yuanToCents(String(amount));
-      if (parsedAmt === null) {
-        errors.push(d.errors.rowAmountInvalid.replace("{line}", String(lineNo)));
-        continue;
-      }
-      cents = parsedAmt;
+    // 数字列与文本列统一走 yuanToCents（含上限校验）：避免浮点 *100 与文本路径出现 1 分差
+    const parsedAmt = yuanToCents(String(amount));
+    if (parsedAmt === null) {
+      errors.push(d.errors.rowAmountInvalid.replace("{line}", String(lineNo)));
+      continue;
     }
+    const cents: number = parsedAmt;
     if (cents <= 0) { errors.push(d.errors.rowAmountPositive.replace("{line}", String(lineNo))); continue; }
 
     const catName = String(cell(r, categoryCandidates) ?? "").trim();
@@ -155,38 +158,36 @@ export async function POST(req: Request) {
     try {
       await withAudit(
         {
-          userId: user.id, action: "C", entity: "import",
-          summary: `Excel 导入：写入 ${planned} 行（解析失败 ${errors.length} 行已跳过）`,
+          userId: user.id, action: AUDIT_ACTION.create, entity: ENTITY.import,
+          summaryKey: "audit.importExcel", summaryParams: { planned, errors: errors.length },
           requestBody: JSON.stringify({ fileName: file.name, total: rows.length, planned, parseFailed: errors.length }),
           responseBody: '{"result":"created"}',
         },
         async (tx) => {
-          // 自动创建缺失账户（cash/储蓄卡）
-          const missingAccts = [...new Set(parsed.map((p) => p.acctName).filter((n) => !acctByName.has(n)))];
+          // 自动创建缺失账户（cash/储蓄卡）——统一走公共 ensureAccount
+          const missingAccts = [...new Set(parsed.map((p) => p.acctName).filter((n) => !acctIdByName.has(n)))];
           for (const name of missingAccts) {
-            const [row] = await tx
-              .insert(accounts)
-              .values({ ledgerId: ledger.id, name, type: "custom", icon: "💳", currencyCode: "CNY", openingBalanceCents: 0, isAsset: true, createdBy: user.id })
-              .returning();
-            acctByName.set(name, row);
+            await ensureAccount(tx, ledger.id, name, { createdBy: user.id, cache: acctIdByName });
           }
-          // 自动创建缺失分类
-          const missingCats = [...new Set(parsed.map((p) => p.catName).filter((n) => n && !catByName.has(n)))];
-          for (const name of missingCats) {
-            const t = parsed.find((p) => p.catName === name)!.type;
-            const [row] = await tx
-              .insert(categories)
-              .values({ ledgerId: ledger.id, name, type: t === "income" ? "income" : "expense", icon: "📦" })
-              .returning();
-            catByName.set(name, row);
+          // 自动创建缺失分类（按 名称×收支类型 双重维度，空缺即建）——统一走公共 ensureCategory
+          // 结构化去重：直接用 (规范类型, 名称) 调用，避免用 `::` 拼接再 split（分类名本身可能含 `::`）；
+          // 缓存 key 统一为 `${type}::${name}`，与 catIdByName / ensureCategory 回填口径一致
+          const seenCat = new Set<string>();
+          for (const p of parsed) {
+            if (p.type === TX.transfer || !p.catName) continue;
+            const normType = p.type === TX.income ? TX.income : TX.expense;
+            const key = `${normType}::${p.catName}`;
+            if (seenCat.has(key)) continue;
+            seenCat.add(key);
+            await ensureCategory(tx, ledger.id, p.catName, normType, catIdByName);
           }
           // 批量插入流水
           await tx.insert(transactions).values(
             parsed.map((p) => ({
               ledgerId: ledger.id,
-              accountId: acctByName.get(p.acctName)!.id,
+              accountId: acctIdByName.get(p.acctName)!,
               type: p.type,
-              categoryId: p.type === "transfer" ? null : (p.catName ? (catByName.get(p.catName)?.id ?? null) : null),
+              categoryId: isTransfer(p.type) ? null : (p.catName ? (catIdByName.get(`${p.type}::${p.catName}`) ?? null) : null),
               amountCents: p.cents,
               txDate: p.date,
               remark: p.remark || null,

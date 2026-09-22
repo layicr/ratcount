@@ -1,11 +1,17 @@
+import { categories, projects, tags, transactionTags, transactions } from "@/db/schema"
+import { requireUser } from "@/lib/scope"
 import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
-import { requireUser } from "@/lib/scope";
-import { getCurrentLedger } from "@/lib/ledger";
-import { getLocale, getDictionary } from "@/lib/i18n";
+import { requireCurrentLedger } from "@/lib/ledger";
 import { db } from "@/lib/db";
-import { transactions, accounts, categories, projects, tags, transactionTags } from "@/db/schema";
+import { listAccountsWithBalance } from "@/lib/queries";
+
+
+
+
 import { AddForm } from "@/app/(app)/add/add-form";
+import { getMessages } from "next-intl/server";
+import type { AppDict } from "@/i18n/dict";
 
 /** 编辑流水页面：加载交易详情，复用 AddForm 组件 */
 export default async function EditTransactionPage({
@@ -14,10 +20,9 @@ export default async function EditTransactionPage({
   params: Promise<{ id: string }>;
 }) {
   const user = await requireUser();
-  const ledger = await getCurrentLedger();
-  const d = getDictionary(await getLocale());
+  const ledger = await requireCurrentLedger();
+  const d = (await getMessages()) as unknown as AppDict;
   const { id } = await params;
-  if (!ledger) redirect("/login");
 
   // 查询交易详情
   const [tx] = await db
@@ -33,7 +38,7 @@ export default async function EditTransactionPage({
 
   // 查询账户、分类、项目、标签列表
   const [accts, cats, projs, tgs] = await Promise.all([
-    db.select().from(accounts).where(eq(accounts.ledgerId, ledger.id)),
+    listAccountsWithBalance(ledger.id),
     db.select().from(categories).where(eq(categories.ledgerId, ledger.id)),
     db.select().from(projects).where(eq(projects.ledgerId, ledger.id)),
     db.select().from(tags).where(eq(tags.ledgerId, ledger.id)),
@@ -56,7 +61,7 @@ export default async function EditTransactionPage({
     <div className="space-y-4">
       <h1 className="text-lg font-bold text-slate-900">{d.add.editTitle}</h1>
       <AddForm
-        accts={accts.map((a) => ({ id: a.id, name: a.name, icon: a.icon, balanceCents: a.openingBalanceCents }))}
+        accts={accts.map((a) => ({ id: a.id, name: a.name, icon: a.icon, type: a.type, balanceCents: a.balanceCents }))}
         cats={cats.map((c) => ({ id: c.id, name: c.name, icon: c.icon, type: c.type }))}
         projs={projs.map((p) => ({ id: p.id, name: p.name, icon: p.icon }))}
         tgs={tgs.map((t) => ({ id: t.id, name: t.name, color: t.color }))}

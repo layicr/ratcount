@@ -1,15 +1,17 @@
-import { getLocale, getDictionary } from "@/lib/i18n";
-import { formatCents } from "@/lib/money";
+import { formatCurrency } from "@/lib/money";
 import { dashboardStats, yearSummary, type StatsPeriod } from "@/lib/queries";
 import { TimeRangePicker } from "../time-range-picker";
 import { MonthlyTrendChart } from "../monthly-trend-chart";
 import { Card } from "./card";
 import { fmt, getPeriodLabel } from "./utils";
+import { getMessages, getLocale } from "next-intl/server";
+import { makeDictTranslator, type AppDict } from "@/i18n/dict";
 
-export async function Overview({ s, period, yearTrend }: { s: Awaited<ReturnType<typeof dashboardStats>>; period: StatsPeriod; yearTrend: Awaited<ReturnType<typeof yearSummary>> }) {
+export async function Overview({ s, period, yearTrend, currency }: { s: Awaited<ReturnType<typeof dashboardStats>>; period: StatsPeriod; yearTrend: Awaited<ReturnType<typeof yearSummary>>; currency: string }) {
   const locale = await getLocale();
-  const d = getDictionary(locale);
-  const periodLabel = getPeriodLabel(period, locale, d);
+  const d = (await getMessages()) as unknown as AppDict;
+  const periodLabel = getPeriodLabel(period, locale, makeDictTranslator(d));
+  const money = (c: number) => formatCurrency(c, currency, locale);
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -17,10 +19,10 @@ export async function Overview({ s, period, yearTrend }: { s: Awaited<ReturnType
         <TimeRangePicker period={period} />
       </div>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <Card label={d.dashboard.netWorth} value={`¥ ${formatCents(s.netWorth)}`} />
-        <Card label={fmt(d.dashboard.incomeWithCount, { count: s.incomeCount })} value={`+¥ ${formatCents(s.monthIncome)}`} tone="text-green-600" />
-        <Card label={fmt(d.dashboard.expenseWithCount, { count: s.expenseCount })} value={`-¥ ${formatCents(s.monthExpense)}`} tone="text-red-600" />
-        <Card label={`${d.reports.balance} / ${d.dashboard.balanceRate}`} value={`¥ ${formatCents(s.monthBalance)}`} sub={`${s.balanceRate}%`} />
+        <Card label={d.dashboard.netWorth} value={money(s.netWorth)} />
+        <Card label={fmt(d.dashboard.incomeWithCount, { count: s.incomeCount })} value={`+${money(s.monthIncome)}`} tone="text-green-600" />
+        <Card label={fmt(d.dashboard.expenseWithCount, { count: s.expenseCount })} value={`-${money(s.monthExpense)}`} tone="text-red-600" />
+        <Card label={`${d.reports.balance} / ${d.dashboard.balanceRate}`} value={money(s.monthBalance)} sub={`${s.balanceRate}%`} />
         <Card label={d.reports.txCount} value={fmt(d.reports.txCountValue, { count: s.totalCount })} sub={fmt(d.reports.txCountSub, { income: s.incomeCount, expense: s.expenseCount })} />
       </div>
       <MonthlyTrendChart data={yearTrend} />

@@ -1,9 +1,14 @@
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/scope";
-import { getMyLedgers, getCurrentLedgerId } from "@/lib/ledger";
-import { getSetting } from "@/lib/settings";
-import { getLocale, getDictionary } from "@/lib/i18n";
+import { getMyLedgers, getCurrentLedgerId, ensureDefaultLedger } from "@/lib/ledger";
+import { getSetting, getAppName, getAppSlogan } from "@/lib/settings";
+import { SETTING_KEY } from "@/lib/constants";
 import { AppShell } from "./app-shell";
+import { getMessages, getLocale } from "next-intl/server";
+import type { AppDict } from "@/i18n/dict";
+import { getActiveMenus } from "@/app/actions/menus";
+import { getMenuGroupsForNav } from "@/app/actions/menu-groups";
+import { getLedgerMenuIds } from "@/app/actions/user-menu";
 
 /** 应用布局：登录后才能进入（scopeGuard） */
 export default async function AppLayout({
@@ -12,20 +17,22 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const user = await requireUser();
+  const locale = await getLocale();
+
+  // 登录用户无账本时自动建一个默认账本，避免停在「暂无账本」
+  try {
+    await ensureDefaultLedger(user.id, locale);
+  } catch {
+    // 建账本失败则继续；下方会按是否拥有账本给出兜底提示
+  }
+
   const ledgers = await getMyLedgers(user.id);
   const currentId = await getCurrentLedgerId();
-  const copyright = (await getSetting("copyright")) ?? "© 2026 ratcount";
-  const locale = await getLocale();
-  // 根据当前语言选择应用名称 / Select app name based on current locale
-  const appNameZh = (await getSetting("app_name_zh")) ?? "ratcount";
-  const appNameEn = (await getSetting("app_name_en")) ?? "ratcount";
-  const appName = locale === "zh" ? (appNameZh || "ratcount") : (appNameEn || "ratcount");
-  // 根据当前语言选择应用宣言 / Select app slogan based on current locale
-  const appSloganZh = (await getSetting("app_slogan_zh")) ?? "";
-  const appSloganEn = (await getSetting("app_slogan_en")) ?? "";
-  const appSlogan = locale === "zh" ? appSloganZh : appSloganEn;
-  const d = getDictionary(locale);
-
+  const copyright = (await getSetting(SETTING_KEY.copyright)) ?? "";
+  // 应用名 / 应用宣言加载顺序：DB 全局设置（管理员可改）→ 静态兜底（见 getAppName / getAppSlogan）
+  const appName = await getAppName(locale);
+  const appSlogan = await getAppSlogan(locale);
+  const d = (await getMessages()) as unknown as AppDict;
   if (!currentId || ledgers.length === 0) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-100 p-6">
@@ -41,9 +48,16 @@ export default async function AppLayout({
 
   const current = ledgers.find((l) => l.ledger.id === currentId)?.ledger;
 
+  // 数据驱动导航：菜单表 + 分组 + 当前账本启用白名单（与 profile 页同源）
+  const [menus, groups, enabledIds] = await Promise.all([
+    getActiveMenus(),
+    getMenuGroupsForNav(),
+    getLedgerMenuIds(currentId, user.id),
+  ]);
+
   return (
     <AppShell
-      userName={user.name ?? "用户"}
+      userName={user.name ?? d.common.user}
       userRole={user.role}
       appName={appName}
       appSlogan={appSlogan}
@@ -55,6 +69,9 @@ export default async function AppLayout({
       currentId={currentId}
       currentName={current?.name ?? ""}
       copyright={copyright}
+      menus={menus}
+      groups={groups}
+      enabledIds={enabledIds}
     >
       {children}
     </AppShell>

@@ -1,0 +1,20 @@
+/** seed 数据共享类型（供 accounts.ts / transactions.ts 等跨模块引用）/ Shared seed-data types (imported across modules like accounts.ts / transactions.ts) */
+export type AcctKey =
+  | "cash"
+  | "cmb"
+  | "credit"
+  | "wechat"
+  | "stock"
+  | "fund"
+  | "savings"
+  | "real_estate"
+  | "usd"
+  | "bond"
+  | "gold"
+  | "insurance"
+  | "national_pension"
+  | "personal_pension"
+  | "housing_fund"
+  | "loan"
+  | "digital_asset"
+  | "collectible";

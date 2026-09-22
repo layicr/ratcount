@@ -2,6 +2,10 @@
  * ratcount · 单元测试（分页纯函数 / 日期范围 / SQL IN 工具 / 枚举一致性 / 月度标识）
  * 运行：npx tsx --test test/unit-pagination.test.ts
  */
+import { transactions } from "../db/schema"
+import { userRoles, memberRoles, accountTypes, transactionTypes, auditActions, recurringFrequencies } from "../lib/constants"
+import { ACCOUNT_TYPES } from "../lib/constants"
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { sql } from "drizzle-orm";
@@ -14,23 +18,12 @@ function toQuery(s: any) {
 }
 
 import {
-  parsePage,
-  resolvePageSize,
-  computeOffset,
-  computeTotalPages,
-  buildPageWindow,
-} from "../lib/pagination-util";
+  parsePage, resolvePageSize, computeOffset, computeTotalPages, buildPageWindow, } from "../lib/pagination-util";
 import { monthRange, inSql } from "../lib/sql-utils";
-import { monthKey, ACCOUNT_TYPE_LABELS } from "../lib/queries";
-import {
-  userRoles,
-  memberRoles,
-  accountTypes,
-  transactionTypes,
-  auditActions,
-  recurringFrequencies,
-  transactions,
-} from "../db/schema";
+import { monthKey } from "../lib/queries";
+
+
+
 
 /* ==================== 1. 分页解析 ==================== */
 
@@ -121,15 +114,15 @@ test("枚举: 各领域枚举非空且角色/类型/动作/频率取值正确", 
   assert.deepStrictEqual([...transactionTypes], ["income", "expense", "transfer"]);
   assert.deepStrictEqual([...auditActions], ["C", "R", "U", "D"]);
   assert.deepStrictEqual([...recurringFrequencies], ["daily", "weekly", "monthly", "yearly"]);
-  assert.strictEqual(accountTypes.length, 11);
+  assert.strictEqual(accountTypes.length, 19);
 });
 
-test("枚举: ACCOUNT_TYPE_LABELS 覆盖全部账户类型（UI 永不丢文案）", () => {
+test("枚举: ACCOUNT_TYPES 覆盖全部账户类型（单一真源不漂移）", () => {
+  assert.strictEqual(ACCOUNT_TYPES.length, accountTypes.length);
+  const values = new Set(ACCOUNT_TYPES.map((t) => t.v));
   for (const t of accountTypes) {
-    assert.ok(ACCOUNT_TYPE_LABELS[t] && ACCOUNT_TYPE_LABELS[t].trim().length > 0, `缺账户类型文案: ${t}`);
+    assert.ok(values.has(t), `缺账户类型值: ${t}`);
   }
-  // 未知类型有安全兜底（UI 显示原文）
-  assert.strictEqual(ACCOUNT_TYPE_LABELS["unknown_xyz"], undefined);
 });
 
 test("SQL: 独立 sql 模板参数化冒烟（与 buildTxConds 同类用法安全）", () => {

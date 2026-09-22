@@ -1,24 +1,29 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/scope";
-import { getLocale, getDictionary } from "@/lib/i18n";
+import { requireUser } from "@/lib/scope"
+import { ROLE, SETTINGS_PATH, SETTINGS_LOGS_PATH } from "@/lib/constants";
 import { getPaginationConfig, parsePage, resolvePageSize } from "@/lib/pagination";
 import { listAuditLogs } from "@/lib/queries";
-import { LogsManager } from "../../logs/logs-manager";
+import { LogsManager } from "./logs-manager";
+import { getMessages } from "next-intl/server";
+import type { AppDict } from "@/i18n/dict";
 
-/** 操作日志（全局设置入口）：写操作留痕（C/U/D）+ 分页 + 搜索 + 批量删除 + 清理；按用户维度隔离 */
+/** 操作日志（合并原 /logs）：写操作留痕（C/U/D）+ 分页 + 搜索 + 批量删除 + 清理；仅管理员可访问（全局设置下） */
 export default async function SettingsLogsPage({
   searchParams,
 }: {
   searchParams: Promise<{ page?: string; q?: string; pageSize?: string }>;
 }) {
   const user = await requireUser();
-  const d = getDictionary(await getLocale());
-  const ACTION_LABELS: Record<string, string> = { C: d.logs.actionC, R: d.logs.actionR, U: d.logs.actionU, D: d.logs.actionD };
+  const d = (await getMessages()) as unknown as AppDict;
+  const ACTION_LABELS: Record<string, string> = { C: d.common.add, R: d.common.view, U: d.common.edit, D: d.common.delete };
 
-  // 权限检查：仅管理员可访问全局设置下的操作日志 / Only admin can access
-  if (user.role !== "admin") {
-    redirect("/dashboard");
+  // 仅管理员可访问全局设置下的操作日志 / Admin only
+  if (user.role !== ROLE.admin) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
+        <p className="text-sm text-slate-500">{d.settings.adminOnly}</p>
+      </div>
+    );
   }
 
   // 从全局设置读取分页配置
@@ -32,6 +37,7 @@ export default async function SettingsLogsPage({
   const pageSize = resolvePageSize(sp.pageSize, allowedPageSizes, defaultPageSize);
 
   const { rows: data, total, totalPages } = await listAuditLogs({
+    userId: undefined,
     search: q,
     page,
     pageSize,
@@ -39,27 +45,24 @@ export default async function SettingsLogsPage({
 
   return (
     <div className="space-y-4">
-      {/* 标题行：返回链接 + 页面标题 / Title row: back link + page title */}
+      {/* 标题行：返回全局设置 + 页面标题 */}
       <div className="flex items-center gap-3">
-        <Link href="/settings" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-teal-600">
+        <Link href={SETTINGS_PATH} className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-teal-600">
           <span>←</span>
           <span>{d.settings.title}</span>
         </Link>
         <h1 className="text-lg font-bold text-slate-900">{d.logs.title}</h1>
-        {user.role !== "admin" && (
-          <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-500">{d.logs.adminOnly}</span>
-        )}
       </div>
       <LogsManager
         logs={data}
-        isAdmin={user.role === "admin"}
+        isAdmin={user.role === ROLE.admin}
         actionLabels={ACTION_LABELS}
         page={page}
         totalPages={totalPages}
         total={total}
         q={q}
         pageSize={pageSize}
-        basePath="/settings/logs"
+        basePath={SETTINGS_LOGS_PATH}
         allowedPageSizes={allowedPageSizes}
       />
     </div>

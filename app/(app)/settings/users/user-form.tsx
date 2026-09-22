@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useT } from "@/components/i18n-provider";
+import { useTranslations } from "next-intl";
 import { ConfirmButton } from "../../components/confirm";
 import { createUser, updateUser } from "@/app/actions/users";
+import { ROLE, type UserRole, USER_STATUS, type UserStatus, SETTINGS_USERS_PATH } from "@/lib/constants";
 
 /** 用户表单数据类型 */
 type UserFormData = {
@@ -12,7 +13,7 @@ type UserFormData = {
   name: string;
   email: string;
   role: string;
-  status: string;
+  status: UserStatus;
   remark: string;
 };
 
@@ -24,15 +25,15 @@ export function UserForm({
   mode: "create" | "edit";
   initialUser?: UserFormData;
 }) {
-  const t = useT();
+  const t = useTranslations();
   const router = useRouter();
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [form, setForm] = useState({
     name: initialUser?.name ?? "",
     email: initialUser?.email ?? "",
     password: "",
-    role: (initialUser?.role as "admin" | "user") ?? "user",
-    status: (initialUser?.status as "active" | "disabled") ?? "active",
+    role: (initialUser?.role as UserRole) ?? ROLE.user,
+    status: (initialUser?.status as UserStatus) ?? USER_STATUS.active,
     remark: initialUser?.remark ?? "",
   });
 
@@ -53,7 +54,11 @@ export function UserForm({
     const trimmedEmail = form.email.trim();
 
     // 校验昵称 / Validate nickname
-    if (trimmedName.length < 1 || trimmedName.length > 30) {
+    if (!trimmedName) {
+      flash(false, t("userMgmt.nameRequired"));
+      return false;
+    }
+    if (trimmedName.length > 30) {
       flash(false, t("userMgmt.nameInvalid"));
       return false;
     }
@@ -70,6 +75,10 @@ export function UserForm({
 
     // 校验密码（仅新增）/ Validate password (create only)
     if (mode === "create") {
+      if (!form.password) {
+        flash(false, t("errors.passwordRequired"));
+        return false;
+      }
       if (form.password.length < 6 || form.password.length > 72) {
         flash(false, t("userMgmt.passwordLength"));
         return false;
@@ -92,9 +101,9 @@ export function UserForm({
       });
       if (r.ok) {
         flash(true, t("userMgmt.updated"));
-        setTimeout(() => router.push("/settings/users"), 1000);
+        setTimeout(() => router.push(SETTINGS_USERS_PATH), 1000);
       } else {
-        flash(false, t(r.error) !== r.error ? t(r.error) : r.error);
+        flash(false, t(r.error));
       }
     } else {
       // 新增 / Create
@@ -108,9 +117,9 @@ export function UserForm({
       });
       if (r.ok) {
         flash(true, t("userMgmt.created"));
-        setTimeout(() => router.push("/settings/users"), 1000);
+        setTimeout(() => router.push(SETTINGS_USERS_PATH), 1000);
       } else {
-        flash(false, t(r.error) !== r.error ? t(r.error) : r.error);
+        flash(false, t(r.error));
       }
     }
   }
@@ -129,7 +138,7 @@ export function UserForm({
         <div className="grid gap-4 md:grid-cols-2">
           {/* 昵称 / Nickname */}
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">{t("userMgmt.nickname")}</label>
+            <label className="mb-1 block text-xs font-medium text-slate-600">{t("common.nickname")}{mode === "create" && <span className="text-red-500">*</span>}</label>
             <input
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -140,7 +149,7 @@ export function UserForm({
           {/* 邮箱 / Email（编辑模式下禁用，不可修改） */}
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">
-              {t("userMgmt.email")}
+              {t("common.email")}{mode === "create" && <span className="text-red-500">*</span>}
               {mode === "edit" && <span className="ml-1 text-slate-400">({t("userMgmt.emailReadOnly")})</span>}
             </label>
             <input
@@ -158,14 +167,14 @@ export function UserForm({
           {/* 密码（仅新增时显示）/ Password (only for create) */}
           {mode === "create" && (
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">{t("userMgmt.password")}</label>
+              <label className="mb-1 block text-xs font-medium text-slate-600">{t("common.password")}<span className="text-red-500">*</span></label>
               <input
                 type="password"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
               />
-              <p className="mt-1 text-[11px] text-slate-400">{t("userMgmt.passwordHint")}</p>
+              <p className="mt-1 text-[11px] text-slate-400">{t("errors.passwordHint")}</p>
             </div>
           )}
           {/* 角色 / Role */}
@@ -173,28 +182,28 @@ export function UserForm({
             <label className="mb-1 block text-xs font-medium text-slate-600">{t("userMgmt.role")}</label>
             <select
               value={form.role}
-              onChange={(e) => setForm({ ...form, role: e.target.value as "admin" | "user" })}
+              onChange={(e) => setForm({ ...form, role: e.target.value as UserRole })}
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
             >
-              <option value="user">{t("userMgmt.roleUser")}</option>
-              <option value="admin">{t("userMgmt.roleAdmin")}</option>
+              <option value={ROLE.user}>{t("common.user")}</option>
+              <option value={ROLE.admin}>{t("common.roleAdmin")}</option>
             </select>
           </div>
           {/* 状态 / Status */}
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">{t("userMgmt.status")}</label>
+            <label className="mb-1 block text-xs font-medium text-slate-600">{t("common.status")}</label>
             <select
               value={form.status}
-              onChange={(e) => setForm({ ...form, status: e.target.value as "active" | "disabled" })}
+              onChange={(e) => setForm({ ...form, status: e.target.value as UserStatus })}
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
             >
-              <option value="active">{t("userMgmt.statusActive")}</option>
-              <option value="disabled">{t("userMgmt.statusDisabled")}</option>
+              <option value={USER_STATUS.active}>{t("common.active")}</option>
+              <option value={USER_STATUS.disabled}>{t("userMgmt.statusDisabled")}</option>
             </select>
           </div>
           {/* 备注 / Remark */}
           <div className="md:col-span-2">
-            <label className="mb-1 block text-xs font-medium text-slate-600">{t("userMgmt.remark")}</label>
+            <label className="mb-1 block text-xs font-medium text-slate-600">{t("common.remark")}</label>
             <input
               value={form.remark}
               onChange={(e) => setForm({ ...form, remark: e.target.value })}
@@ -209,8 +218,8 @@ export function UserForm({
           <ConfirmButton
             action={handleSubmit}
             beforeOpen={validateForm}
-            title={mode === "edit" ? t("userMgmt.editTitle") : t("userMgmt.createTitle")}
-            desc={mode === "edit" ? t("userMgmt.editDesc") : t("userMgmt.createDesc")}
+            title={mode === "edit" ? t("common.edit") : t("common.add")}
+            desc={mode === "edit" ? t("userMgmt.editDesc") : t("common.createDesc")}
             okText={t("common.save")}
             className="flex-1"
           >
@@ -220,7 +229,7 @@ export function UserForm({
           </ConfirmButton>
           <button
             type="button"
-            onClick={() => router.push("/settings/users")}
+            onClick={() => router.push(SETTINGS_USERS_PATH)}
             className="flex-1 rounded-lg border border-slate-200 py-2 text-center text-sm text-slate-600 hover:bg-slate-50"
           >
             {t("common.cancel")}

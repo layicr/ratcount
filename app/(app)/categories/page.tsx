@@ -1,18 +1,17 @@
-import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
-import { requireUser } from "@/lib/scope";
-import { getCurrentLedger } from "@/lib/ledger";
-import { getLocale, getDictionary } from "@/lib/i18n";
-import { db } from "@/lib/db";
+import { requireUser } from "@/lib/scope"
 import { categories } from "@/db/schema";
-import { CategoriesManager } from "../tags/tags-manager";
+import { requireCurrentLedger } from "@/lib/ledger";
+import { db } from "@/lib/db";
+import { CategoriesManager } from "./categories-manager";
+import { getMessages } from "next-intl/server";
+import type { AppDict } from "@/i18n/dict";
 
 /** 分类管理（收入 / 支出），独立页面 /categories */
 export default async function CategoriesPage() {
   const user = await requireUser();
-  const ledger = await getCurrentLedger();
-  const d = getDictionary(await getLocale());
-  if (!ledger) redirect("/login");
+  const ledger = await requireCurrentLedger();
+  const d = (await getMessages()) as unknown as AppDict;
   const cats = await db.select().from(categories).where(eq(categories.ledgerId, ledger.id));
 
   return (

@@ -1,12 +1,17 @@
 /**
  * 内存限流：简单内存计数（单实例足够；多实例可换 DB/Redis）
  *  - 按 key 维度自定义（如 register:<ip>、captcha:<ip>），窗口与上限可配
+ * In-memory rate limiting: simple counter (fine for single instance; swap to DB/Redis for multi-instance)
+ *  - Per-key dimension (e.g. register:<ip>, captcha:<ip>); window & cap configurable
  */
 const REGISTER_WINDOW_MS = 15 * 60 * 1000;
 const REGISTER_MAX = 5;
 
 const CAPTCHA_WINDOW_MS = 60 * 1000;
 const CAPTCHA_MAX = 10;
+
+const EXPORT_WINDOW_MS = 60 * 1000;
+const EXPORT_MAX = 10;
 
 const buckets = new Map<string, { count: number; resetAt: number }>();
 
@@ -23,8 +28,13 @@ export const CAPTCHA_LIMIT: RateLimit = {
   windowMs: CAPTCHA_WINDOW_MS,
   max: CAPTCHA_MAX,
 };
+/** 导出限流：重操作（全量扫描 + 内存生成 XLSX），按用户维度限速 / Export limit: heavy op (full scan + in-memory XLSX), throttled per user */
+export const EXPORT_LIMIT: RateLimit = {
+  windowMs: EXPORT_WINDOW_MS,
+  max: EXPORT_MAX,
+};
 
-/** 是否允许继续尝试（按 key + 自定义窗口/上限） / Whether attempt is allowed */
+/** 是否允许继续尝试（按 key + 自定义窗口/上限）/ Whether an attempt is allowed */
 export function allowAttempt(key: string, limit: RateLimit = REGISTER_LIMIT): boolean {
   const now = Date.now();
   const rec = buckets.get(key);

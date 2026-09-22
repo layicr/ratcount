@@ -6,10 +6,12 @@ import {
   copyTransaction,
   deleteTransaction,
 } from "@/app/actions/transactions";
-import { useT } from "@/components/i18n-provider";
+import { useTranslations } from "next-intl";
+import { useMoney } from "@/components/currency-context";
 import { ConfirmButton, useToast } from "../components/confirm";
 import { TxTypeBadge } from "../components/badges";
-import { formatCents } from "@/lib/money";
+import { TX } from "@/lib/constants";
+import { Pagination } from "../components/pagination";
 
 type Tx = {
   id: string; type: string; amountCents: number; txDate: string;
@@ -38,7 +40,8 @@ export function TxList({
 }) {
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [pending, start] = useTransition();
-  const t = useT();
+  const t = useTranslations();
+  const money = useMoney();
 
   function toggle(id: string) {
     setSel((prev) => {
@@ -66,7 +69,7 @@ export function TxList({
             await batchDeleteTransactions([...sel]);
             setSel(new Set());
           }}
-          title={t("tx.batchTitle")}
+          title={t("common.batchDelete")}
           desc={t("tx.batchDesc", { count: sel.size })}
           okText={t("common.delete")}
         >
@@ -77,15 +80,15 @@ export function TxList({
       </div>
 
       {txs.length === 0 ? (
-        <p className="py-12 text-center text-sm text-slate-400">{t("tx.empty")}</p>
+        <p className="py-12 text-center text-sm text-slate-400">{t("common.empty")}</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-sm">
             <thead>
               <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
                 <th className="w-8 px-4 py-2"></th>
-                <th className="py-2">{t("tx.type")}</th><th>{t("tx.category")}</th><th>{t("tx.account")}</th><th>{t("tx.project")}</th><th>{t("tx.summary")}</th>
-                <th>{t("tx.tag")}</th><th className="text-right">{t("tx.amount")}</th><th className="text-right">{t("tx.date")}</th><th className="text-right">{t("tx.actions")}</th>
+                <th className="py-2">{t("common.type")}</th><th>{t("tx.category")}</th><th>{t("common.account")}</th><th>{t("common.project")}</th><th>{t("tx.summary")}</th>
+                <th>{t("tx.tag")}</th><th className="text-right">{t("common.amount")}</th><th className="text-right">{t("common.date")}</th><th className="text-right">{t("common.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -111,8 +114,8 @@ export function TxList({
                       ))}
                     </div>
                   </td>
-                  <td className={`text-right font-medium ${tx.type === "income" ? "text-green-600" : tx.type === "expense" ? "text-red-600" : "text-slate-500"}`}>
-                    {tx.type === "income" ? "+" : tx.type === "expense" ? "-" : ""}¥ {formatCents(tx.amountCents)}
+                  <td className={`text-right font-medium ${tx.type === TX.income ? "text-green-600" : tx.type === TX.expense ? "text-red-600" : "text-slate-500"}`}>
+                    {tx.type === TX.income ? "+" : tx.type === TX.expense ? "-" : ""}{money(tx.amountCents)}
                   </td>
                   <td className="text-right text-slate-400">{tx.txDate}</td>
                   <td className="text-right"><RowOps tx={tx} /></td>
@@ -123,64 +126,14 @@ export function TxList({
         </div>
       )}
 
-      {/* 分页控件（样式与操作日志一致） */}
-      {pagination && pagination.total > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-4 py-2">
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-slate-400">
-              {t("tx.pageInfo", { page: pagination.page, totalPages: pagination.totalPages, total: pagination.total })}
-            </span>
-            {/* 每页条数选择（select 下拉框，与操作日志一致） */}
-            <label className="flex items-center gap-1 text-xs text-slate-400">
-              {t("tx.pageSize")}
-              <select
-                value={pagination.pageSize}
-                onChange={(e) => {
-                  const size = parseInt(e.target.value, 10);
-                  const url = new URL(window.location.href);
-                  url.searchParams.set("pageSize", String(size));
-                  url.searchParams.set("page", "1");
-                  window.location.href = url.toString();
-                }}
-                className="rounded border border-slate-200 px-1 py-0.5 text-xs text-slate-600 outline-none focus:border-teal-500"
-              >
-                {pagination.pageSizeOptions?.map((s) => (
-                  <option key={s} value={s}>{s} {t("tx.itemsPerPage")}</option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <div className="flex items-center gap-1">
-            <a
-              href={pagination.prevHref}
-              className={`rounded-lg border border-slate-200 px-3 py-1 text-xs ${pagination.page === 1 ? "pointer-events-none opacity-40 text-slate-600" : "text-slate-600 hover:bg-slate-50"}`}
-            >
-              {t("common.prev")}
-            </a>
-            {pagination.pageHrefs.map(({ page: p, href }) => (
-              <a
-                key={p}
-                href={href}
-                className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs ${p === pagination.page ? "bg-teal-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}
-              >
-                {p}
-              </a>
-            ))}
-            <a
-              href={pagination.nextHref}
-              className={`rounded-lg border border-slate-200 px-3 py-1 text-xs ${pagination.page === pagination.totalPages ? "pointer-events-none opacity-40 text-slate-600" : "text-slate-600 hover:bg-slate-50"}`}
-            >
-              {t("common.next")}
-            </a>
-          </div>
-        </div>
-      )}
+      {/* 分页控件（全局共用，链接由页面服务端预生成） */}
+      {pagination && <Pagination link={pagination} />}
     </div>
   );
 }
 
 function RowOps({ tx }: { tx: Tx }) {
-  const t = useT();
+  const t = useTranslations();
   const toast = useToast();
   return (
     <div className="flex items-center justify-end gap-2">

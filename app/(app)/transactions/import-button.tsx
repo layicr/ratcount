@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useT } from "@/components/i18n-provider";
+import { useTranslations } from "next-intl";
 
 /** 导入数据按钮：点击跳转到导入数据页面 */
 export function ImportButton() {
-  const t = useT();
+  const t = useTranslations();
   return (
     <Link
       href="/import"

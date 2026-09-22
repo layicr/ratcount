@@ -2,19 +2,17 @@
 
 import { useState } from "react";
 import { createAccount, updateAccount, deleteAccount } from "@/app/actions/accounts";
-import { useT } from "@/components/i18n-provider";
+import { useTranslations } from "next-intl";
+import { useMoney } from "@/components/currency-context";
 import { ConfirmButton, DeleteButton } from "../components/confirm";
 import { IconPicker } from "../components/icon-picker";
 import { AccountTypeBadge } from "../components/badges";
-import { formatCents } from "@/lib/money";
+import { AccountTypeSelect } from "../components/account-type-select";
+import { ACCT, DEFAULT_CURRENCY } from "@/lib/constants"
+import { ACCOUNT_TYPES } from "@/lib/constants";
 
 /** 账户类型选项（label 用 i18n key） */
-const TYPES = [
-  { v: "cash", key: "acctType.cash" }, { v: "debit_card", key: "acctType.debitCard" }, { v: "credit_card", key: "acctType.creditCard" },
-  { v: "wechat", key: "acctType.wechat" }, { v: "savings", key: "acctType.savings" }, { v: "investment", key: "acctType.investment" },
-  { v: "fund", key: "acctType.fund" }, { v: "precious_metal", key: "acctType.preciousMetal" }, { v: "bond", key: "acctType.bond" },
-  { v: "foreign_currency", key: "acctType.foreignCurrency" }, { v: "real_estate", key: "acctType.realEstate" }, { v: "custom", key: "acctType.custom" },
-];
+const TYPES = ACCOUNT_TYPES;
 
 type Acct = {
   id: string; name: string; type: string; icon: string; currencyCode: string;
@@ -23,13 +21,20 @@ type Acct = {
 
 type CurrencyOption = { code: string; name: string };
 
-const empty = { name: "", type: "debit_card", icon: "💳", currencyCode: "CNY", openingYuan: "0.00", isAsset: true, remark: "" };
+/** 账户表单值：type 保持 string（账户类型存 DB 文本，编辑/下拉回传可能是任意字符串） */
+type AcctForm = {
+  name: string; type: string; icon: string; currencyCode: string;
+  openingYuan: string; isAsset: boolean; remark: string;
+};
+
+const empty: AcctForm = { name: "", type: ACCT.debit_card, icon: "💳", currencyCode: DEFAULT_CURRENCY, openingYuan: "0.00", isAsset: true, remark: "" };
 
 /** 账户管理：卡片列表 + 内联表单 + 删除确认（i18n） */
 export function AccountsManager({
   accts, currencies,
 }: { accts: Acct[]; currencies: CurrencyOption[] }) {
-  const tt = useT();
+  const tt = useTranslations();
+  const money = useMoney();
   const [editing, setEditing] = useState<Acct | null>(null);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState(empty);
@@ -64,7 +69,7 @@ export function AccountsManager({
   /** 保存前校验（替代原生 required，支持 i18n） */
   function validateBeforeSave(): boolean {
     if (!form.name.trim()) {
-      setErr(tt("common.nameRequired"));
+      setErr("common.nameRequired");
       return false;
     }
     return true;
@@ -75,24 +80,22 @@ export function AccountsManager({
       {/* 表单 */}
       {(creating || editing) && (
         <form className="space-y-3 rounded-2xl border border-teal-200 bg-white p-5">
-          <h2 className="text-sm font-bold text-slate-800">{editing ? tt("accounts.edit") : tt("accounts.add")}</h2>
+          <h2 className="text-sm font-bold text-slate-800">{editing ? tt("common.edit") : tt("common.add")}</h2>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs text-slate-500">{tt("common.name")} *</label>
+              <label className="mb-1 block text-xs text-slate-500">{tt("common.name")} <span className="text-red-500">*</span></label>
               <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-slate-500">{tt("accounts.icon")}</label>
+              <label className="mb-1 block text-xs text-slate-500">{tt("common.icon")}</label>
               <IconPicker value={form.icon} onChange={(icon) => setForm({ ...form, icon })} />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-slate-500">{tt("common.type")} *</label>
-              <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="w-full rounded-lg border border-slate-200 px-2 py-2 text-sm">
-                {TYPES.map((op) => <option key={op.v} value={op.v}>{tt(op.key)}</option>)}
-              </select>
+              <label className="mb-1 block text-xs text-slate-500">{tt("common.type")} <span className="text-red-500">*</span></label>
+              <AccountTypeSelect value={form.type} onChange={(v) => setForm({ ...form, type: v })} />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-slate-500">{tt("accounts.currency")}</label>
+              <label className="mb-1 block text-xs text-slate-500">{tt("common.currency")}</label>
               <select value={form.currencyCode} onChange={(e) => setForm({ ...form, currencyCode: e.target.value })} className="w-full rounded-lg border border-slate-200 px-2 py-2 text-sm">
                 {currencies.map((c) => <option key={c.code} value={c.code}>{c.name} / {c.code}</option>)}
               </select>
@@ -112,13 +115,13 @@ export function AccountsManager({
               <input value={form.remark} onChange={(e) => setForm({ ...form, remark: e.target.value })} className="w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" />
             </div>
           </div>
-          {err && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{tt(err) !== err ? tt(err) : err}</p>}
+          {err && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{tt(err)}</p>}
           <div className="flex gap-2">
             <ConfirmButton
               action={doSubmit}
               beforeOpen={validateBeforeSave}
               title={editing ? tt("accounts.saveEditTitle") : tt("accounts.saveTitle")}
-              desc={editing ? tt("accounts.saveEditDesc", { name: form.name }) : tt("accounts.saveDesc", { name: form.name })}
+              desc={editing ? tt("common.saveEditDesc", { id: form.name }) : tt("common.createDesc")}
               okText={tt("common.save")}
             >
               <span className="rounded-lg bg-teal-600 px-4 py-2 text-sm text-white hover:bg-teal-700">{tt("common.save")}</span>
@@ -130,7 +133,7 @@ export function AccountsManager({
 
       {/* 新增按钮 */}
       {!creating && !editing && (
-        <button onClick={startCreate} className="rounded-lg bg-teal-600 px-4 py-2 text-sm text-white hover:bg-teal-700">{tt("accounts.add")}</button>
+        <button onClick={startCreate} className="rounded-lg bg-teal-600 px-4 py-2 text-sm text-white hover:bg-teal-700">{tt("common.add")}</button>
       )}
 
       {/* 列表：按账户类型分组 */}
@@ -166,7 +169,7 @@ export function AccountsManager({
                       </div>
                     </div>
                     <div className={`mt-3 text-lg font-bold ${a.balanceCents < 0 ? "text-red-600" : "text-slate-900"}`}>
-                      {a.balanceCents < 0 ? "-" : ""}¥ {formatCents(Math.abs(a.balanceCents))}
+                      {money(a.balanceCents)}
                     </div>
                     {a.remark && <div className="mt-1 text-[11px] text-slate-400">{a.remark}</div>}
                     <div className="mt-3 flex items-center justify-end gap-2">
@@ -175,7 +178,7 @@ export function AccountsManager({
                       <DeleteButton
                         action={async () => { await deleteAccount(a.id); }}
                         title={tt("accounts.delTitle")}
-                        desc={tt("accounts.delDesc", { name: a.name })}
+                        desc={tt("common.delDesc", { name: a.name })}
                         okText={tt("common.delete")}
                         label={<span className="text-xs text-red-500 hover:underline">{tt("common.delete")}</span>}
                       />

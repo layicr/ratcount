@@ -1,37 +1,14 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useT } from "@/components/i18n-provider";
+import { useTranslations } from "next-intl";
+import { COLORS } from "@/lib/constants";
 
 /**
  * 颜色选择器（Color Picker）
  * 点击当前颜色按钮弹出颜色面板，选择后回调 onChange。
  * 用于标签等需要颜色的表单字段。
  */
-
-/** 预设常用颜色列表（40 色）/ Preset common colors (40 colors) */
-const COLORS = [
-  // 红色系
-  "#ef4444", "#f87171", "#fca5a5", "#dc2626",
-  // 橙色系
-  "#f97316", "#fb923c", "#fdba74", "#ea580c",
-  // 黄色系
-  "#f59e0b", "#fbbf24", "#fcd34d", "#d97706",
-  // 绿色系
-  "#22c55e", "#4ade80", "#86efac", "#16a34a",
-  // 青色系
-  "#14b8a6", "#2dd4bf", "#5eead4", "#0d9488",
-  // 蓝色系
-  "#3b82f6", "#60a5fa", "#93c5fd", "#2563eb",
-  // 靛色系
-  "#6366f1", "#818cf8", "#a5b4fc", "#4f46e5",
-  // 紫色系
-  "#8b5cf6", "#a78bfa", "#c4b5fd", "#7c3aed",
-  // 粉色系
-  "#ec4899", "#f472b6", "#f9a8d4", "#db2777",
-  // 灰色系
-  "#64748b", "#94a3b8", "#475569", "#334155",
-];
 
 export function ColorPicker({
   value,
@@ -42,7 +19,7 @@ export function ColorPicker({
   onChange: (color: string) => void;
   size?: "sm" | "md";
 }) {
-  const t = useT();
+  const t = useTranslations();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 

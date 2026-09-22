@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createLedger, updateLedger, deleteLedger } from "@/app/actions/ledgers";
-import { useT } from "@/components/i18n-provider";
+import { useTranslations } from "next-intl";
 import { ConfirmButton, DeleteButton } from "../components/confirm";
 import { IconPicker } from "../components/icon-picker";
+import { MR, DEFAULT_CURRENCY, DEFAULT_LEDGER_ICON, DASHBOARD_PATH, LEDGER_COOKIE } from "@/lib/constants";
 
 type Ledger = {
   id: string; name: string; icon: string; baseCurrencyCode: string;
@@ -14,7 +15,7 @@ type Ledger = {
 
 type CurrencyOption = { code: string; name: string };
 
-const empty = { name: "", icon: "📒", baseCurrencyCode: "CNY", remark: "" };
+const empty = { name: "", icon: DEFAULT_LEDGER_ICON, baseCurrencyCode: DEFAULT_CURRENCY, remark: "" };
 
 /** 账本管理：列表 + 新增/编辑表单 + 删除确认（i18n） */
 export function LedgersManager({
@@ -24,7 +25,7 @@ export function LedgersManager({
   currentId: string;
   currencies: CurrencyOption[];
 }) {
-  const t = useT();
+  const t = useTranslations();
   const router = useRouter();
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Ledger | null>(null);
@@ -58,14 +59,14 @@ export function LedgersManager({
 
   /** 保存前校验（替代原生 required，支持 i18n） */
   function validateBeforeSave(): boolean {
-    if (!form.name.trim()) { setErr(t("common.nameRequired")); return false; }
+    if (!form.name.trim()) { setErr("common.nameRequired"); return false; }
     return true;
   }
 
   /** 切换当前账本 / Switch current ledger */
   function switchLedger(id: string) {
-    document.cookie = `ratcount_ledger=${id}; path=/; max-age=31536000`;
-    router.push("/dashboard");
+    document.cookie = `${LEDGER_COOKIE}=${id}; path=/; max-age=31536000`;
+    router.push(DASHBOARD_PATH);
     router.refresh();
   }
 
@@ -85,7 +86,7 @@ export function LedgersManager({
       {(creating || editing) && (
         <form className="space-y-3 rounded-2xl border border-teal-200 bg-white p-5">
           <h2 className="text-sm font-bold text-slate-800">
-            {editing ? t("ledgers.edit") : t("ledgers.add")}
+            {editing ? t("ledgers.edit") : t("common.add")}
           </h2>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
@@ -93,7 +94,7 @@ export function LedgersManager({
               <IconPicker value={form.icon} onChange={(icon) => setForm({ ...form, icon })} />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-slate-500">{t("common.name")} *</label>
+              <label className="mb-1 block text-xs text-slate-500">{t("common.name")} <span className="text-red-500">*</span></label>
               <input
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -121,13 +122,13 @@ export function LedgersManager({
               />
             </div>
           </div>
-          {err && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{t(err) !== err ? t(err) : err}</p>}
+          {err && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{t(err, { defaultValue: err })}</p>}
           <div className="flex gap-2">
             <ConfirmButton
               action={doSubmit}
               beforeOpen={validateBeforeSave}
               title={editing ? t("ledgers.saveEditTitle") : t("ledgers.saveTitle")}
-              desc={editing ? t("ledgers.saveEditDesc", { name: form.name }) : t("ledgers.saveDesc", { name: form.name })}
+              desc={editing ? t("common.saveEditDesc", { id: form.name }) : t("common.createDesc")}
               okText={t("common.save")}
             >
               <span className="rounded-lg bg-teal-600 px-4 py-2 text-sm text-white hover:bg-teal-700">{t("common.save")}</span>
@@ -140,11 +141,12 @@ export function LedgersManager({
       {/* 新增按钮 */}
       {!creating && !editing && (
         <button onClick={startCreate} className="rounded-lg bg-teal-600 px-4 py-2 text-sm text-white hover:bg-teal-700">
-          {t("ledgers.add")}
+          {t("common.add")}
         </button>
       )}
 
-      {/* 账本列表 */}
+      {/* 账本列表（新增/编辑时隐藏） */}
+      {!creating && !editing && (
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {ledgers.map((l) => (
           <div
@@ -181,7 +183,7 @@ export function LedgersManager({
                   {t("ledgers.switch")}
                 </button>
               )}
-              {l.role === "owner" && (
+              {l.role === MR.owner && (
                 <>
                   <button onClick={() => startEdit(l)} className="text-xs text-slate-500 hover:text-teal-600">
                     {t("common.edit")}
@@ -199,6 +201,8 @@ export function LedgersManager({
           </div>
         ))}
       </div>
+      )}
+
     </div>
   );
 }

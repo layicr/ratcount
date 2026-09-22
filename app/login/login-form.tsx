@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { useT } from "@/components/i18n-provider";
+import { useActionState, useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { loginAction } from "./actions";
 
@@ -21,8 +21,12 @@ export default function LoginForm({
     ok: false,
     error: null as string | null,
   });
-  const [capKey, setCapKey] = useState(() => Date.now());
-  const t = useT();
+  // 初始用固定占位值，保证 SSR 与客户端首次渲染一致；挂载后再生成真实时间戳，避免水合不匹配
+  const [capKey, setCapKey] = useState<number | null>(null);
+  useEffect(() => {
+    setCapKey(Date.now());
+  }, []);
+  const t = useTranslations();
 
   return (
     <div className="relative w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-8 shadow-lg">
@@ -31,9 +35,12 @@ export default function LoginForm({
       </div>
 
       <div className="mb-6 text-center">
-        <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-600 text-2xl font-bold text-white">
-          R
-        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/logo.png"
+          alt={appName}
+          className="mx-auto mb-3 h-14 w-14 rounded-2xl object-contain"
+        />
         <h1 className="text-xl font-bold text-slate-900">{appName}</h1>
         <p className="mt-1 text-xs text-slate-500">{appSlogan || t("login.subtitle")}</p>
       </div>
@@ -41,7 +48,7 @@ export default function LoginForm({
       <form action={formAction} className="space-y-4">
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-600">
-            {t("login.email")}
+            {t("common.email")}
           </label>
           <input
             name="email"
@@ -54,7 +61,7 @@ export default function LoginForm({
 
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-600">
-            {t("login.password")}
+            {t("common.password")}
           </label>
           <input
             name="password"
@@ -68,7 +75,7 @@ export default function LoginForm({
         {captchaEnabled && (
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">
-              {t("login.captcha")}
+              {t("common.captcha")}
             </label>
             <div className="flex gap-2">
               <input
@@ -79,11 +86,11 @@ export default function LoginForm({
               />
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={`/api/captcha?t=${capKey}`}
+                src={capKey ? `/api/captcha?t=${capKey}` : undefined}
                 alt="captcha"
                 title={t("login.captchaPlaceholder")}
                 onClick={() => setCapKey(Date.now())}
-                className="h-[42px] w-[96px] cursor-pointer rounded-lg border border-slate-200"
+                className="h-[40px] w-[96px] cursor-pointer rounded-lg border border-slate-200"
               />
             </div>
           </div>

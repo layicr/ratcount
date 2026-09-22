@@ -1,24 +1,30 @@
+import { currencies, ledgerMembers } from "@/db/schema"
+import { requireUser } from "@/lib/scope"
 import { redirect } from "next/navigation";
 import { eq, sql } from "drizzle-orm";
-import { requireUser } from "@/lib/scope";
 import { getCurrentLedgerId, getMyLedgers } from "@/lib/ledger";
-import { getLocale, getDictionary } from "@/lib/i18n";
 import { db } from "@/lib/db";
-import { ledgerMembers, currencies } from "@/db/schema";
+
+
+
+
 import { LedgersManager } from "./ledgers-manager";
+import { getMessages, getLocale } from "next-intl/server";
+import type { AppDict } from "@/i18n/dict";
+import { LOGIN_PATH } from "@/lib/constants";
 
 /** 账本管理页面：当前用户所属的所有账本（创建/编辑/删除/切换） */
 export default async function LedgersPage() {
   const user = await requireUser();
   const currentId = await getCurrentLedgerId();
-  const d = getDictionary(await getLocale());
-  if (!currentId) redirect("/login");
+  const d = (await getMessages()) as unknown as AppDict;
+  if (!currentId) redirect(LOGIN_PATH);
 
   // 查询当前用户的所有账本 + 每个账本的成员数
   const myLedgers = await getMyLedgers(user.id);
   const locale = await getLocale();
-  const curs = await db.select({ code: currencies.code, nameZh: currencies.nameZh, nameEn: currencies.nameEn }).from(currencies).where(eq(currencies.isActive, true));
-  const currencyList = curs.map((c) => ({ code: c.code, name: locale === "en" ? c.nameEn || c.code : c.nameZh || c.code }));
+  const curs = await db.select({ code: currencies.code, name: currencies.name }).from(currencies).where(eq(currencies.isActive, true));
+  const currencyList = curs.map((c) => ({ code: c.code, name: c.name || c.code }));
 
   // 批量查询每个账本的成员数
   const memberCounts = await db

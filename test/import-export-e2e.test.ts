@@ -21,7 +21,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import * as XLSX from "@e965/xlsx";
-import zh from "../messages/zh.json";
+import zh from "../messages/zh-CN.json";
 import { yuanToCents } from "../lib/money";
 import { setupTestDb, seedTestData } from "./helpers/db-fixture";
 
@@ -122,8 +122,8 @@ async function runImport(opts: {
     db.select().from(schema.accounts).where(eq(schema.accounts.ledgerId, ledger.id)),
     db.select().from(schema.categories).where(eq(schema.categories.ledgerId, ledger.id)),
   ]);
-  const acctByName = new Map(accts.map((a: any) => [a.name, a]));
-  const catByName = new Map(cats.map((c: any) => [c.name, c]));
+  const acctByName = new Map<string, any>(accts.map((a: any) => [a.name, a]));
+  const catByName = new Map<string, any>(cats.map((c: any) => [c.name, c]));
 
   function normalizeDate(v: unknown): string {
     if (typeof v === "number" && v > 20000) {
@@ -268,7 +268,7 @@ async function runExport(ledgerId: string): Promise<{ buffer: Buffer; headers: R
   ]);
 
   const TX_BATCH = 5000;
-  const txHeader = [d.tx.type, d.tx.date, d.tx.account, d.add.toAccount, d.tx.category, d.tx.project, d.tx.amount, d.common.remark, d.tx.tag];
+  const txHeader = [d.common.type, d.common.date, d.common.account, d.add.toAccount, d.tx.category, d.common.project, d.common.amount, d.common.remark, d.tx.tag];
 
   const acctTypeKey: Record<string, keyof typeof d.acctType> = {
     cash: "cash", debit_card: "debitCard", credit_card: "creditCard", wechat: "wechat",
@@ -284,7 +284,7 @@ async function runExport(ledgerId: string): Promise<{ buffer: Buffer; headers: R
     const batch = await listTransactions(ledgerId, { limit: TX_BATCH, offset });
     if (batch.length === 0) break;
     const rows = batch.map((t: any) => [
-      d.common[t.type] ?? t.type,
+      (d.common as unknown as Record<string, string>)[t.type] ?? t.type,
       t.txDate,
       t.account?.name ?? "",
       t.toAccount?.name ?? "",
@@ -313,7 +313,7 @@ async function runExport(ledgerId: string): Promise<{ buffer: Buffer; headers: R
         [d.common.name]: a.name,
         类型: d.acctType[acctTypeKey[a.type] ?? "custom"] ?? a.type,
         [d.common.icon]: a.icon,
-        [d.settings.currency]: a.currencyCode,
+        [d.common.currency]: a.currencyCode,
         [d.accounts.opening]: a.openingBalanceCents / 100,
         [d.accounts.isAsset]: a.isAsset ? d.common.yes : d.common.no,
         [d.common.remark]: a.remark ?? "",
@@ -341,7 +341,7 @@ async function runExport(ledgerId: string): Promise<{ buffer: Buffer; headers: R
       const statusLabel = p.status === "active" ? d.projects.active : d.projects.completed;
       return { [d.common.name]: p.name, [d.common.icon]: p.icon, [d.projects.budget]: p.budgetCents / 100, 状态: statusLabel };
     })),
-    d.tx.project,
+    d.common.project,
   );
 
   const buf = Buffer.from(XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as ArrayBuffer);
@@ -393,7 +393,7 @@ test("EXP-1 导出为 5 张 sheet，名称=流水/账户/分类/标签/项目", 
   const wb = XLSX.read(buffer, { type: "buffer" });
   assert.deepStrictEqual(
     wb.SheetNames,
-    [zh.nav.transactions, zh.nav.accounts, zh.tx.category, zh.tx.tag, zh.tx.project],
+    [zh.nav.transactions, zh.nav.accounts, zh.tx.category, zh.tx.tag, zh.common.project],
     "sheet 名称应依次为 流水/账户/分类/标签/项目",
   );
 });
@@ -405,27 +405,27 @@ test("EXP-2 流水 sheet 内容正确：表头/类型中文映射/金额分转�
   const rows = XLSX.utils.sheet_to_json(ws, { defval: "" }) as Record<string, any>[];
   // 表头
   assert.deepStrictEqual(Object.keys(rows[0]), [
-    zh.tx.type, zh.tx.date, zh.tx.account, zh.add.toAccount,
-    zh.tx.category, zh.tx.project, zh.tx.amount, zh.common.remark, zh.tx.tag,
+    zh.common.type, zh.common.date, zh.common.account, zh.add.toAccount,
+    zh.tx.category, zh.common.project, zh.common.amount, zh.common.remark, zh.tx.tag,
   ]);
   assert.strictEqual(rows.length, 4, "账本1 种子 4 笔流水");
   const byRemark = Object.fromEntries(rows.map((r) => [r[zh.common.remark], r]));
   // 支出 48.00 / 分类 餐饮 / 项目 装修 / 标签 日常
   const sam = byRemark["山姆会员店"];
-  assert.strictEqual(sam[zh.tx.type], zh.common.expense);
-  assert.strictEqual(sam[zh.tx.amount], 48);
+  assert.strictEqual(sam[zh.common.type], zh.common.expense);
+  assert.strictEqual(sam[zh.common.amount], 48);
   assert.strictEqual(sam[zh.tx.category], "餐饮");
-  assert.strictEqual(sam[zh.tx.project], "装修");
-  assert.strictEqual(sam[zh.tx.account], "现金");
+  assert.strictEqual(sam[zh.common.project], "装修");
+  assert.strictEqual(sam[zh.common.account], "现金");
   assert.strictEqual(sam[zh.tx.tag], "日常");
   // 收入 8000 / 类型 收入
   const sal = byRemark["本月工资"];
-  assert.strictEqual(sal[zh.tx.type], zh.common.income);
-  assert.strictEqual(sal[zh.tx.amount], 8000);
+  assert.strictEqual(sal[zh.common.type], zh.common.income);
+  assert.strictEqual(sal[zh.common.amount], 8000);
   // 转账 200 / 转入账户 借记卡
   const tr = byRemark["转入卡"];
-  assert.strictEqual(tr[zh.tx.type], zh.common.transfer);
-  assert.strictEqual(tr[zh.tx.amount], 200);
+  assert.strictEqual(tr[zh.common.type], zh.common.transfer);
+  assert.strictEqual(tr[zh.common.amount], 200);
   assert.strictEqual(tr[zh.add.toAccount], "借记卡");
   assert.strictEqual(tr[zh.tx.category], "", "转账行分类为空");
 });
@@ -438,7 +438,7 @@ test("EXP-3 账户 sheet 内容正确：类型中文映射/期初余额分转元
   const byName = Object.fromEntries(rows.map((r) => [r[zh.common.name], r]));
   const cash = byName["现金"];
   assert.strictEqual(cash["类型"], zh.acctType.cash);
-  assert.strictEqual(cash[zh.settings.currency], "CNY");
+  assert.strictEqual(cash[zh.common.currency], "CNY");
   assert.strictEqual(cash[zh.accounts.opening], 100);
   assert.strictEqual(cash[zh.accounts.isAsset], zh.common.yes);
   const card = byName["借记卡"];
@@ -469,7 +469,7 @@ test("EXP-5 标签 sheet 内容正确：名称 + 颜色", async () => {
 test("EXP-6 项目 sheet 内容正确：预算分转元/状态进行中 映射", async () => {
   const { buffer } = await runExport(seed.l1.id);
   const wb = XLSX.read(buffer, { type: "buffer" });
-  const rows = XLSX.utils.sheet_to_json(wb.Sheets[zh.tx.project], { defval: "" }) as Record<string, any>[];
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets[zh.common.project], { defval: "" }) as Record<string, any>[];
   assert.strictEqual(rows.length, 1);
   assert.strictEqual(rows[0][zh.common.name], "装修");
   assert.strictEqual(rows[0][zh.projects.budget], 2000);

@@ -21,6 +21,9 @@ const dict = {
   reports: { periodYear: "{year}年", periodMonth: "{year}年{month}" },
 };
 
+/** 桩 translator：从 dict 按 ns.key 取值，缺省返回 key（对齐 next-intl 行为） */
+const tl = (key: string) => key.split(".").reduce((o: unknown, p: string) => (o && typeof o === "object" ? (o as Record<string, unknown>)[p] : undefined) ?? "", dict) as unknown as string || key;
+
 /* ==================== 1. 列表翻页体验 ==================== */
 
 test("翻页: 任意页可见窗口必含当前页，且不越界（含量=窗口宽度）", () => {
@@ -105,13 +108,14 @@ test("录入: 合法金额被解析为用户可见分值，非法输入返回 nu
 
 test("期间: 选择某月后，查询范围与展示标签一致（用户看到的即是查到的）", () => {
   const period = { type: "month", year: 2026, month: 2 } as const;
-  const label = getPeriodLabel(period, "zh", dict);
+  const label = getPeriodLabel(period, "zh-CN", tl);
   const range = monthRange(2026, 2);
-  assert.strictEqual(label, "2026年二月");
+  // Intl zh-CN 短月名输出为「2月」而非「二月」，断言与 Intl 行为对齐
+  assert.strictEqual(label, "2026年2月");
   assert.strictEqual(range.start, "2026-02-01");
   assert.strictEqual(range.end, "2026-02-28");
   // 同月两条信息必须来自同一选择，不存在标签与范围的错位
-  assert.ok(label.includes("二月") === (range.end === "2026-02-28"));
+  assert.ok(label.includes("2月") === (range.end === "2026-02-28"));
 });
 
 test("期间: 最近 6 个月趋势槽位与 monthKey 格式一致（图表轴映射）", () => {

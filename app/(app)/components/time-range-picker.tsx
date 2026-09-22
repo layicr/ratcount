@@ -2,21 +2,20 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useT, useLocale } from "@/components/i18n-provider";
+import { useTranslations, useLocale } from "next-intl";
 import type { StatsPeriod } from "@/lib/queries";
-
-const MONTHS_ZH = ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"];
-const MONTHS_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+import { STATS_PERIOD, type StatsPeriodType } from "@/lib/constants";
+import { getMonthShortNames } from "@/lib/datetime";
 
 /** 时间选择器：按年 / 按月切换，顶部年份左右切换，弹出网格选择 */
 export function TimeRangePicker({ period }: { period: StatsPeriod }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const t = useT();
+  const t = useTranslations();
   const locale = useLocale();
-  const MONTHS = locale === "en" ? MONTHS_EN : MONTHS_ZH;
+  const MONTHS = getMonthShortNames(locale);
   const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<"year" | "month">(period.type);
+  const [mode, setMode] = useState<StatsPeriodType>(period.type);
   const [decadeStart, setDecadeStart] = useState(Math.floor(period.year / 10) * 10);
   const [pickerYear, setPickerYear] = useState(period.year);
   const ref = useRef<HTMLDivElement>(null);
@@ -36,7 +35,7 @@ export function TimeRangePicker({ period }: { period: StatsPeriod }) {
   function buildUrl(p: StatsPeriod): string {
     const params = new URLSearchParams(searchParams.toString());
     // 保留当前 tab（总览/分类等），仅更新 period
-    params.set("period", p.type === "year" ? `year-${p.year}` : `month-${p.year}-${String(p.month ?? 1).padStart(2, "0")}`);
+    params.set("period", p.type === STATS_PERIOD.year ? `${STATS_PERIOD.year}-${p.year}` : `${STATS_PERIOD.month}-${p.year}-${String(p.month ?? 1).padStart(2, "0")}`);
     return `?${params.toString()}`;
   }
 
@@ -49,12 +48,12 @@ export function TimeRangePicker({ period }: { period: StatsPeriod }) {
   }
 
   function pickYear(y: number) {
-    router.push(buildUrl({ type: "year", year: y }));
+    router.push(buildUrl({ type: STATS_PERIOD.year, year: y }));
     setOpen(false);
   }
 
   function pickMonth(m: number) {
-    router.push(buildUrl({ type: "month", year: pickerYear, month: m }));
+    router.push(buildUrl({ type: STATS_PERIOD.month, year: pickerYear, month: m }));
     setOpen(false);
   }
 
@@ -68,7 +67,7 @@ export function TimeRangePicker({ period }: { period: StatsPeriod }) {
           type="button"
           onClick={() => shiftYear(-1)}
           className="flex h-7 w-7 items-center justify-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-          aria-label="上一年"
+          aria-label={t("common.prevYear")}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
         </button>
@@ -83,7 +82,7 @@ export function TimeRangePicker({ period }: { period: StatsPeriod }) {
           type="button"
           onClick={() => shiftYear(1)}
           className="flex h-7 w-7 items-center justify-center rounded text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-          aria-label="下一年"
+          aria-label={t("common.nextYear")}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
         </button>
@@ -96,21 +95,21 @@ export function TimeRangePicker({ period }: { period: StatsPeriod }) {
           <div className="mb-3 flex rounded-lg bg-slate-100 p-0.5">
             <button
               type="button"
-              onClick={() => setMode("year")}
-              className={`flex-1 rounded-md py-1.5 text-sm font-medium transition ${mode === "year" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              onClick={() => setMode(STATS_PERIOD.year)}
+              className={`flex-1 rounded-md py-1.5 text-sm font-medium transition ${mode === STATS_PERIOD.year ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
             >
               {t("common.byYear")}
             </button>
             <button
               type="button"
-              onClick={() => setMode("month")}
-              className={`flex-1 rounded-md py-1.5 text-sm font-medium transition ${mode === "month" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              onClick={() => setMode(STATS_PERIOD.month)}
+              className={`flex-1 rounded-md py-1.5 text-sm font-medium transition ${mode === STATS_PERIOD.month ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
             >
               {t("common.byMonth")}
             </button>
           </div>
 
-          {mode === "year" ? (
+          {mode === STATS_PERIOD.year ? (
             <>
               {/* 十年范围切换 */}
               <div className="mb-2 flex items-center justify-between">
@@ -118,7 +117,7 @@ export function TimeRangePicker({ period }: { period: StatsPeriod }) {
                   type="button"
                   onClick={() => setDecadeStart((d) => d - 10)}
                   className="flex h-7 w-7 items-center justify-center rounded text-slate-400 hover:bg-slate-100"
-                  aria-label="上一个十年"
+                  aria-label={t("common.prevDecade")}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
                 </button>
@@ -127,7 +126,7 @@ export function TimeRangePicker({ period }: { period: StatsPeriod }) {
                   type="button"
                   onClick={() => setDecadeStart((d) => d + 10)}
                   className="flex h-7 w-7 items-center justify-center rounded text-slate-400 hover:bg-slate-100"
-                  aria-label="下一个十年"
+                  aria-label={t("common.nextDecade")}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
                 </button>
@@ -135,7 +134,7 @@ export function TimeRangePicker({ period }: { period: StatsPeriod }) {
               {/* 年份网格 */}
               <div className="grid grid-cols-4 gap-1.5">
                 {years.map((y) => {
-                  const selected = period.type === "year" && period.year === y;
+                  const selected = period.type === STATS_PERIOD.year && period.year === y;
                   const isCurrent = y === curYear;
                   return (
                     <button
@@ -163,7 +162,7 @@ export function TimeRangePicker({ period }: { period: StatsPeriod }) {
                   type="button"
                   onClick={() => setPickerYear((y) => y - 1)}
                   className="flex h-7 w-7 items-center justify-center rounded text-slate-400 hover:bg-slate-100"
-                  aria-label="上一年"
+                  aria-label={t("common.prevYear")}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
                 </button>
@@ -172,7 +171,7 @@ export function TimeRangePicker({ period }: { period: StatsPeriod }) {
                   type="button"
                   onClick={() => setPickerYear((y) => y + 1)}
                   className="flex h-7 w-7 items-center justify-center rounded text-slate-400 hover:bg-slate-100"
-                  aria-label="下一年"
+                  aria-label={t("common.nextYear")}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
                 </button>
@@ -181,7 +180,7 @@ export function TimeRangePicker({ period }: { period: StatsPeriod }) {
               <div className="grid grid-cols-4 gap-1.5">
                 {MONTHS.map((label, i) => {
                   const m = i + 1;
-                  const selected = period.type === "month" && period.year === pickerYear && period.month === m;
+                  const selected = period.type === STATS_PERIOD.month && period.year === pickerYear && period.month === m;
                   const isCurrent = pickerYear === curYear && m === curMonth;
                   return (
                     <button

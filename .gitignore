@@ -26,3 +26,17 @@ node_modules/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.codebuddy/
+.vscode/
+
+playwright-report/
+
+
+test/e2e/.auth/
+test-results/
+
+release/
+
+dist/
+

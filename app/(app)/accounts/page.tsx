@@ -1,21 +1,20 @@
-import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/scope";
-import { getCurrentLedger } from "@/lib/ledger";
-import { getLocale, getDictionary } from "@/lib/i18n";
+import { requireCurrentLedger } from "@/lib/ledger";
 import { listAccountsWithBalance, listCurrencies } from "@/lib/queries";
 import { AccountsManager } from "./accounts-manager";
+import { getMessages, getLocale } from "next-intl/server";
+import type { AppDict } from "@/i18n/dict";
 
 /** 账户：列表 + 新增/编辑/删除 */
 export default async function AccountsPage() {
   const user = await requireUser();
-  const ledger = await getCurrentLedger();
+  const ledger = await requireCurrentLedger();
   const locale = await getLocale();
-  const d = getDictionary(locale);
-  if (!ledger) redirect("/login");
+  const d = (await getMessages()) as unknown as AppDict;
   const [accts, curs] = await Promise.all([listAccountsWithBalance(ledger.id), listCurrencies()]);
   const currencyList = curs.filter((c) => c.isActive).map((c) => ({
     code: c.code,
-    name: locale === "en" ? c.nameEn || c.code : c.nameZh || c.code,
+    name: c.name || c.code,
   }));
 
   return (

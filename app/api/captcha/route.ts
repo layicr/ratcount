@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
-import { issueCaptcha, renderCaptchaSvg } from "@/lib/auth/captcha";
+import { issueCaptcha, renderCaptchaPng } from "@/lib/auth/captcha";
 import { allowAttempt, CAPTCHA_LIMIT } from "@/lib/auth/rate-limit";
 
-/** 验证码接口：返回 SVG + 设置签名 cookie / Captcha endpoint（每 IP 限流防刷） */
+// 位图渲染用到 node:zlib（PNG 编码），固定 Node 运行时
+export const runtime = "nodejs";
+
+/** 验证码接口：返回 PNG 位图 + 设置签名 cookie / Captcha endpoint（每 IP 限流防刷） */
 export async function GET(request: Request) {
   const ip =
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
@@ -17,11 +20,14 @@ export async function GET(request: Request) {
     });
   }
   const code = await issueCaptcha();
-  const svg = renderCaptchaSvg(code);
-  return new NextResponse(svg, {
+  // PNG 位图：响应体内只有像素，答案是服务端 cookie 里的摘要比对，无法从图片响应中读取出文本
+  const png = renderCaptchaPng(code);
+  return new NextResponse(new Uint8Array(png), {
     headers: {
-      "Content-Type": "image/svg+xml; charset=utf-8",
-      "Cache-Control": "no-store",
+      "Content-Type": "image/png",
+      "Content-Length": String(png.length),
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+      "X-Robots-Tag": "noindex, nofollow",
     },
   });
 }

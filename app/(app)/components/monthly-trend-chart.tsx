@@ -1,37 +1,53 @@
 "use client";
 
+import { useMemo } from "react";
 import type { EChartsOption } from "echarts";
-import { useT, useLocale } from "@/components/i18n-provider";
+import { useTranslations, useLocale } from "next-intl";
+import { useBaseCurrency } from "@/components/currency-context";
 import { EChart } from "./echart";
+import { getMonthShortNames } from "@/lib/datetime";
 
 type MonthData = { m: string; income: number; expense: number };
 
-const MONTHS_ZH = ["01月", "02月", "03月", "04月", "05月", "06月", "07月", "08月", "09月", "10月", "11月", "12月"];
-const MONTHS_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-/** 根据 m 字段（"2026-04" 或 "4"）生成月份标签 */
+/** 根据 m 字段（"2026-04" 或 "4"）生成月份标签，随 locale 自动变化 */
 function getMonthLabel(m: string, locale: string): string {
   const monthNum = m.includes("-") ? parseInt(m.slice(5, 7), 10) : parseInt(m, 10);
-  const arr = locale === "en" ? MONTHS_EN : MONTHS_ZH;
-  return arr[monthNum - 1] ?? m;
+  return getMonthShortNames(locale as Parameters<typeof getMonthShortNames>[0])[monthNum - 1] ?? m;
 }
 
-/** 金额（分）格式化为坐标轴短标签：¥x / ¥x.x万 */
-function fmtAxis(cents: number): string {
-  if (cents >= 1_000_000) return `¥${(cents / 1_000_000).toFixed(1)}万`;
-  return `¥${Math.round(cents / 100).toLocaleString()}`;
+/** 金额（分）格式化为坐标轴短标签：随 locale/币种自动（compact 形式，如 ¥1.2万 / $1.2K） */
+function fmtAxis(cents: number, locale: string, currency: string): string {
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency,
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(cents / 100);
+}
+
+/** tooltip 金额（分）格式化：随 locale/币种自动 */
+function fmtTooltip(cents: number, locale: string, currency: string): string {
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(cents / 100);
 }
 
 /** 月度收支趋势折线图（ECharts） */
 export function MonthlyTrendChart({ data }: { data: MonthData[] }) {
-  const t = useT();
+  const t = useTranslations();
   const locale = useLocale();
+  const currency = useBaseCurrency();
 
-  const option: EChartsOption = {
+  // useMemo：option 内联构造会导致引用每次渲染都变化 →
+  // EChart 的 useEffect([option]) 每次都 setOption 重排整图（父组件任意 state 变化都会触发）
+  const option: EChartsOption = useMemo(() => ({
     color: ["#ef4444", "#2dd4bf"],
     tooltip: {
       trigger: "axis",
-      valueFormatter: (v) => `¥${((v as number) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      valueFormatter: (v) => fmtTooltip(v as number, locale, currency),
     },
     legend: { data: [t("common.income"), t("common.expense")], bottom: 0 },
     grid: { left: 8, right: 16, top: 24, bottom: 36, containLabel: true },
@@ -42,7 +58,7 @@ export function MonthlyTrendChart({ data }: { data: MonthData[] }) {
     },
     yAxis: {
       type: "value",
-      axisLabel: { formatter: (v: number) => fmtAxis(v) },
+      axisLabel: { formatter: (v: number) => fmtAxis(v, locale, currency) },
     },
     series: [
       {
@@ -64,7 +80,7 @@ export function MonthlyTrendChart({ data }: { data: MonthData[] }) {
         areaStyle: { color: "rgba(45,212,191,0.08)" },
       },
     ],
-  };
+  }), [data, locale, currency, t]);
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4">

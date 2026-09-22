@@ -1,17 +1,19 @@
-import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/scope";
-import { getCurrentLedger } from "@/lib/ledger";
-import { getLocale, getDictionary } from "@/lib/i18n";
+import { requireUser } from "@/lib/scope"
+import { DEFAULT_CURRENCY } from "@/lib/constants";
+import { requireCurrentLedger } from "@/lib/ledger";
 import { listBalances } from "@/lib/queries";
-import { formatCents } from "@/lib/money";
+import { formatCurrency } from "@/lib/money";
 import { BalanceForm } from "./balance-form";
+import { getMessages, getLocale } from "next-intl/server";
+import type { AppDict } from "@/i18n/dict";
 
 /** 余额表：期初 + 实时余额 vs 最新快照（对账差异） */
 export default async function BalancePage() {
   const user = await requireUser();
-  const ledger = await getCurrentLedger();
-  const d = getDictionary(await getLocale());
-  if (!ledger) redirect("/login");
+  const ledger = await requireCurrentLedger();
+  const locale = await getLocale();
+  const d = (await getMessages()) as unknown as AppDict;
+  const cur = ledger.baseCurrencyCode ?? DEFAULT_CURRENCY;
   const rows = await listBalances(ledger.id);
 
   return (
@@ -24,7 +26,7 @@ export default async function BalancePage() {
           <table className="w-full min-w-[640px] text-sm">
             <thead>
               <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
-                <th className="px-4 py-2">{d.balance.account}</th><th>{d.common.type}</th><th>{d.balance.opening}</th>
+                <th className="px-4 py-2">{d.common.account}</th><th>{d.common.type}</th><th>{d.balance.opening}</th>
                 <th className="text-right">{d.balance.realtime}</th><th className="text-right">{d.balance.snapshot}</th><th className="text-right">{d.balance.diff}</th>
               </tr>
             </thead>
@@ -33,15 +35,15 @@ export default async function BalancePage() {
                 <tr key={r.id} className="border-b border-slate-50">
                   <td className="px-4 py-2 font-medium text-slate-800">{r.icon} {r.name}</td>
                   <td className="text-xs text-slate-400">{r.currencyCode}{r.isAsset ? "" : ` · ${d.accounts.notAsset}`}</td>
-                  <td className="text-slate-500">¥ {formatCents(r.openingBalanceCents)}</td>
+                  <td className="text-slate-500">{formatCurrency(r.openingBalanceCents, cur, locale)}</td>
                   <td className={`text-right font-semibold ${r.balanceCents < 0 ? "text-red-600" : "text-slate-800"}`}>
-                    ¥ {formatCents(r.balanceCents)}
+                    {formatCurrency(r.balanceCents, cur, locale)}
                   </td>
                   <td className="text-right text-slate-500">
-                    {r.snapshot ? `¥ ${formatCents(r.snapshot.balanceAmountCents)} (${r.snapshot.snapshotDate})` : "-"}
+                    {r.snapshot ? `${formatCurrency(r.snapshot.balanceAmountCents, cur, locale)} (${r.snapshot.snapshotDate})` : "-"}
                   </td>
                   <td className={`text-right ${r.diff === null ? "text-slate-300" : r.diff === 0 ? "text-green-600" : "text-amber-600"}`}>
-                    {r.diff === null ? "-" : r.diff === 0 ? `✓ ${d.balance.ok}` : `¥ ${formatCents(r.diff)}`}
+                    {r.diff === null ? "-" : r.diff === 0 ? `✓ ${d.balance.ok}` : formatCurrency(r.diff, cur, locale)}
                   </td>
                 </tr>
               ))}

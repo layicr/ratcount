@@ -9,7 +9,9 @@ import {
   generateCaptchaCode,
   createCaptchaToken,
   verifyCaptchaToken,
-  renderCaptchaSvg,
+  renderCaptchaPng,
+  bitmapToAscii,
+  renderCaptchaBitmap,
 } from "../lib/auth/captcha";
 import {
   allowAttempt,
@@ -49,12 +51,39 @@ test("验证码: 伪造/篡改 token 校验失败", async () => {
   assert.strictEqual(await verifyCaptchaToken("not-a-jwt", "WXYZ"), false);
 });
 
-test("验证码: SVG 渲染包含明文每个字符", () => {
+test("验证码: 位图渲染为合法 PNG（96×40 灰度）", () => {
+  const png = renderCaptchaPng("K2M9", () => 0.5);
+  assert.deepStrictEqual(
+    [...png.subarray(0, 8)],
+    [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+    "PNG 签名",
+  );
+  assert.strictEqual(png.readUInt32BE(16), 96, "IHDR 宽度");
+  assert.strictEqual(png.readUInt32BE(20), 40, "IHDR 高度");
+  assert.strictEqual(png[24], 8, "位深 8");
+  assert.strictEqual(png[25], 0, "颜色类型：灰度");
+  assert.ok(png.length > 100, "应包含压缩后的像素数据");
+});
+
+test("验证码: 位图响应中不含答案明文（防脚本解析）", () => {
   const code = "K2M9";
-  const svg = renderCaptchaSvg(code);
-  assert.ok(svg.startsWith("<svg"));
-  assert.ok(svg.includes("</svg>"));
-  for (const ch of code) assert.ok(svg.includes(`>${ch}</text>`), `应包含字符 ${ch}`);
+  const png = renderCaptchaPng(code, () => 0.5);
+  // 压缩后的像素字节可能偶然含有某个字符的 ASCII，故断言「整串答案」不出现（等价位图不含文本）
+  const text = png.toString("latin1");
+  assert.ok(!text.includes(code), "不得出现答案串");
+  assert.ok(!text.includes("<svg") && !text.includes("</text>"), "不得再返回 SVG 文本");
+});
+
+test("验证码: 位图画布确实绘制了字符（前景像素适中、非纯色）", () => {
+  const bitmap = renderCaptchaBitmap("K2M9", () => 0.5);
+  const ascii = bitmapToAscii(bitmap);
+  const dark = (ascii.match(/#/g) || []).length;
+  assert.ok(dark > 40, "应绘制出字符像素");
+  assert.ok(dark < 96 * 40 * 0.5, "不应是实心块（背景应占多数）");
+  // 不同验证码 → 像素不同（字模真正生效）
+  const a = renderCaptchaPng("AAAA", () => 0.5);
+  const b = renderCaptchaPng("BBBB", () => 0.5);
+  assert.notStrictEqual(a.toString("base64"), b.toString("base64"));
 });
 
 /* ==================== 2. 登录限流 ==================== */

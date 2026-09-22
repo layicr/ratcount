@@ -1,17 +1,47 @@
 /**
- * ratcount · 演示数据种子（对齐原型演示口径）
- * 用法：npm run db:seed
+ * money · 演示数据种子（对齐原型演示口径）/ Demo data seed (aligned with the prototype)
+ * 用法：npm run db:seed / Usage: npm run db:seed
  */
+import { ledgers, ledgerMembers, currencies, accounts, categories, tags, projects, transactions, transactionTags, balances, settings, investmentHoldings, holdingTags, recurringPlans, auditLogs, menuGroups, menus, userMenuConfig, languages, users } from "../db/schema"
+import { GLOBAL_USER_ID, DEFAULT_CURRENCY, DEFAULT_LEDGER_ICON } from "../lib/constants"
+
+
 import { db } from "../lib/db";
-import {
-  users, ledgers, ledgerMembers, currencies, accounts, categories,
-  tags, projects, transactions, transactionTags, balances, settings,
-} from "../db/schema";
+import { eq } from "drizzle-orm";
+
+
+
+
 import bcrypt from "bcryptjs";
+import { acctDefs } from "./seeds/accounts";
+import { HIST_TX } from "./seeds/transactions";
+import { CAT_DEFS } from "./seeds/categories";
+import { TAG_DEFS } from "./seeds/tags";
+import { PROJECT_DEFS } from "./seeds/projects";
+import { HOLDING_DEFS, HOLDING_TAG_DEFS } from "./seeds/investments";
+import { SETTING_DEFS, CURRENCY_DEFS, LANGUAGE_DEFS } from "./init/02-settings";
+import { MENU_GROUP_DEFS, MENU_DEFS, ACTIVE_MENU_IDS } from "./init/01-menus";
+import { RECURRING_DEFS, BALANCE_DEFS, AUDIT_LOG_DEFS } from "./seeds/extra";
+import { type AcctKey } from "./seeds/types";
 
 async function main() {
-  // 幂等：先清空（无外键约束，按逆依赖顺序删除）
+  // 安全守门：禁止在生产环境执行种子（会清空全部数据表），staging/prod 直接拒绝 / Safety gate: refuse to run in production (it wipes all tables); staging/prod rejected outright
+  if (process.env.NODE_ENV === "production") {
+    console.error("❌ 拒绝执行：db:seed 会清空数据并写入演示数据，仅允许在非生产环境运行");
+    process.exit(1);
+  }
+
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD || "demo1234";
+
+  // 幂等：先清空（无外键约束，按逆依赖顺序删除）/ Idempotent: wipe first (no FK constraints; delete in reverse dependency order)
+  await db.delete(userMenuConfig);
+  await db.delete(menus);
+  await db.delete(menuGroups);
   await db.delete(transactionTags);
+  await db.delete(holdingTags); // 持仓标签关联（无 ledgerId，须随持仓一起清空，避免孤儿行）/ Holding tag links (no ledgerId; cleared with holdings to avoid orphan rows)
+  await db.delete(investmentHoldings);
+  await db.delete(recurringPlans);
+  await db.delete(auditLogs);
   await db.delete(balances);
   await db.delete(transactions);
   await db.delete(projects);
@@ -23,127 +53,225 @@ async function main() {
   await db.delete(ledgers);
   await db.delete(settings);
   await db.delete(users);
+  await db.delete(languages);
 
-  // 1) 管理员用户 admin@example.com / demo1234
+  // 1) 管理员用户 / Admin user
   const [admin] = await db.insert(users).values({
     email: "admin@example.com",
-    passwordHash: await bcrypt.hash("demo1234", 12),
+    passwordHash: await bcrypt.hash(adminPassword, 12),
     name: "管理员",
     role: "admin",
   }).returning();
 
-  // 2) 家庭账本
+  // 2) 家庭账本 / Family ledger
   const [ledger] = await db.insert(ledgers).values({
     name: "家庭账本",
-    icon: "📒",
-    baseCurrencyCode: "CNY",
+    icon: DEFAULT_LEDGER_ICON,
+    baseCurrencyCode: DEFAULT_CURRENCY,
     createdBy: admin.id,
   }).returning();
 
-  // 3) 账本成员
+  // 3) 账本成员 / Ledger members
   await db.insert(ledgerMembers).values({
     ledgerId: ledger.id, userId: admin.id, role: "owner",
   });
 
-  // 3.5) 全局设置（settings 表，user_id='global' = 全局项，带显示名）
-  await db.insert(settings).values([
-    { name: "程序名称", key: "app_name", value: "ratcount", userId: "global", updatedBy: admin.id },
-    { name: "默认语言", key: "default_locale", value: "zh", userId: "global", updatedBy: admin.id },
-    { name: "允许注册", key: "allow_registration", value: "true", userId: "global", updatedBy: admin.id },
-    { name: "登录验证码", key: "enable_login_captcha", value: "true", userId: "global", updatedBy: admin.id },
-    { name: "日志保留天数", key: "audit_log_retention_days", value: "90", userId: "global", updatedBy: admin.id },
-    { name: "版权信息", key: "copyright", value: "© 2026 ratcount · 本地与 Turso 双部署", userId: "global", updatedBy: admin.id },
-  ]);
+  // 3.5) 全局设置 / Global settings
+  await db.insert(settings).values(
+    SETTING_DEFS.map((s) => ({ ...s, userId: GLOBAL_USER_ID, updatedBy: admin.id })),
+  );
 
-  // 4) 币种（CNY 基准）
-  const currencyRows = [
-    { code: "CNY", symbol: "¥", nameZh: "人民币", nameEn: "CNY", rate: "1", isBase: true },
-    { code: "USD", symbol: "$", nameZh: "美元", nameEn: "USD", rate: "7.2", isBase: false },
-    { code: "EUR", symbol: "€", nameZh: "欧元", nameEn: "EUR", rate: "7.8", isBase: false },
-    { code: "JPY", symbol: "¥", nameZh: "日元", nameEn: "JPY", rate: "0.048", isBase: false },
-    { code: "HKD", symbol: "HK$", nameZh: "港币", nameEn: "HKD", rate: "0.92", isBase: false },
-    { code: "GBP", symbol: "£", nameZh: "英镑", nameEn: "GBP", rate: "9.1", isBase: false },
-  ].map((c) => ({ ...c, isActive: true, sort: 0 }));
-  await db.insert(currencies).values(currencyRows);
+  // 3.6) 语言表 / Languages
+  await db.insert(languages).values(LANGUAGE_DEFS);
 
-  // 5) 账户（opening = 期初；实时余额 = 期初 + 流水；opening 已按"含 09-02 现金→招行转账 5000"对齐原型）
-  const [cash, cmb, credit, wechat, stock, usd, bond, gold] = await db.insert(accounts).values([
-    // 现金 opening = 200（当前 = 200 + 8000 奶茶店进账 − 5000 转出 = 3200，对齐原型）
-    { ledgerId: ledger.id, name: "现金", type: "cash", icon: "💵", openingBalanceCents: 20000, isAsset: true, createdBy: admin.id },
-    // 招行储蓄 opening = 95806（当前 = 95806 + 20000 − 486 − 1860 + 5000 = 118460，对齐原型）
-    { ledgerId: ledger.id, name: "招行储蓄卡", type: "debit_card", icon: "🏦", openingBalanceCents: 9580600, isAsset: true, createdBy: admin.id },
-    { ledgerId: ledger.id, name: "招行信用卡", type: "credit_card", icon: "💳", openingBalanceCents: -486000, isAsset: false, createdBy: admin.id },
-    { ledgerId: ledger.id, name: "微信", type: "wechat", icon: "💬", openingBalanceCents: 645200, isAsset: true, createdBy: admin.id },
-    { ledgerId: ledger.id, name: "A股账户", type: "investment", icon: "📈", openingBalanceCents: 15200000, isAsset: true, createdBy: admin.id },
-    { ledgerId: ledger.id, name: "美元账户", type: "foreign_currency", icon: "🌐", currencyCode: "USD", openingBalanceCents: 120000, isAsset: true, createdBy: admin.id },
-    { ledgerId: ledger.id, name: "国债", type: "bond", icon: "🛡️", openingBalanceCents: 8000000, isAsset: true, createdBy: admin.id },
-    { ledgerId: ledger.id, name: "黄金定投", type: "precious_metal", icon: "💎", openingBalanceCents: 2644000, isAsset: true, createdBy: admin.id },
-  ]).returning();
+  // 4) 币种 / Currencies
+  await db.insert(currencies).values(CURRENCY_DEFS);
 
-  // 6) 分类
-  const cats = await db.insert(categories).values([
-    { ledgerId: ledger.id, name: "工资", type: "income", icon: "💰" },
-    { ledgerId: ledger.id, name: "生意进账", type: "income", icon: "🧋" },
-    { ledgerId: ledger.id, name: "投资收益", type: "income", icon: "📈" },
-    { ledgerId: ledger.id, name: "其他收入", type: "income", icon: "📦" },
-    { ledgerId: ledger.id, name: "房贷", type: "expense", icon: "🏠" },
-    { ledgerId: ledger.id, name: "宝宝", type: "expense", icon: "👶" },
-    { ledgerId: ledger.id, name: "餐饮", type: "expense", icon: "🍚" },
-    { ledgerId: ledger.id, name: "医疗", type: "expense", icon: "🏥" },
-    { ledgerId: ledger.id, name: "交通", type: "expense", icon: "🚗" },
-    { ledgerId: ledger.id, name: "教育", type: "expense", icon: "📚" },
-    { ledgerId: ledger.id, name: "娱乐", type: "expense", icon: "🎬" },
-    { ledgerId: ledger.id, name: "其他", type: "expense", icon: "📦" },
-  ]).returning();
+  // 4.2) 菜单分组 / Menu groups
+  await db.insert(menuGroups).values(MENU_GROUP_DEFS);
+
+  // 4.3) 菜单目录 / Menu catalog
+  await db.insert(menus).values(MENU_DEFS);
+
+  // 4.4) 为用户启用全部 active 菜单 / Enable all active menus for the user
+  await db.insert(userMenuConfig).values(
+    ACTIVE_MENU_IDS.map((menuId) => ({ ledgerId: ledger.id, userId: admin.id, menuId })),
+  );
+
+  // 5) 账户（opening = 目标余额 − 历史流水净额）/ Accounts (opening = target balance − historical tx net delta)
+  const acctRows = await db.insert(accounts).values(
+    acctDefs.map((a) => ({
+      ledgerId: ledger.id,
+      name: a.name,
+      type: a.type,
+      icon: a.icon,
+      currencyCode: a.currencyCode ?? DEFAULT_CURRENCY,
+      openingBalanceCents: a.openingBalanceCents,
+      isAsset: a.isAsset,
+      createdBy: admin.id,
+    })),
+  ).returning();
+  const acctIdByKey = Object.fromEntries(
+    acctRows.map((r) => [r.name, r.id]),
+  ) as Record<string, string>;
+  const acctId = (name: string) => acctIdByKey[name];
+
+  // 6) 分类 / Categories
+  const cats = await db.insert(categories).values(
+    CAT_DEFS.map((c) => ({ ledgerId: ledger.id, name: c.name, type: c.type, icon: c.icon })),
+  ).returning();
   const catMap = Object.fromEntries(cats.map((c) => [c.name, c]));
 
-  // 7) 标签
-  const tagRows = await db.insert(tags).values([
-    { ledgerId: ledger.id, name: "宝宝", color: "#EA6668" },
-    { ledgerId: ledger.id, name: "康复", color: "#C9A7E8" },
-    { ledgerId: ledger.id, name: "出差", color: "#F4B393" },
-    { ledgerId: ledger.id, name: "房贷", color: "#8BC8EA" },
-    { ledgerId: ledger.id, name: "投资", color: "#A2DDAA" },
-  ]).returning();
+  // 7) 标签 / Tags
+  const tagRows = await db.insert(tags).values(
+    TAG_DEFS.map((t) => ({ ledgerId: ledger.id, name: t.name, color: t.color })),
+  ).returning();
   const tagMap = Object.fromEntries(tagRows.map((t) => [t.name, t]));
 
-  // 8) 项目
-  const [milkTea, babyPlan] = await db.insert(projects).values([
-    { ledgerId: ledger.id, name: "奶茶店", icon: "🧋", budgetCents: 5000000, status: "active", createdBy: admin.id },
-    { ledgerId: ledger.id, name: "宝贝计划", icon: "👶", budgetCents: 1500000, status: "completed", createdBy: admin.id },
-  ]).returning();
+  // 8) 项目 / Projects
+  const projRows = await db.insert(projects).values(
+    PROJECT_DEFS.map((p) => ({
+      ledgerId: ledger.id, name: p.name, icon: p.icon,
+      budgetCents: p.budgetCents, status: p.status, createdBy: admin.id,
+    })),
+  ).returning();
+  const projMap: Record<string, string> = Object.fromEntries(
+    projRows.map((p) => [p.name, p.id]),
+  );
 
-  // 9) 当月流水
+  // 9) 当月流水（2026-09）/ Current-month transactions (2026-09)
   const txRows = await db.insert(transactions).values([
-    { ledgerId: ledger.id, accountId: cmb.id, type: "income", categoryId: catMap["工资"].id, amountCents: 2000000, txDate: "2026-09-03", remark: "9 月工资到账", createdBy: admin.id },
-    { ledgerId: ledger.id, accountId: cmb.id, type: "expense", categoryId: catMap["餐饮"].id, amountCents: 48600, txDate: "2026-09-04", remark: "山姆会员店 · 周末采购", createdBy: admin.id },
-    { ledgerId: ledger.id, accountId: cmb.id, type: "expense", categoryId: catMap["医疗"].id, projectId: babyPlan.id, amountCents: 186000, txDate: "2026-09-02", remark: "康复机构 · 月费", createdBy: admin.id },
-    { ledgerId: ledger.id, accountId: wechat.id, type: "expense", categoryId: catMap["餐饮"].id, amountCents: 3200, txDate: "2026-09-01", remark: "楼下小馆 午餐", createdBy: admin.id },
-    { ledgerId: ledger.id, accountId: cash.id, type: "income", categoryId: catMap["生意进账"].id, projectId: milkTea.id, amountCents: 800000, txDate: "2026-09-02", remark: "奶茶店 周流水", createdBy: admin.id },
-    { ledgerId: ledger.id, accountId: cash.id, type: "transfer", toAccountId: cmb.id, amountCents: 500000, txDate: "2026-09-02", remark: "现金 → 招行储蓄卡", createdBy: admin.id },
+    { ledgerId: ledger.id, accountId: acctId("招行储蓄卡"), type: "income",  categoryId: catMap["工资"].id,         amountCents: 2000000, txDate: "2026-09-03", remark: "9 月工资到账",                    createdBy: admin.id },
+    { ledgerId: ledger.id, accountId: acctId("招行储蓄卡"), type: "expense", categoryId: catMap["餐饮"].id,          amountCents: 48600,   txDate: "2026-09-04", remark: "山姆会员店 · 周末采购",            createdBy: admin.id },
+    { ledgerId: ledger.id, accountId: acctId("招行储蓄卡"), type: "expense", categoryId: catMap["医疗"].id,          amountCents: 186000,  txDate: "2026-09-02", remark: "康复机构 · 月费", projectId: projMap["宝贝计划"], createdBy: admin.id },
+    { ledgerId: ledger.id, accountId: acctId("微信"),       type: "expense", categoryId: catMap["餐饮"].id,          amountCents: 3200,    txDate: "2026-09-01", remark: "楼下小馆 午餐",                    createdBy: admin.id },
+    { ledgerId: ledger.id, accountId: acctId("现金"),       type: "income",  categoryId: catMap["生意进账"].id,      amountCents: 800000,  txDate: "2026-09-02", remark: "奶茶店 周流水", projectId: projMap["奶茶店"],    createdBy: admin.id },
+    { ledgerId: ledger.id, accountId: acctId("现金"),       type: "transfer", toAccountId: acctId("招行储蓄卡"), amountCents: 500000,  txDate: "2026-09-02", remark: "现金 → 招行储蓄卡",                createdBy: admin.id },
+    { ledgerId: ledger.id, accountId: acctId("招行储蓄卡"), type: "expense", categoryId: catMap["消费型保险"].id,    amountCents: 380000,  txDate: "2026-09-05", remark: "重疾险 · 年缴保费",                createdBy: admin.id },
+    { ledgerId: ledger.id, accountId: acctId("招行储蓄卡"), type: "transfer", toAccountId: acctId("公积金账户"),  amountCents: 120000,  txDate: "2026-09-10", remark: "公积金缴存 · 月缴",                createdBy: admin.id },
   ]).returning();
 
-  // 10) 流水标签
-  const [sam, rehab] = txRows;
+  // 9.5) 历史流水（2026-03 ~ 2026-08）/ Historical transactions (2026-03 ~ 2026-08)
+  const histTxRows = await db.insert(transactions).values(
+    HIST_TX.map((t) => ({
+      ledgerId: ledger.id,
+      accountId: acctIdByKey[acctDefs.find((a) => a.key === t.acct)!.name],
+      toAccountId: t.toAcct ? acctIdByKey[acctDefs.find((a) => a.key === t.toAcct)!.name] ?? null : null,
+      type: t.type,
+      categoryId: t.cat ? catMap[t.cat]?.id ?? null : null,
+      projectId: t.project ? projMap[t.project] ?? null : null,
+      amountCents: Math.round(t.yuan * 100),
+      txDate: t.date,
+      remark: t.remark,
+      createdBy: admin.id,
+    })),
+  ).returning();
+
+  // 10) 流水标签 / Transaction tags
+  const txIdByRemark = (remark: string) => txRows.find((r) => r.remark === remark)?.id;
+  const histId = (remark: string) => histTxRows.find((r) => r.remark === remark)?.id;
   await db.insert(transactionTags).values([
-    { transactionId: sam.id, tagId: tagMap["宝宝"].id },
-    { transactionId: rehab.id, tagId: tagMap["宝宝"].id },
-    { transactionId: rehab.id, tagId: tagMap["康复"].id },
+    { transactionId: txIdByRemark("山姆会员店 · 周末采购")!, tagId: tagMap["宝宝"].id },
+    { transactionId: txIdByRemark("康复机构 · 月费")!,      tagId: tagMap["宝宝"].id },
+    { transactionId: txIdByRemark("康复机构 · 月费")!,      tagId: tagMap["康复"].id },
+    { transactionId: histId("出差 · 上海往返机票")!,        tagId: tagMap["出差"].id },
+    { transactionId: histId("暑期旅行 · 酒店")!,            tagId: tagMap["出差"].id },
+    { transactionId: histId("8 月房贷扣款")!,               tagId: tagMap["房贷"].id },
+    { transactionId: histId("基金定投 · 转入 A股账户")!,    tagId: tagMap["投资"].id },
+    { transactionId: histId("黄金 ETF 分红")!,              tagId: tagMap["投资"].id },
+    { transactionId: txIdByRemark("重疾险 · 年缴保费")!,    tagId: tagMap["保险"].id },
+    { transactionId: txIdByRemark("公积金缴存 · 月缴")!,    tagId: tagMap["公积金"].id },
   ]);
 
-  // 11) 余额快照（09-01 时点；现金快照与当前差 50 元 → 演示"待对账"）
-  await db.insert(balances).values([
-    { ledgerId: ledger.id, accountId: cash.id, balanceAmountCents: 315000, snapshotDate: "2026-09-01", remark: "快照差异 -50 元待核对", createdBy: admin.id },
-    { ledgerId: ledger.id, accountId: cmb.id, balanceAmountCents: 9580600, snapshotDate: "2026-09-01", createdBy: admin.id },
-    { ledgerId: ledger.id, accountId: credit.id, balanceAmountCents: -486000, snapshotDate: "2026-09-01", createdBy: admin.id },
-    { ledgerId: ledger.id, accountId: wechat.id, balanceAmountCents: 645200, snapshotDate: "2026-09-01", createdBy: admin.id },
-    { ledgerId: ledger.id, accountId: stock.id, balanceAmountCents: 15200000, snapshotDate: "2026-09-01", createdBy: admin.id },
-    { ledgerId: ledger.id, accountId: usd.id, balanceAmountCents: 120000, snapshotDate: "2026-09-01", createdBy: admin.id },
-    { ledgerId: ledger.id, accountId: bond.id, balanceAmountCents: 8000000, snapshotDate: "2026-09-01", createdBy: admin.id },
-    { ledgerId: ledger.id, accountId: gold.id, balanceAmountCents: 2644000, snapshotDate: "2026-09-01", createdBy: admin.id },
-  ]);
+  // 11) 余额快照（09-01 时点）/ Balance snapshots (as of 09-01)
+  await db.insert(balances).values(
+    BALANCE_DEFS.map((b) => ({
+      ledgerId: ledger.id,
+      accountId: acctIdByKey[acctDefs.find((a) => a.key === b.accountId)!.name],
+      balanceAmountCents: b.balanceAmountCents,
+      snapshotDate: b.snapshotDate,
+      remark: b.remark ?? null,
+      createdBy: admin.id,
+    })),
+  );
 
-  console.log(`✅ 种子完成：用户 admin@example.com / demo1234，账本「${ledger.name}」，8 账户、${txRows.length} 条流水`);
+  // 12) 投资持仓 / Investment holdings
+  const holdingRows = await db.insert(investmentHoldings).values(
+    HOLDING_DEFS.map((h) => {
+      const def: typeof investmentHoldings.$inferInsert = {
+        ledgerId: ledger.id,
+        createdBy: admin.id,
+        type: h.type,
+        name: h.name,
+        accountId: acctIdByKey[acctDefs.find((a) => a.key === h.accountId)!.name],
+        paymentAccountId: acctIdByKey[acctDefs.find((a) => a.key === h.paymentAccountId)!.name],
+        quantity: h.quantity,
+        costCents: h.costCents,
+        feeCents: h.feeCents,
+        currentValueCents: h.currentValueCents,
+        purchaseDate: h.purchaseDate,
+        status: h.status,
+        remark: h.remark,
+      };
+      if (h.code) def.code = h.code;
+      if (h.maturityDate) def.maturityDate = h.maturityDate;
+      if (h.interestRate) def.interestRate = h.interestRate;
+      if (h.subType) def.subType = h.subType;
+      if (h.location) def.location = h.location;
+      if (h.areaSqm) def.areaSqm = h.areaSqm;
+      return def;
+    }),
+  ).returning({ id: investmentHoldings.id, name: investmentHoldings.name });
+
+  // 12.5) 持仓标签（持仓级标签：列表「标签」列展示、编辑页可改）/ Holding tags (shown in list "tags" column, editable in the form)
+  const holdingIdByName: Record<string, string> = Object.fromEntries(holdingRows.map((h) => [h.name, h.id]));
+  const holdingTagRows = HOLDING_TAG_DEFS
+    .map((x) => ({ holdingId: holdingIdByName[x.holding], tagId: tagMap[x.tag]?.id }))
+    .filter((x): x is { holdingId: string; tagId: string } => Boolean(x.holdingId && x.tagId));
+  if (holdingTagRows.length > 0) await db.insert(holdingTags).values(holdingTagRows);
+
+  // 13) 周期计划 / Recurring plans
+  await db.insert(recurringPlans).values(
+    RECURRING_DEFS.map((r) => ({
+      ledgerId: ledger.id,
+      name: r.name,
+      type: r.type,
+      amountCents: r.amountCents,
+      frequency: r.frequency,
+      dayOfMonth: r.dayOfMonth ?? null,
+      dayOfWeek: r.dayOfWeek ?? null,
+      accountId: acctIdByKey[acctDefs.find((a) => a.key === r.accountId)!.name],
+      toAccountId: r.toAccountId ? acctIdByKey[acctDefs.find((a) => a.key === r.toAccountId)!.name] ?? null : null,
+      categoryId: r.categoryId ? catMap[r.categoryId]?.id ?? null : null,
+      nextDate: r.nextDate,
+      status: r.status,
+      remark: r.remark,
+      createdBy: admin.id,
+    })),
+  );
+
+  // 14) 操作日志 / Audit logs
+  await db.insert(auditLogs).values(
+    AUDIT_LOG_DEFS.map((a) => ({
+      userId: admin.id,
+      action: a.action,
+      entity: a.entity,
+      summary: a.summary,
+      requestBody: a.requestBody,
+      responseBody: a.responseBody,
+      ip: a.ip,
+    })),
+  );
+
+  console.log(
+    `✅ 种子完成：用户 admin@example.com / ${adminPassword}，` +
+    `账本「${ledger.name}」，${acctDefs.length} 账户、` +
+    `${txRows.length + histTxRows.length} 条流水（含 ${histTxRows.length} 条历史）、` +
+    `${HOLDING_DEFS.length} 笔投资持仓（${holdingTagRows.length} 条持仓标签）、` +
+    `${RECURRING_DEFS.length} 条周期计划、` +
+    `${AUDIT_LOG_DEFS.length} 条操作日志、${MENU_DEFS.length} 条菜单（${MENU_GROUP_DEFS.length} 分组）、` +
+    `${ACTIVE_MENU_IDS.length} 条账本菜单配置`,
+  );
 }
 
 main()

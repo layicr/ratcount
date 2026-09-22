@@ -2,6 +2,7 @@
 
 import { auth } from "@/auth";
 import { writeAudit } from "@/lib/audit";
+import { AUDIT_ACTION, ENTITY } from "@/lib/constants";
 import { headers } from "next/headers";
 
 /**
@@ -20,13 +21,13 @@ export async function logLogout() {
 
   await writeAudit({
     userId: session.user.id,
-    action: "U", // 退出视为状态变更
-    entity: "auth",
-    summary: `用户退出登录：${session.user.email ?? session.user.name ?? "未知"}`,
+    action: AUDIT_ACTION.update, // 退出视为状态变更
+    entity: ENTITY.auth,
+    summaryKey: "audit.logout", summaryParams: { email: session.user.email ?? session.user.name ?? "未知" },
     requestBody: JSON.stringify({ email: session.user.email, name: session.user.name }),
     responseBody: '{"result":"logged-out"}',
     ip,
-  }).catch(() => {});
+  });
 
   return { ok: true };
 }

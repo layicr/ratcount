@@ -1,10 +1,14 @@
-import { redirect } from "next/navigation";
 import Link from "next/link";
-import { requireUser } from "@/lib/scope";
-import { getCurrentLedger } from "@/lib/ledger";
+import { requireUser } from "@/lib/scope"
+import { DEFAULT_CURRENCY, TX } from "@/lib/constants";
+import { requireCurrentLedger } from "@/lib/ledger";
 import { dashboardStats } from "@/lib/queries";
-import { formatCents } from "@/lib/money";
-import { getLocale, getDictionary } from "@/lib/i18n";
+import { getResolvedTimeZone } from "@/lib/settings";
+import { formatCurrency } from "@/lib/money";
+import { getLocale, getMessages } from "next-intl/server";
+import { makeDictTranslator, type AppDict } from "@/i18n/dict";
+import { distTypeIcon, distTypeLabel } from "@/lib/investment-types";
+import { BAR_COLORS } from "@/lib/chart-colors";
 import { TxOps } from "./tx-ops";
 import { TxTypeBadge } from "../components/badges";
 import { MonthlyTrendChart } from "../components/monthly-trend-chart";
@@ -12,29 +16,12 @@ import { MonthlyTrendChart } from "../components/monthly-trend-chart";
 /** 仪表盘：净资产 / 本月收支 / 资产分布 / 月度趋势 */
 export default async function DashboardPage() {
   const user = await requireUser();
-  const ledger = await getCurrentLedger();
-  if (!ledger) redirect("/login");
-  const s = await dashboardStats(ledger.id);
-  const d = getDictionary(await getLocale());
-
-  // 账户类型 → i18n key（snake_case → camelCase）
-  const typeKey: Record<string, string> = {
-    cash: "cash", debit_card: "debitCard", credit_card: "creditCard", wechat: "wechat",
-    savings: "savings", investment: "investment", fund: "fund", precious_metal: "preciousMetal",
-    bond: "bond", foreign_currency: "foreignCurrency", real_estate: "realEstate", custom: "custom",
-  };
-  // 进度条每行颜色
-  const BAR_COLORS = [
-    "#ef4444", "#f97316", "#eab308", "#22c55e", "#14b8a6",
-    "#3b82f6", "#8b5cf6", "#ec4899", "#64748b", "#f43f5e",
-    "#84cc16", "#06b6d4",
-  ];
-  // 账户类型 → 图标
-  const TYPE_ICON: Record<string, string> = {
-    cash: "💵", debit_card: "💳", credit_card: "💳", wechat: "💬",
-    savings: "🏦", investment: "📈", fund: "📊", precious_metal: "🥇",
-    bond: "📜", foreign_currency: "💱", real_estate: "🏠", custom: "📦",
-  };
+  const ledger = await requireCurrentLedger();
+  const s = await dashboardStats(ledger.id, undefined, { includeRecent: true }, await getResolvedTimeZone());
+  const locale = await getLocale();
+  const d = (await getMessages()) as unknown as AppDict;
+  const cur = ledger.baseCurrencyCode ?? DEFAULT_CURRENCY;
+  const money = (c: number) => formatCurrency(c, cur, locale);
 
   return (
     <div className="space-y-4">
@@ -42,20 +29,14 @@ export default async function DashboardPage() {
         <h1 className="text-lg font-bold text-slate-900">
           {ledger.icon} {ledger.name} · {d.dashboard.title}
         </h1>
-        <Link
-          href="/add"
-          className="rounded-lg bg-teal-600 px-3 py-1.5 text-sm text-white hover:bg-teal-700"
-        >
-          {d.dashboard.addFlow}
-        </Link>
       </div>
 
       {/* 统计卡：净资产 / 本月收支 */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label={d.dashboard.netWorth} value={`¥ ${formatCents(s.netWorth)}`} sub={`${d.dashboard.assets} ¥ ${formatCents(s.assets)} − ${d.dashboard.liabilities} ¥ ${formatCents(s.liabilities)}`} />
-        <StatCard label={d.dashboard.monthIncome} value={`+¥ ${formatCents(s.monthIncome)}`} sub={d.common.income} tone="green" />
-        <StatCard label={d.dashboard.monthExpense} value={`-¥ ${formatCents(s.monthExpense)}`} sub={d.common.expense} tone="red" />
-        <StatCard label={d.dashboard.monthBalance} value={`+¥ ${formatCents(s.monthBalance)}`} sub={`${d.dashboard.balanceRate} ${s.balanceRate}%`} tone={s.monthBalance >= 0 ? "green" : "red"} />
+        <StatCard label={d.dashboard.netWorth} value={money(s.netWorth)} sub={`${d.dashboard.assets} ${money(s.assets)} − ${d.dashboard.liabilities} ${money(s.liabilities)}`} />
+        <StatCard label={d.dashboard.monthIncome} value={`+${money(s.monthIncome)}`} sub={d.common.income} tone="green" />
+        <StatCard label={d.dashboard.monthExpense} value={`-${money(s.monthExpense)}`} sub={d.common.expense} tone="red" />
+        <StatCard label={d.dashboard.monthBalance} value={`+${money(s.monthBalance)}`} sub={`${d.dashboard.balanceRate} ${s.balanceRate}%`} tone={s.monthBalance >= 0 ? "green" : "red"} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -66,7 +47,7 @@ export default async function DashboardPage() {
         <div className="rounded-2xl border border-slate-200 bg-white p-4">
           <h2 className="mb-3 text-sm font-semibold text-slate-700">{d.dashboard.assetDist}</h2>
           {s.distribution.length === 0 ? (
-            <p className="py-8 text-center text-sm text-slate-400">{d.dashboard.noData}</p>
+            <p className="py-8 text-center text-sm text-slate-400">{d.common.empty}</p>
           ) : (
             <div className="space-y-3">
               {s.distribution.map((dist, i) => (
@@ -74,10 +55,10 @@ export default async function DashboardPage() {
                   <div className="flex justify-between text-xs">
                     <span className="text-slate-600">
                       <span className="mr-4 inline-block w-5 text-right text-sm font-bold text-slate-500">{i + 1}</span>
-                      <span className="mr-1">{TYPE_ICON[dist.type] ?? "📦"}</span>
-                      {(d.acctType as Record<string, string>)[typeKey[dist.type]] ?? dist.type}
+                      <span className="mr-1">{distTypeIcon(dist.type)}</span>
+                      {distTypeLabel(makeDictTranslator(d), dist.type)}
                     </span>
-                    <span className="text-slate-400">¥ {formatCents(dist.cents)} · {dist.pct}%</span>
+                    <span className="text-slate-400">{money(dist.cents)} · {dist.pct}%</span>
                   </div>
                   <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100">
                     <div className="h-full rounded-full" style={{ width: `${Math.max(2, dist.pct)}%`, background: BAR_COLORS[i % BAR_COLORS.length] }} />
@@ -92,7 +73,7 @@ export default async function DashboardPage() {
       {/* 近期流水 */}
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-slate-700">{d.dashboard.recent}</h2>
+          <h2 className="text-sm font-semibold text-slate-700">{d.common.recentTx}</h2>
           <Link href="/transactions" className="text-xs text-teal-600 hover:underline">{d.dashboard.viewAll}</Link>
         </div>
         {s.recent.length === 0 ? (
@@ -102,7 +83,7 @@ export default async function DashboardPage() {
             <table className="w-full min-w-[560px] text-sm">
               <thead>
                 <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
-                  <th className="py-2">{d.tx.type}</th><th>{d.tx.category}</th><th>{d.tx.summary}</th><th className="text-right">{d.tx.amount}</th><th className="text-right">{d.tx.date}</th><th className="text-right">{d.tx.actions}</th>
+                  <th className="py-2">{d.common.type}</th><th>{d.tx.category}</th><th>{d.tx.summary}</th><th className="text-right">{d.common.amount}</th><th className="text-right">{d.common.date}</th><th className="text-right">{d.common.actions}</th>
                 </tr>
               </thead>
               <tbody>
@@ -111,8 +92,8 @@ export default async function DashboardPage() {
                     <td className="py-2"><TxTypeBadge type={tx.type} /></td>
                     <td className="text-slate-600">{tx.category?.icon} {tx.category?.name ?? "-"}</td>
                     <td className="max-w-[180px] truncate text-slate-600">{tx.remark ?? "-"}</td>
-                    <td className={`text-right font-medium ${tx.type === "income" ? "text-green-600" : tx.type === "expense" ? "text-red-600" : "text-slate-500"}`}>
-                      {tx.type === "income" ? "+" : tx.type === "expense" ? "-" : ""}¥ {formatCents(tx.amountCents)}
+                    <td className={`text-right font-medium ${tx.type === TX.income ? "text-green-600" : tx.type === TX.expense ? "text-red-600" : "text-slate-500"}`}>
+                      {tx.type === TX.income ? "+" : tx.type === TX.expense ? "-" : ""}{money(tx.amountCents)}
                     </td>
                     <td className="text-right text-slate-400">{tx.txDate}</td>
                     <td className="text-right"><TxOps tx={tx} /></td>
