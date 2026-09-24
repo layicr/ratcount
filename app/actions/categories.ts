@@ -2,7 +2,7 @@
 
 // ratcount · 分类写操作（薄封装）/ Category writes (thin wrapper)
 //  - 写逻辑已抽到 lib/services/categories；此处仅做「守卫 + 当前账本 + revalidatePath」，服务端行为零回归。
-import { MR } from "@/lib/constants";
+import { MR, REPORTS_PATH } from "@/lib/constants";
 import { requireLedgerAccess } from "@/lib/scope";
 import { getCurrentLedgerId } from "@/lib/ledger";
 import * as svc from "@/lib/services/categories";
@@ -18,7 +18,7 @@ export async function createCategory(input: CategoryInput) {
     revalidatePath("/categories");
     revalidatePath("/tags");
     revalidatePath("/add");
-    revalidatePath("/reports");
+    revalidatePath(REPORTS_PATH);
   }
   return r;
 }
@@ -32,7 +32,7 @@ export async function updateCategory(id: string, input: CategoryInput) {
     revalidatePath("/categories");
     revalidatePath("/tags");
     revalidatePath("/add");
-    revalidatePath("/reports");
+    revalidatePath(REPORTS_PATH);
   }
   return r;
 }
@@ -46,7 +46,7 @@ export async function deleteCategory(id: string) {
     revalidatePath("/categories");
     revalidatePath("/tags");
     revalidatePath("/add");
-    revalidatePath("/reports");
+    revalidatePath(REPORTS_PATH);
   }
   return r;
 }

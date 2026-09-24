@@ -1,5 +1,5 @@
 import { revalidatePath } from "next/cache";
-import { DASHBOARD_PATH } from "@/lib/constants";
+import { DASHBOARD_PATH, TRANSACTIONS_PATH, REPORTS_PATH, BALANCE_PATH } from "@/lib/constants";
 
 /**
  * 缓存失效收口（revalidate helpers）
@@ -10,8 +10,8 @@ import { DASHBOARD_PATH } from "@/lib/constants";
  *    Previously copied verbatim in many actions (drift-prone); centralized here.
  */
 export function revalidateTxRelated(): void {
-  revalidatePath("/transactions");
+  revalidatePath(TRANSACTIONS_PATH);
   revalidatePath(DASHBOARD_PATH);
-  revalidatePath("/reports");
-  revalidatePath("/balance");
+  revalidatePath(REPORTS_PATH);
+  revalidatePath(BALANCE_PATH);
 }

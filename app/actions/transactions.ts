@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { getCurrentLedgerId } from "@/lib/ledger";
 import { requireLedgerEditor } from "@/lib/scope";
 import { getTranslations } from "next-intl/server";
-import { DASHBOARD_PATH } from "@/lib/constants";
+import { DASHBOARD_PATH, TRANSACTIONS_PATH } from "@/lib/constants";
 import { revalidateTxRelated } from "@/lib/revalidate";
 import { type TransactionInput } from "@/lib/validators";
 import {
@@ -43,7 +43,7 @@ export async function copyTransaction(id: string) {
   const t = await getTranslations("tx");
   const res = await copyTransactionService({ id: user.id }, ledgerId, id, t("copied"));
   if (res.ok) {
-    revalidatePath("/transactions");
+    revalidatePath(TRANSACTIONS_PATH);
     revalidatePath(DASHBOARD_PATH);
   }
   return res;

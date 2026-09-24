@@ -75,6 +75,15 @@ export const DASHBOARD_PATH = "/dashboard";
 /** 全局设置页路径（设置写操作后 revalidatePath 等共用的唯一真源）/ Settings page path (single source for revalidatePath after settings writes) */
 export const SETTINGS_PATH = "/settings";
 
+/** 交易/流水页路径（revalidatePath 等共用的唯一真源）/ Transactions page path (single source for revalidatePath) */
+export const TRANSACTIONS_PATH = "/transactions";
+
+/** 报表页路径（revalidatePath 等共用的唯一真源）/ Reports page path (single source for revalidatePath) */
+export const REPORTS_PATH = "/reports";
+
+/** 余额页路径（revalidatePath 等共用的唯一真源）/ Balance page path (single source for revalidatePath) */
+export const BALANCE_PATH = "/balance";
+
 /** 设置子页路径（导航 / revalidatePath / basePath / router.push 等共用的唯一真源）/ Settings sub-page paths (single source for nav / revalidatePath / basePath / router.push) */
 export const SETTINGS_CURRENCIES_PATH = "/settings/currencies";
 export const SETTINGS_LANGUAGES_PATH = "/settings/languages";

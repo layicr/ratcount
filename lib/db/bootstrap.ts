@@ -71,4 +71,84 @@ export async function ensureSchema(): Promise<void> {
       await db.run(sql.raw(`CREATE ${unique}INDEX IF NOT EXISTS "${c.name}" ON "${cfg.name}" (${cols})`));
     }
   }
+
+  // 列迁移：ensureSchema 仅 CREATE TABLE IF NOT EXISTS，不会给已存在表加列。
+  // 用 PRAGMA table_info 检查列是否存在，缺失才 ALTER，兼容老版本 SQLite（比 ADD COLUMN IF NOT EXISTS 更稳）。
+  // Column migration: CREATE TABLE IF NOT EXISTS won't add columns to existing tables;
+  // check via PRAGMA table_info and ALTER only when missing (works on older SQLite too).
+  await ensureColumn("investment_holdings", "buy_transaction_id", "TEXT");
+
+  // 多币种列：原币代码、快照汇率、基准币种分（net worth / 报表统一按 base* 聚合，历史不可变）
+  await ensureColumn("accounts", "base_opening_balance_cents", "INTEGER NOT NULL DEFAULT 0");
+  await ensureColumn("transactions", "currency_code", "TEXT NOT NULL DEFAULT 'CNY'");
+  await ensureColumn("transactions", "to_currency_code", "TEXT");
+  await ensureColumn("transactions", "used_rate_from", "TEXT");
+  await ensureColumn("transactions", "used_rate_to", "TEXT");
+  await ensureColumn("transactions", "to_amount_cents", "INTEGER");
+  await ensureColumn("transactions", "base_amount_cents", "INTEGER NOT NULL DEFAULT 0");
+  await ensureColumn("balances", "currency_code", "TEXT NOT NULL DEFAULT 'CNY'");
+  await ensureColumn("balances", "used_rate", "TEXT");
+  await ensureColumn("balances", "base_balance_amount_cents", "INTEGER NOT NULL DEFAULT 0");
+  await ensureColumn("investment_holdings", "currency_code", "TEXT NOT NULL DEFAULT 'CNY'");
+  await ensureColumn("investment_holdings", "used_rate", "TEXT");
+  await ensureColumn("investment_holdings", "base_cost_cents", "INTEGER NOT NULL DEFAULT 0");
+  await ensureColumn("investment_holdings", "base_fee_cents", "INTEGER NOT NULL DEFAULT 0");
+  await ensureColumn("investment_holdings", "base_value_cents", "INTEGER NOT NULL DEFAULT 0");
+  await ensureColumn("investment_holdings", "base_dividend_cents", "INTEGER NOT NULL DEFAULT 0");
+
+  // 存量数据回填（仅 file 模式、仅未迁移过的旧行）：把历史「基准币种分」口径补到 base* 列，
+  // 币种按账户币种对齐；USD 等演示数据由重新生成的种子纠正（见 db/init）。
+  await backfillCurrencyColumns();
+}
+
+/** 存量数据一次性回填：仅作用于未迁移过的旧行（usedRate 为空）。把历史以基准币种分存储的金额对齐到 base* 列。
+ *  One-time backfill for legacy rows (usedRate IS NULL): align historical base-currency-cents into base* columns. */
+async function backfillCurrencyColumns(): Promise<void> {
+  if (env.DATABASE_MODE !== "file") return; // 云端 libsql 由迁移工具管理 / cloud libsql managed by migration tools
+  try {
+    // accounts：期初基准 = 期初（历史数据本就是基准币种分）
+    await db.run(sql.raw(`UPDATE accounts SET base_opening_balance_cents = opening_balance_cents WHERE base_opening_balance_cents = 0`));
+    // transactions：币种对齐账户；base=amount（历史数据已是基准币种分）；跨币种转账 toAmount=amount
+    await db.run(sql.raw(`
+      UPDATE transactions SET
+        currency_code = COALESCE((SELECT currency_code FROM accounts WHERE accounts.id = transactions.account_id), 'CNY'),
+        used_rate_from = COALESCE((SELECT COALESCE(rate,'1') FROM currencies WHERE code = (SELECT currency_code FROM accounts WHERE accounts.id = transactions.account_id)), '1'),
+        base_amount_cents = amount_cents,
+        to_currency_code = (SELECT currency_code FROM accounts WHERE accounts.id = transactions.to_account_id),
+        to_amount_cents = CASE WHEN to_account_id IS NOT NULL THEN amount_cents ELSE NULL END
+      WHERE used_rate_from IS NULL
+    `));
+    // balances：币种对齐账户；base=balance
+    await db.run(sql.raw(`
+      UPDATE balances SET
+        currency_code = COALESCE((SELECT currency_code FROM accounts WHERE accounts.id = balances.account_id), 'CNY'),
+        used_rate = COALESCE((SELECT COALESCE(rate,'1') FROM currencies WHERE code = (SELECT currency_code FROM accounts WHERE accounts.id = balances.account_id)), '1'),
+        base_balance_amount_cents = balance_amount_cents
+      WHERE used_rate IS NULL
+    `));
+    // investment_holdings：币种对齐账户；base=各原币列
+    await db.run(sql.raw(`
+      UPDATE investment_holdings SET
+        currency_code = COALESCE((SELECT currency_code FROM accounts WHERE accounts.id = investment_holdings.account_id), 'CNY'),
+        used_rate = COALESCE((SELECT COALESCE(rate,'1') FROM currencies WHERE code = (SELECT currency_code FROM accounts WHERE accounts.id = investment_holdings.account_id)), '1'),
+        base_cost_cents = cost_cents,
+        base_fee_cents = fee_cents,
+        base_value_cents = current_value_cents,
+        base_dividend_cents = dividend_cents
+      WHERE used_rate IS NULL
+    `));
+  } catch (e) {
+    console.error("[db] 多币种列回填失败（可忽略，下次启动重试）", e);
+  }
+}
+
+/** 幂等补列：检查表是否存在某列，不存在则 ALTER TABLE ADD COLUMN。仅对 file: 本地库生效，云端模式跳过。
+ *  Idempotent column add: add a column only if it does not exist on the table. Local file DB only. */
+async function ensureColumn(table: string, column: string, sqlType: string): Promise<void> {
+  if (env.DATABASE_MODE !== "file") return; // 云端 libsql 由迁移工具管理，本地不做 ALTER / cloud libsql managed by migration tools
+  const rows = (await db.all(sql.raw(`PRAGMA table_info("${table}")`))) as Array<{ name: string }>;
+  const exists = rows.some((r) => r.name === column);
+  if (!exists) {
+    await db.run(sql.raw(`ALTER TABLE "${table}" ADD COLUMN "${column}" ${sqlType}`));
+  }
 }

@@ -7,6 +7,7 @@ import { AUDIT_ACTION, ENTITY } from "@/lib/constants";
 import { db } from "@/lib/db";
 import { withAudit } from "@/lib/audit";
 import { yuanToCents } from "@/lib/money";
+import { loadCurrencyRates, rateOf, toBaseCents } from "@/lib/currency";
 import { type Actor } from "./guard";
 
 const balanceSchema = z.object({
@@ -29,11 +30,14 @@ export async function recordBalanceService(actor: Actor, ledgerId: string, input
 
   // 账户必须属于当前账本（防止引用他人账本账户）
   const [acct] = await db
-    .select({ id: accounts.id })
+    .select({ id: accounts.id, currencyCode: accounts.currencyCode })
     .from(accounts)
     .where(and(eq(accounts.id, d.accountId), eq(accounts.ledgerId, ledgerId)))
     .limit(1);
   if (!acct) return { ok: false as const, error: "errors.accountNotFound" };
+  const rates = await loadCurrencyRates();
+  const usedRate = rateOf(rates, acct.currencyCode);
+  const baseCents = toBaseCents(cents, usedRate);
 
   await withAudit(
     {
@@ -50,6 +54,9 @@ export async function recordBalanceService(actor: Actor, ledgerId: string, input
         ledgerId,
         accountId: d.accountId,
         balanceAmountCents: cents,
+        currencyCode: acct.currencyCode,
+        usedRate,
+        baseBalanceAmountCents: baseCents,
         snapshotDate: d.snapshotDate,
         remark: d.remark ?? null,
         createdBy: actor.id,

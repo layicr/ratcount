@@ -59,7 +59,7 @@ export async function AssetTab({ ledgerId, period, s, currency }: { ledgerId: st
                       <span className="mr-1">{a.icon}</span>
                       {a.name}
                     </span>
-                    <span className="text-slate-400">{money(a.balanceCents)} · {pct}%</span>
+                    <span className="text-slate-400">{formatCurrency(a.balanceCents, a.currencyCode, locale)} · {pct}%</span>
                   </div>
                   <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100">
                     <div className="h-full rounded-full" style={{ width: `${Math.max(2, pct)}%`, background: BAR_COLORS[i % BAR_COLORS.length] }} />

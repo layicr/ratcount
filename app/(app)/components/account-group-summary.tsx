@@ -38,6 +38,10 @@ export async function AccountGroupSummary({
   const protectionTotal = protectionAccts.reduce((s, a) => s + a.balanceCents, 0);
   const ratio = totalAssets > 0 ? Math.round((protectionTotal / totalAssets) * 100) : 0;
   const ids = new Set(protectionAccts.map((a) => a.id));
+  // 账户币种映射：计划金额按关联账户原币展示 / account currency map: plan amount shown in its account's native currency
+  const acctCur = new Map(all.map((a) => [a.id, a.currencyCode]));
+  const txMoney = (c: number, code?: string) => formatCurrency(c, code ?? currency, locale);
+  const planMoney = (c: number, accountId: string) => formatCurrency(c, acctCur.get(accountId) ?? currency, locale);
   const typeTotals = types.map((t) => ({
     type: t,
     total: protectionAccts.filter((a) => a.type === t).reduce((s, a) => s + a.balanceCents, 0),
@@ -145,7 +149,7 @@ export async function AccountGroupSummary({
                       </div>
                     </td>
                     <td className={`py-2 text-right font-medium ${r.type === TX.income ? "text-green-600" : r.type === TX.expense ? "text-red-600" : "text-slate-500"}`}>
-                      {r.type === TX.income ? "+" : r.type === TX.expense ? "-" : ""}{money(r.amountCents)}
+                      {r.type === TX.income ? "+" : r.type === TX.expense ? "-" : ""}{txMoney(r.amountCents, r.currencyCode)}
                     </td>
                   </tr>
                 ))}
@@ -175,7 +179,7 @@ export async function AccountGroupSummary({
               {plans.map((p) => (
                 <tr key={p.id} className="border-t border-slate-100">
                   <td className="py-2 text-slate-600">{p.name}</td>
-                  <td className="py-2 text-left text-slate-700">{money(p.amountCents)}</td>
+                  <td className="py-2 text-left text-slate-700">{planMoney(p.amountCents, p.accountId)}</td>
                   <td className="py-2 text-slate-600">{get(`common.freq${p.frequency.charAt(0).toUpperCase() + p.frequency.slice(1)}`)}</td>
                   <td className="py-2 text-slate-500">{p.nextDate}</td>
                   <td className="py-2 text-slate-500">{p.status === RECURRING_STATUS.active ? dict.common.active : dict.common.paused}</td>

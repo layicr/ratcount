@@ -5,7 +5,7 @@
 //    此处仅做「守卫 + 当前账本 + revalidatePath」薄封装，保证服务端行为与历史一致（零回归）。
 //  - The write logic moved to lib/services/basics; this file is just a thin "guard + current ledger + revalidatePath" wrapper.
 import { revalidatePath } from "next/cache";
-import { MR, SETTINGS_PATH, SETTINGS_CURRENCIES_PATH } from "@/lib/constants";
+import { MR, SETTINGS_PATH, SETTINGS_CURRENCIES_PATH, REPORTS_PATH } from "@/lib/constants";
 import { requireAdmin, requireLedgerAccess } from "@/lib/scope";
 import { getCurrentLedgerId } from "@/lib/ledger";
 import * as basics from "@/lib/services/basics";
@@ -21,7 +21,7 @@ export async function createProject(input: ProjectInput) {
   if (r.ok) {
     revalidatePath("/projects");
     revalidatePath("/add");
-    revalidatePath("/reports");
+    revalidatePath(REPORTS_PATH);
   }
   return r;
 }
@@ -34,7 +34,7 @@ export async function updateProject(id: string, input: ProjectInput) {
   if (r.ok) {
     revalidatePath("/projects");
     revalidatePath("/add");
-    revalidatePath("/reports");
+    revalidatePath(REPORTS_PATH);
   }
   return r;
 }
@@ -47,7 +47,7 @@ export async function deleteProject(id: string) {
   if (r.ok) {
     revalidatePath("/projects");
     revalidatePath("/add");
-    revalidatePath("/reports");
+    revalidatePath(REPORTS_PATH);
   }
   return r;
 }
@@ -62,7 +62,7 @@ export async function createTag(input: TagInput) {
   if (r.ok) {
     revalidatePath("/tags");
     revalidatePath("/add");
-    revalidatePath("/reports");
+    revalidatePath(REPORTS_PATH);
   }
   return r;
 }
@@ -75,7 +75,7 @@ export async function updateTag(id: string, input: TagInput) {
   if (r.ok) {
     revalidatePath("/tags");
     revalidatePath("/add");
-    revalidatePath("/reports");
+    revalidatePath(REPORTS_PATH);
   }
   return r;
 }
@@ -88,7 +88,7 @@ export async function deleteTag(id: string) {
   if (r.ok) {
     revalidatePath("/tags");
     revalidatePath("/add");
-    revalidatePath("/reports");
+    revalidatePath(REPORTS_PATH);
   }
   return r;
 }

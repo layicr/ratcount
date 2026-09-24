@@ -21,6 +21,8 @@ export default async function ProjectsPage() {
           id: r.id, name: r.name, icon: r.icon, status: r.status,
           income: r.income, expense: r.expense, balance: r.balance,
           budgetCents: r.budgetCents, remark: r.remark ?? null,
+          investCost: r.investCost, investValue: r.investValue, investProfit: r.investProfit,
+          nativeBreakdown: r.nativeBreakdown,
         }))}
       />
     </div>

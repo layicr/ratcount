@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { requireCurrentLedger } from "@/lib/ledger";
 import { db } from "@/lib/db";
+import { TRANSACTIONS_PATH } from "@/lib/constants";
 import { listAccountsWithBalance } from "@/lib/queries";
 
 
@@ -30,7 +31,7 @@ export default async function EditTransactionPage({
     .from(transactions)
     .where(and(eq(transactions.id, id), eq(transactions.ledgerId, ledger.id)))
     .limit(1);
-  if (!tx) redirect("/transactions");
+  if (!tx) redirect(TRANSACTIONS_PATH);
 
   // 查询交易标签
   const txTags = await db.select({ tagId: transactionTags.tagId }).from(transactionTags).where(eq(transactionTags.transactionId, id));

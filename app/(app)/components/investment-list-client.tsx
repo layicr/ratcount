@@ -2,8 +2,8 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { deleteInvestment, sellInvestment, dividendInvestment } from "@/app/actions/investments";
-import { DeleteButton } from "./confirm";
+import { deleteInvestment, sellInvestment, dividendInvestment, copyInvestment } from "@/app/actions/investments";
+import { DeleteButton, ConfirmButton } from "./confirm";
 import { InvestmentActionDialog } from "./investment-action-dialog";
 import { METAL_SUB_TYPES, displayToQuantity, quantityToDisplay, isFixedIncome } from "@/lib/investment-types";
 import { INV, type InvestmentType } from "@/lib/constants";
@@ -26,6 +26,21 @@ export function InvestmentDeleteButton({ id, type, name }: { id: string; type: s
   );
 }
 
+/** 复制按钮：二次确认后生成一条同源新持仓（含买入流水、标签复制、审计） */
+export function InvestmentCopyButton({ id, type, name }: { id: string; type: string; name: string }) {
+  const t = useTranslations();
+  return (
+    <ConfirmButton
+      action={async () => { await copyInvestment(id, type); }}
+      title={t("investment.copyTitle")}
+      desc={t("investment.copyDesc", { name })}
+      okText={t("common.copy")}
+    >
+      <span className="text-xs text-teal-600 hover:underline">{t("common.copy")}</span>
+    </ConfirmButton>
+  );
+}
+
 /**
  * 卖出 / 到期按钮
  *  - 到期类（定期 / 国债 / 借贷 / 储蓄型保险）按利率自动算「本金 + 应计利息」，弹窗内分两栏可改
@@ -33,7 +48,7 @@ export function InvestmentDeleteButton({ id, type, name }: { id: string; type: s
  *  - 服务端采用拆分记账：成本按比例转回 + 盈亏单独记，收益才能进净资产
  */
 export function InvestmentSellButton({
-  id, type, name, costCents, feeCents, quantity, currentValueCents, interestRate, purchaseDate, maturityDate, isFixed, tags, paymentAccountId, accounts,
+  id, type, name, costCents, feeCents, quantity, currentValueCents, interestRate, purchaseDate, maturityDate, isFixed, tags, paymentAccountId, accounts, currencyCode,
 }: {
   id: string;
   type: InvestmentType;
@@ -52,6 +67,8 @@ export function InvestmentSellButton({
   paymentAccountId: string;
   /** 可选的收款账户列表 */
   accounts?: { id: string; name: string; icon: string }[];
+  /** 持仓币种（原币）：弹窗金额按此币种符号展示 */
+  currencyCode?: string;
 }) {
   const t = useTranslations();
   const principalCents = actualCostCents(costCents, feeCents);
@@ -100,13 +117,14 @@ export function InvestmentSellButton({
       sellQty={sellQty}
       // 到期类：本金 / 利息分栏录入（利息为负时按 0 显示，避免起息日前出现负数）
       splitAmount={isAccrual ? { principalCents, interestCents: Math.max(0, accruedCents - principalCents) } : undefined}
+      currencyCode={currencyCode}
     />
   );
 }
 
 /** 派息 / 分红按钮：收款账户记一笔收入（投资收益），可多次派息 */
 export function InvestmentDividendButton({
-  id, type, name, quantity, tags, paymentAccountId, accounts,
+  id, type, name, quantity, tags, paymentAccountId, accounts, currencyCode,
 }: {
   id: string;
   type: InvestmentType;
@@ -118,6 +136,8 @@ export function InvestmentDividendButton({
   paymentAccountId: string;
   /** 可选的收款账户列表 */
   accounts?: { id: string; name: string; icon: string }[];
+  /** 持仓币种（原币）：弹窗金额按此币种符号展示 */
+  currencyCode?: string;
 }) {
   const t = useTranslations();
   // 仅有数量口径的持仓（股票/基金/数字资产/收藏品/贵金属）按「每股派息 × 派息股数」录入；
@@ -146,6 +166,7 @@ export function InvestmentDividendButton({
       dividendQty={maxQtyDisplay > 0 ? { max: maxQtyDisplay } : undefined}
       // 派息模式：金额标签固定为「派息金额」（无数量口径的持仓也要显示正确标签）
       dividendMode
+      currencyCode={currencyCode}
     />
   );
 }

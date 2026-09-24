@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/scope"
-import { DEFAULT_CURRENCY, TX } from "@/lib/constants";
+import { DEFAULT_CURRENCY, TX, TRANSACTIONS_PATH } from "@/lib/constants";
 import { requireCurrentLedger } from "@/lib/ledger";
 import { dashboardStats } from "@/lib/queries";
 import { getResolvedTimeZone } from "@/lib/settings";
@@ -74,7 +74,7 @@ export default async function DashboardPage() {
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-slate-700">{d.common.recentTx}</h2>
-          <Link href="/transactions" className="text-xs text-teal-600 hover:underline">{d.dashboard.viewAll}</Link>
+          <Link href={TRANSACTIONS_PATH} className="text-xs text-teal-600 hover:underline">{d.dashboard.viewAll}</Link>
         </div>
         {s.recent.length === 0 ? (
           <p className="py-8 text-center text-sm text-slate-400">{d.dashboard.noFlow}</p>
@@ -93,7 +93,7 @@ export default async function DashboardPage() {
                     <td className="text-slate-600">{tx.category?.icon} {tx.category?.name ?? "-"}</td>
                     <td className="max-w-[180px] truncate text-slate-600">{tx.remark ?? "-"}</td>
                     <td className={`text-right font-medium ${tx.type === TX.income ? "text-green-600" : tx.type === TX.expense ? "text-red-600" : "text-slate-500"}`}>
-                      {tx.type === TX.income ? "+" : tx.type === TX.expense ? "-" : ""}{money(tx.amountCents)}
+                      {tx.type === TX.income ? "+" : tx.type === TX.expense ? "-" : ""}{formatCurrency(tx.amountCents, tx.currencyCode ?? cur, locale)}
                     </td>
                     <td className="text-right text-slate-400">{tx.txDate}</td>
                     <td className="text-right"><TxOps tx={tx} /></td>

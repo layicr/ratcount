@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useTranslations } from "next-intl";
-import { useMoney } from "@/components/currency-context";
+import { useTranslations, useLocale } from "next-intl";
+import { useMoney, useBaseCurrency } from "@/components/currency-context";
+import { formatCurrency } from "@/lib/money";
 import { type InvestmentType, INV, INVESTMENT_STATUS } from "@/lib/constants";
 import { investmentIcon, quantityToDisplay, areaToDisplay, isStockLike } from "@/lib/investment-types";
 import { estimateAccruedCents, holdingProfitCents } from "@/lib/investment-flow";
-import { InvestmentDeleteButton, InvestmentSellButton, InvestmentDividendButton } from "./investment-list-client";
+import { InvestmentDeleteButton, InvestmentSellButton, InvestmentDividendButton, InvestmentCopyButton } from "./investment-list-client";
 import { Pagination } from "./pagination";
 import type { HoldingItem } from "./investment-form";
 
@@ -75,6 +76,10 @@ export function InvestmentTypeTable({
 }) {
   const pathname = usePathname();
   const money = useMoney();
+  const baseCur = useBaseCurrency();
+  const locale = useLocale();
+  // 持仓明细按原币币种符号展示；顶部「总市值/总收益」为基准币种聚合，仍用 money()
+  const hx = (h: HoldingItem, c: number) => formatCurrency(c, h.currencyCode ?? baseCur, locale);
   // 文案走 useTranslations 按需取键：不再由页面下传整份字典（≈33KB/语言，且与 NextIntlClientProvider 重复）
   const t = useTranslations();
   const ti = useTranslations("investment");
@@ -261,15 +266,15 @@ export function InvestmentTypeTable({
                         <td className="text-right text-slate-500">{quantityToDisplay(h.type, h.quantity)}</td>
                       )}
 
-                      <td className="text-right text-slate-700">{money(h.costCents + h.feeCents)}{isStockLike && <><br /><span className="text-xs text-slate-400">（{money(h.costCents)} + {money(h.feeCents)}）</span></>}</td>
-                      <td className="text-right text-slate-700">{money(value)}</td>
+                      <td className="text-right text-slate-700">{hx(h, h.costCents + h.feeCents)}{isStockLike && <><br /><span className="text-xs text-slate-400">（{hx(h, h.costCents)} + {hx(h, h.feeCents)}）</span></>}</td>
+                      <td className="text-right text-slate-700">{hx(h, value)}</td>
                       <td className={`text-right font-medium ${profit >= 0 ? "text-green-600" : "text-red-600"}`}>
-                        {profit < 0 ? "-" : ""}{money(Math.abs(profit))}
+                        {profit < 0 ? "-" : ""}{hx(h, Math.abs(profit))}
                         {h.dividendCents > 0 ? (
                           // 有分红：拆解「浮盈 + 累计派息」，避免与除权后的市值口径混淆
-                          <><br /><span className="text-xs text-slate-400">（{ti("profit")} {money(profit - h.dividendCents)} + {ti("dividendAccumulated")} {money(h.dividendCents)}）</span></>
+                          <><br /><span className="text-xs text-slate-400">（{ti("profit")} {hx(h, profit - h.dividendCents)} + {ti("dividendAccumulated")} {hx(h, h.dividendCents)}）</span></>
                         ) : (
-                          isStockLike && <><br /><span className="text-xs text-slate-400">（{money(h.currentValueCents)} - {money(h.costCents + h.feeCents)}）</span></>
+                          isStockLike && <><br /><span className="text-xs text-slate-400">（{hx(h, h.currentValueCents)} - {hx(h, h.costCents + h.feeCents)}）</span></>
                         )}
                       </td>
                       <td className={`text-right ${profit >= 0 ? "text-green-600" : "text-red-600"}`}>
@@ -324,6 +329,7 @@ export function InvestmentTypeTable({
                                 tags={tags}
                                 paymentAccountId={h.paymentAccountId}
                                 accounts={accounts}
+                                currencyCode={h.currencyCode}
                               />
                               {showDividend && (
                                 <InvestmentDividendButton
@@ -334,8 +340,11 @@ export function InvestmentTypeTable({
                                   tags={tags}
                                   paymentAccountId={h.paymentAccountId}
                                   accounts={accounts}
+                                  currencyCode={h.currencyCode}
                                 />
                               )}
+                              {/* 仅活跃持仓可复制：生成同源新持仓（含买入流水、标签、审计） */}
+                              <InvestmentCopyButton id={h.id} type={h.type} name={h.name} />
                             </>
                           )}
                           <InvestmentDeleteButton id={h.id} type={h.type} name={h.name} />

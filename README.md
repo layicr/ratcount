@@ -42,12 +42,14 @@ Amounts are stored as integer cents; account balances are not persisted (opening
   The database is yours — export, backup and migrate anytime.
 - **账本隔离 / Ledger isolation**：多账本、多成员，跨账本越权由 `scopeGuard` 强制拦截。
   Multiple ledgers and members; cross-ledger access is blocked by `scopeGuard`.
-- **多币种 / Multi-currency**：汇率以文本 DECIMAL 存储，避免浮点误差。
-  Rates stored as text DECIMAL to avoid float errors.
+- **多币种 / Multi-currency**：账户、流水、余额、投资持仓均带币种与基准币种口径；汇率以文本 DECIMAL 存储，避免浮点误差；报表统一按基准币种聚合，原币仅作附注。
+  Accounts / transactions / balances / holdings each carry a currency + base-currency figures; rates stored as text DECIMAL; reports aggregate in base currency, native amounts only as a footnote.
 - **多语言 / i18n**：中文（简/繁）与英文，语言清单数据库化、后台可运营。
   zh-CN / zh-TW / en, with a DB-driven language catalog managed from the admin UI.
-- **投资与保障 / Investments & protection**：10 类持仓 + 储蓄型保险/公积金/养老金汇总。
-  10 holding types + protection roll-up (endowment insurance / housing fund / pension).
+- **投资与保障 / Investments & protection**：10 类持仓 + 储蓄型保险/公积金/养老金汇总；持仓可关联项目，计入项目汇总。
+  10 holding types + protection roll-up (endowment insurance / housing fund / pension); holdings can be linked to a project and roll into its summary.
+- **项目聚合投资 / Projects roll up investments**：项目除预算外，还聚合关联 `investment_holdings`（`status=active`）的投入成本 / 当前市值 / 收益（基准币种），含多币种时展示「原币组成」。
+  Besides budget, a project rolls up its linked `investment_holdings` (active) — invested cost / current value / profit in base currency, plus a native-currency breakdown when multi-currency.
 
 ---
 
@@ -57,8 +59,7 @@ Amounts are stored as integer cents; account balances are not persisted (opening
 
 ```bash
 npm install          # 安装依赖 / install deps
-npm run db:push      # 建表（Drizzle 推送到 SQLite）/ create tables (Drizzle push)
-npm run db:seed      # 写入演示数据 / seed demo data
+npm run db:push      # 建表（Drizzle 推送 SQLite）+ 初始化演示数据/语言/分类 / create tables (Drizzle push) + init seed/languages/categories
 npm run dev          # 启动开发服务器 → http://localhost:3200
 ```
 
@@ -89,7 +90,7 @@ npm run build:desktop   # 产出安装包 → release/RatCount-*-setup.exe
 | `npm run typecheck` | TypeScript 类型检查（`tsc --noEmit`）/ type check |
 | `npm run db:generate` | 生成迁移 / generate migration |
 | `npm run db:migrate` | 执行迁移 / run migration |
-| `npm run db:push` | 直接推送 schema 到数据库 / push schema |
+| `npm run db:push` | 推送 schema 到数据库，并执行 `db/init` 初始化（语言/分类/默认数据）/ push schema + run `db/init` (languages/categories/defaults) |
 | `npm run db:studio` | Drizzle Studio 可视化 / Drizzle Studio |
 | `npm run db:seed` | 写入演示数据 / seed data |
 | `npm test` | 单元测试（`tsx --test`）/ unit tests |
@@ -146,7 +147,7 @@ Variables fall into two groups:
 |---|---|---|
 | `AUDIT_CLEANUP_MODE` | 自动判定 | 审计日志清理：空=自动 / `cron`=Vercel Cron / `local`=进程内定时器（见 `instrumentation.ts`）/ audit cleanup mode (see `instrumentation.ts`) |
 | `CRON_SECRET` | — | 部署到 Vercel 时必填（保护 `/api/cron/*` 端点）/ required on Vercel (protects `/api/cron/*`) |
-| `NEXT_PUBLIC_DEPLOY_MODE` | — | 部署模式：`desktop` 由 Electron 主进程启动子进程时强制注入；网页/自托管留空或设 `server`（代码仅识别 `server`/`desktop` 两值，`web` 不被识别）/ deploy mode: `desktop` injected by Electron main; leave empty or set `server` (code only recognizes `server`/`desktop`; `web` is not valid) |
+| `NEXT_PUBLIC_DEPLOY_MODE` | `server` | 部署模式：`desktop` 由 Electron 主进程启动子进程时强制注入；网页/自托管留空或设 `server`（代码仅识别 `server`/`desktop` 两值，`web` 不被识别）/ deploy mode: `desktop` injected by Electron main; leave empty or set `server` (code only recognizes `server`/`desktop`; `web` is not valid) |
 
 > 全部变量以 `.env.example` / `.env` 为准。生产环境务必配置强随机 `AUTH_SECRET`。
 > All vars follow `.env.example` / `.env`. Always set a strong random `AUTH_SECRET` in production.
@@ -185,7 +186,7 @@ Cleans audit logs daily at 16:00 UTC (guarded by `AUDIT_CLEANUP_MODE=cron` + `CR
 
 | 领域 Area | 选型 Choice |
 |---|---|
-| 框架 Framework | Next.js 16（App Router + Turbopack）、React 19 |
+| 框架 Framework | Next.js 16（App Router + Turbopack）、React 19.2 |
 | 样式 Styling | Tailwind CSS 4 |
 | 数据库 Database | Turso / libSQL（`@libsql/client` 0.15）+ Drizzle ORM 0.45 |
 | 认证 Auth | Auth.js v5（next-auth 5.0.0-beta，JWT 由 `jose` 签发，适配 Vercel 无盘）+ bcryptjs + 自研 PNG 位图验证码 + IP 限流 |
@@ -210,16 +211,18 @@ menu_groups / menus / user_menu_config / languages / user_profiles
 
 核心口径 / Core rules：
 
-- **金额存分 / Amounts in cents**：所有金额字段为整数 `*_cents`，前端仅负责展示与格式化。
-  All amount columns are integer `*_cents`; the front-end only formats for display.
+- **金额存分 / Amounts in cents**：所有金额字段为整数 `*_cents`，前端仅负责展示与格式化；金额输入接受千分位逗号（如 `1,233.52`），解析时自动去除。
+  All amount columns are integer `*_cents`; the front-end only formats for display. Amount input accepts thousands-separator commas (e.g. `1,233.52`), auto-stripped on parse.
 - **余额不落库 / Balances not persisted**：账户只存 `opening_balance_cents`；当前余额 = 期初 + 流水增量（SQL 层按
   `账户 × 转入账户 × 类型` 聚合，聚合后行数 ≪ 流水总数）。
   Accounts store only `opening_balance_cents`; live balance = opening + aggregated tx.
+- **多币种口径 / Multi-currency figures**：`accounts` / `transactions` / `balances` / `investment_holdings` 均带 `currency_code` 与原币 `amount_cents`/`cost_cents`/`current_value_cents` 等，并冗余存储基准币种分（`base_*_cents`，历史不可变，用于跨币种正确合计）；跨币种转账额外存 `to_currency_code` / `to_amount_cents` / `used_rate_from` / `used_rate_to`。报表与项目汇总统一按基准币种聚合，原币仅作附注。
+  Each of accounts / transactions / balances / holdings carries a `currency_code` plus native `amount_cents`/`cost_cents`/`current_value_cents` and a denormalized base-currency cents (`base_*_cents`, immutable, for correct cross-currency aggregation); cross-currency transfers additionally store `to_currency_code` / `to_amount_cents` / `used_rate_from` / `used_rate_to`. Reports and project summaries aggregate in base currency; native amounts are shown as a footnote only.
 - **账本隔离 / Ledger isolation**：业务表全部带 `ledger_id`，由 `scopeGuard` 强制校验，杜绝跨账本越权。
   Every business table carries `ledger_id`, enforced by `scopeGuard`.
 - **投资计量 / Investment accounting**：买入即记转账（扣款账户 → 关联账户），净资产只补计「市值 − 成本 − 费用」，
-  避免与账户余额重复计量；仅 `status = active` 计入。
-  Buy = transfer (payment account → linked account); net worth adds only `market − cost − fee`; only `active` counts.
+  避免与账户余额重复计量；仅 `status = active` 计入；`investment_holdings` 可带 `project_id`，并计入 `projectSummary` 项目汇总（仅 `status=active`）。
+  Buy = transfer (payment account → linked account); net worth adds only `market − cost − fee`; only `active` counts. `investment_holdings` may carry a `project_id` and roll into `projectSummary` (active only).
 - **审计留痕 / Audit trail**：`withAudit()` 与业务写操作同事务；仅 C（新增）/ U（修改）/ D（删除）留痕，查询（R）不写日志。
   `withAudit()` runs in the same tx as writes; only C / U / D are logged, reads are not.
 - **导航数据驱动 / Data-driven nav**：`menu_groups` + `menus` + `user_menu_config` 取代早期 `menu_config` JSON 列。
@@ -256,6 +259,7 @@ db/
   seed.ts                   种子主流程 / seed entry
   seeds/                    种子数据（accounts/categories/tags/projects/investments/
                             transactions/settings/menus/extra/types）
+  init/                     初始化（语言 / 分类 / 默认数据）/ init (languages / categories / defaults)
   bootstrap.ts              ensureSchema（桌面态启动建库建表）/ schema bootstrap
 electron/
   main.ts                   Electron 主进程：启动 standalone 子进程 + 窗口 + 数据路径 + 错误兜底 / Electron main
@@ -302,6 +306,8 @@ public/                    静态资源（logo.png 等）/ static assets
 - **语言配置数据库化 / DB-driven catalog**：`languages` 表存储启用/停用/默认/排序/显示名，管理员后台可运营。
 - **翻译文件 / Messages**：`messages/zh-CN.json` / `messages/en.json` / `messages/zh-TW.json`（静态打包）。
 - **格式化 / Formatting**：货币 / 数字 / 日期统一走 `Intl.NumberFormat` / `Intl.DateTimeFormat` / `Intl.DisplayNames`。
+- **系统生成文案 / System-generated text**：业务自动记账产生的类目名、备注（如买入/卖出/派息、投资收益/投资亏损）按**默认语言**渲染并入库（属用户数据，不随查看者语言切换）；审计日志摘要（如 Sold/Matured investment position）按**查看者语言**渲染。
+  Auto-generated categories/remarks (buy/sell/dividend, profit/loss) are rendered in the default locale and stored as user data (not viewer-language switched); audit-log summaries render in the viewer's locale.
 
 ### 新增语言操作清单 / Add a Language
 
@@ -338,7 +344,7 @@ Edit these 3 spots in order; the language then appears in the UI (enable/set def
 | 收支日历 Calendar | `/calendar` | 按日展示收支 |
 | 投资 Investments | `/investments` | 总览 + 10 类持仓子页（股票/基金/定期/国债/贵金属/不动产/数字资产/收藏品/储蓄型保险/借贷） |
 | 保障 Protection | `/protection` | 储蓄型保险 + 公积金 + 养老金汇总 |
-| 项目 Projects | `/projects` | 项目（装修、旅行等）与预算 |
+| 项目 Projects | `/projects` | 项目（装修、旅行等）与预算；聚合关联投资持仓（投入成本 / 当前市值 / 收益，基准币种），含多币种时展示「原币组成」 |
 | 分类 Categories | `/categories` | 收支分类管理 |
 | 标签 Tags | `/tags` | 标签管理 |
 | 周期计划 Recurring | `/recurring` | 定时收支模板（日/周/月/年） |
@@ -353,7 +359,7 @@ Edit these 3 spots in order; the language then appears in the UI (enable/set def
 ## 测试 / Testing
 
 ```bash
-npm test          # 单元测试（test/*.test.ts）：金额/校验/环境/分页/审计/账本/UI 渲染等
+npm test          # 单元测试（test/*.test.ts）：金额/校验/环境/分页/审计/账本/UI 渲染/项目汇总等
 npm run test:e2e  # Playwright 端到端（e2e/*.spec.ts）
 ```
 
@@ -433,3 +439,7 @@ npm run dev:desktop   # next dev(:3000) + 子进程 electron，主进程经 DESK
 > Dev mode connects to a running `next dev` for instant hot reload; requires `npm install` (incl. electron) first.
 
 ---
+
+## 许可证 / License
+
+本项目以 MIT 许可证开源 / Released under the MIT License.

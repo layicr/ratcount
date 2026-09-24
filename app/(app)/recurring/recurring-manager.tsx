@@ -4,7 +4,8 @@ import { useState } from "react";
 import {
   createRecurringPlan, updateRecurringPlan, deleteRecurringPlan, toggleRecurringPlan, runRecurringPlan, } from "@/app/actions/recurring";
 import { useTranslations, useLocale } from "next-intl";
-import { useMoney } from "@/components/currency-context";
+import { useBaseCurrency } from "@/components/currency-context";
+import { formatCurrency } from "@/lib/money";
 import { ConfirmButton, DeleteButton } from "../components/confirm";
 import { TX, FREQ, type TransactionType, type RecurringFrequency, RECURRING_STATUS } from "@/lib/constants"
 import { TRANSACTION_TYPES } from "@/lib/constants";
@@ -16,6 +17,8 @@ type Plan = {
   dayOfMonth: number | null; dayOfWeek: number | null;
   account: string; toAccount?: string; category?: string;
   nextDate: string; status: string; remark: string | null;
+  /** 关联账户币种（计划金额为原币）/ account currency (plan amount is native) */
+  currencyCode?: string;
 };
 type AccountOpt = { id: string; name: string; icon: string };
 type CatOpt = { id: string; name: string; icon: string; type: string };
@@ -47,7 +50,9 @@ export function RecurringManager({
 }) {
   const t = useTranslations();
   const locale = useLocale();
-  const money = useMoney();
+  const baseCur = useBaseCurrency();
+  // 计划金额为关联账户的原币，按各自币种符号展示 / plan amount is native, shown with the account's own symbol
+  const planMoney = (p: Plan) => formatCurrency(p.amountCents, p.currencyCode ?? baseCur, locale);
   // 周日为首的短星期名，随 locale 自动变化
   const weekNames = getWeekdayShortNamesSundayFirst(locale);
   const [form, setForm] = useState<PlanForm>({
@@ -425,7 +430,7 @@ export function RecurringManager({
               </div>
             </div>
             <div className={`text-right text-base font-bold ${p.type === TX.income ? "text-green-600" : p.type === TX.expense ? "text-red-600" : "text-slate-500"}`}>
-              {p.type === TX.income ? "+" : p.type === TX.expense ? "-" : ""}{money(p.amountCents)}
+              {p.type === TX.income ? "+" : p.type === TX.expense ? "-" : ""}{planMoney(p)}
             </div>
             <div className="flex items-center gap-1">
               <button type="button" onClick={() => startEdit(p)} className="text-xs text-slate-500 hover:text-teal-600 hover:underline">{t("common.edit")}</button>

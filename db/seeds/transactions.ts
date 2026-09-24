@@ -6,7 +6,7 @@ export type HistTx = {
   acct: AcctKey;
   toAcct?: AcctKey;
   type: TransactionType;
-  /** 金额单位：元（便于阅读），实际写入时分 × 100 / Amount in yuan (readable); written as cents × 100 */
+  /** 金额单位：账户原币的「元」（便于阅读），实际写入时分 × 100；USD 账户的 60 = $60 / Amount in the account's native currency units (written as cents × 100); 60 on the USD account = $60 */
   yuan: number;
   date: string;
   cat?: string;
@@ -53,7 +53,7 @@ export const HIST_TX: HistTx[] = [
   { acct: "cmb", type: TX.income, yuan: 20000, date: "2026-08-10", cat: "工资", remark: "8 月工资到账" },
   { acct: "cmb", type: TX.expense, yuan: 6500, date: "2026-08-10", cat: "房贷", remark: "8 月房贷扣款" },
   { acct: "cmb", type: TX.expense, yuan: 5800, date: "2026-08-12", cat: "教育", remark: "兴趣班 · 秋季学期" },
-  { acct: "usd", type: TX.income, yuan: 60, date: "2026-08-20", cat: "其他收入", remark: "美元账户利息" },
+  { acct: "usd", type: TX.income, yuan: 60, date: "2026-08-20", cat: "其他收入", remark: "美元账户利息" }, // $60（原币口径，基准 ≈ ¥432）/ $60 (native; ≈¥432 in base)
   { acct: "cash", type: TX.expense, yuan: 176, date: "2026-08-22", cat: "餐饮", remark: "楼下早餐" },
   { acct: "cmb", toAcct: "stock", type: TX.transfer, yuan: 3000, date: "2026-08-25", remark: "基金定投 · 转入 A股账户" },
   { acct: "cmb", type: TX.income, yuan: 380, date: "2026-08-28", cat: "投资收益", remark: "黄金 ETF 分红" },

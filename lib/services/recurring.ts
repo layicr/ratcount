@@ -5,6 +5,8 @@ import { MR, recurringFrequencies, AUDIT_ACTION, ENTITY, RECURRING_STATUS, TX } 
 import { db } from "@/lib/db";
 import { withAudit } from "@/lib/audit";
 import { yuanToCents } from "@/lib/money";
+import { loadCurrencyRates } from "@/lib/currency";
+import { resolveTransactionMoney } from "@/lib/tx-currency";
 import { nextRecurringDate } from "@/lib/recurring";
 import { assertRefsInLedger, RefNotInLedgerError } from "@/lib/ledger-refs";
 import { and, eq } from "drizzle-orm";
@@ -153,10 +155,15 @@ export async function runRecurringPlanService(actor: Actor, ledgerId: string, id
     await withAudit(
       { userId: actor.id, action: AUDIT_ACTION.create, entity: ENTITY.transaction, summaryKey: "audit.recurringGenerated", summaryParams: { name: p.name }, requestBody: JSON.stringify({ planId: id, planName: p.name, amountCents: p.amountCents, txDate, nextDate }), responseBody: '{"result":"created"}' },
       async (tx) => {
+        const rates = await loadCurrencyRates();
+        const txMoney = await resolveTransactionMoney(tx, ledgerId, {
+          accountId: p.accountId, toAccountId: p.toAccountId, amountCents: p.amountCents, type: p.type, rates,
+        });
         await tx.insert(transactions).values({
           ledgerId, accountId: p.accountId, toAccountId: p.toAccountId, type: p.type,
           categoryId: p.categoryId, projectId: p.projectId, amountCents: p.amountCents,
           txDate, remark: p.remark ? `${p.remark}（${p.name}）` : p.name, createdBy: actor.id,
+          ...txMoney,
         });
         const upd = await tx.update(recurringPlans).set({ nextDate })
           .where(and(eq(recurringPlans.id, id), eq(recurringPlans.ledgerId, ledgerId), eq(recurringPlans.nextDate, p.nextDate)));

@@ -7,7 +7,9 @@ import {
   deleteTransaction,
 } from "@/app/actions/transactions";
 import { useTranslations } from "next-intl";
-import { useMoney } from "@/components/currency-context";
+import { useBaseCurrency } from "@/components/currency-context";
+import { useLocale } from "next-intl";
+import { formatCurrency } from "@/lib/money";
 import { ConfirmButton, useToast } from "../components/confirm";
 import { TxTypeBadge } from "../components/badges";
 import { TX } from "@/lib/constants";
@@ -15,6 +17,7 @@ import { Pagination } from "../components/pagination";
 
 type Tx = {
   id: string; type: string; amountCents: number; txDate: string;
+  currencyCode?: string;
   remark: string | null; account?: { name: string; icon: string };
   toAccount?: { name: string; icon: string };
   category?: { name: string; icon: string }; project?: { name: string; icon: string };
@@ -41,7 +44,10 @@ export function TxList({
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [pending, start] = useTransition();
   const t = useTranslations();
-  const money = useMoney();
+  const baseCur = useBaseCurrency();
+  const locale = useLocale();
+  // 原币金额按各自币种符号展示（转账目标额若跨币种则另算）/ native amount uses its own currency symbol
+  const txMoney = (tx: Tx) => formatCurrency(tx.amountCents, tx.currencyCode ?? baseCur, locale);
 
   function toggle(id: string) {
     setSel((prev) => {
@@ -115,7 +121,7 @@ export function TxList({
                     </div>
                   </td>
                   <td className={`text-right font-medium ${tx.type === TX.income ? "text-green-600" : tx.type === TX.expense ? "text-red-600" : "text-slate-500"}`}>
-                    {tx.type === TX.income ? "+" : tx.type === TX.expense ? "-" : ""}{money(tx.amountCents)}
+                    {tx.type === TX.income ? "+" : tx.type === TX.expense ? "-" : ""}{txMoney(tx)}
                   </td>
                   <td className="text-right text-slate-400">{tx.txDate}</td>
                   <td className="text-right"><RowOps tx={tx} /></td>

@@ -2,18 +2,21 @@
 
 import { useState } from "react";
 import { recordBalance } from "@/app/actions/balances";
-import { useTranslations } from "next-intl";
-import { useMoney } from "@/components/currency-context";
+import { useTranslations, useLocale } from "next-intl";
+import { useMoney, useBaseCurrency } from "@/components/currency-context";
+import { formatCurrency } from "@/lib/money";
 import { ConfirmButton } from "../components/confirm";
 
 /** 记录余额快照表单（i18n） */
 export function BalanceForm({
   accounts,
 }: {
-  accounts: { id: string; name: string; icon: string; balanceCents: number }[];
+  accounts: { id: string; name: string; icon: string; balanceCents: number; currencyCode?: string }[];
 }) {
   const t = useTranslations();
   const money = useMoney();
+  const baseCur = useBaseCurrency();
+  const locale = useLocale();
   const [accountId, setAccountId] = useState("");
   const [balanceYuan, setBalance] = useState("");
   const [snapshotDate, setDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -53,7 +56,7 @@ export function BalanceForm({
           ))}
         </select>
         {selected && (
-          <p className="mt-1 text-[11px] text-slate-400">{t("balance.curBalance", { amount: money(selected.balanceCents) })}</p>
+          <p className="mt-1 text-[11px] text-slate-400">{t("balance.curBalance", { amount: formatCurrency(selected.balanceCents, selected.currencyCode ?? baseCur, locale) })}</p>
         )}
       </div>
       <div>

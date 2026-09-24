@@ -26,7 +26,7 @@ export async function buildExportWorkbook(ledgerId: string, d: AppDict): Promise
     db.select().from(projects).where(eq(projects.ledgerId, ledgerId)),
   ]);
 
-  const txHeader = [d.common.type, d.common.date, d.common.account, d.add.toAccount, d.tx.category, d.common.project, d.common.amount, d.common.remark, d.tx.tag];
+  const txHeader = [d.common.type, d.common.date, d.common.account, d.add.toAccount, d.tx.category, d.common.project, d.common.amount, d.common.currency, "基准金额(元)", d.common.remark, d.tx.tag];
   const acctTypeKey = (type: string): keyof typeof d.acctType => accountTypeCamelKey(type) as keyof typeof d.acctType;
 
   const wb = XLSX.utils.book_new();
@@ -48,6 +48,8 @@ export async function buildExportWorkbook(ledgerId: string, d: AppDict): Promise
       t.category?.name ?? "",
       t.project?.name ?? "",
       t.amountCents / 100,
+      t.currencyCode ?? "",
+      t.baseAmountCents / 100,
       t.remark ?? "",
       t.tagList.map((x) => x.name).join("、"),
     ]);
@@ -68,6 +70,7 @@ export async function buildExportWorkbook(ledgerId: string, d: AppDict): Promise
         [d.common.icon]: a.icon,
         [d.common.currency]: a.currencyCode,
         [d.accounts.opening]: a.openingBalanceCents / 100,
+        "基准期初(元)": a.baseOpeningBalanceCents / 100,
         [d.accounts.isAsset]: a.isAsset ? d.common.yes : d.common.no,
         [d.common.remark]: a.remark ?? "",
       })),

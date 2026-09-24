@@ -1,12 +1,14 @@
 // ratcount · 流水 业务服务 / Transaction business services
 //  - 从 app/actions/transactions.ts 抽出的「校验 + 审计 + 写库」纯逻辑（不依赖 'use server' / cookie）。
-import { transactionTags, auditLogs, transactions } from "@/db/schema";
+import { transactionTags, auditLogs, transactions, accounts } from "@/db/schema";
 import { AUDIT_ACTION, ENTITY, TX } from "@/lib/constants";
 import { db } from "@/lib/db";
 import { withAudit, resolveSummary } from "@/lib/audit";
 import { transactionSchema, type TransactionInput } from "@/lib/validators";
-import { assertRefsInLedger, RefNotInLedgerError } from "@/lib/ledger-refs";
+import { assertRefsInLedger, RefNotInLedgerError, type Tx } from "@/lib/ledger-refs";
 import { yuanToCents } from "@/lib/money";
+import { loadCurrencyRates } from "@/lib/currency";
+import { resolveTransactionMoney } from "@/lib/tx-currency";
 import { and, eq, inArray } from "drizzle-orm";
 import { type Actor } from "./guard";
 
@@ -35,6 +37,7 @@ export async function createTransactionService(actor: Actor, ledgerId: string, i
   }
 
   const summaryParams = { type: d.type, remark: d.remark ?? "" };
+  const rates = await loadCurrencyRates();
   try {
     const reqBody = JSON.stringify({
       type: d.type, accountId: d.accountId, toAccountId: d.toAccountId ?? null,
@@ -51,12 +54,18 @@ export async function createTransactionService(actor: Actor, ledgerId: string, i
           projectId: d.projectId ?? null,
           tagIds: d.tagIds ?? [],
         });
+        const money = await resolveTransactionMoney(tx, ledgerId, {
+          accountId: d.accountId,
+          toAccountId: d.type === TX.transfer ? (d.toAccountId ?? null) : null,
+          amountCents, type: d.type, rates,
+        });
         const [row] = await tx.insert(transactions).values({
           ledgerId, accountId: d.accountId,
           toAccountId: d.type === TX.transfer ? d.toAccountId : null,
           type: d.type, categoryId: d.type === TX.transfer ? null : (d.categoryId ?? null),
           projectId: d.projectId ?? null, amountCents, txDate: d.txDate,
           remark: d.remark ?? null, createdBy: actor.id,
+          ...money,
         }).returning();
         if (d.tagIds?.length) {
           await tx.insert(transactionTags).values(d.tagIds.map((tagId) => ({ transactionId: row.id, tagId })));
@@ -86,7 +95,8 @@ export async function updateTransactionService(actor: Actor, ledgerId: string, i
     return { ok: false as const, error: "common.categoryRequired" };
   }
 
-  const summaryParams = { type: d.type, remark: d.remark ?? "" };
+  const summaryParams = { type: d.type, remark: d.remark ?? null };
+  const rates = await loadCurrencyRates();
   try {
     const reqBody = JSON.stringify({
       id, type: d.type, accountId: d.accountId, toAccountId: d.toAccountId ?? null,
@@ -101,6 +111,11 @@ export async function updateTransactionService(actor: Actor, ledgerId: string, i
         projectId: d.projectId ?? null,
         tagIds: d.tagIds ?? [],
       });
+      const money = await resolveTransactionMoney(tx, ledgerId, {
+        accountId: d.accountId,
+        toAccountId: d.type === TX.transfer ? (d.toAccountId ?? null) : null,
+        amountCents, type: d.type, rates,
+      });
       const upd = await tx.update(transactions).set({
         accountId: d.accountId,
         toAccountId: d.type === TX.transfer ? d.toAccountId : null,
@@ -111,6 +126,7 @@ export async function updateTransactionService(actor: Actor, ledgerId: string, i
         txDate: d.txDate,
         remark: d.remark ?? null,
         updatedAt: new Date().toISOString(),
+        ...money,
       }).where(and(eq(transactions.id, id), eq(transactions.ledgerId, ledgerId)));
       const rowsAffected = (upd as { rowsAffected: number }).rowsAffected ?? 0;
 
@@ -157,6 +173,9 @@ export async function copyTransactionService(actor: Actor, ledgerId: string, id:
         type: src.type, categoryId: src.categoryId, projectId: src.projectId,
         amountCents: src.amountCents, txDate: today(),
         remark: src.remark ? `${src.remark}${copiedLabel}` : copiedLabel, createdBy: actor.id,
+        currencyCode: src.currencyCode, toCurrencyCode: src.toCurrencyCode,
+        usedRateFrom: src.usedRateFrom, usedRateTo: src.usedRateTo,
+        toAmountCents: src.toAmountCents, baseAmountCents: src.baseAmountCents,
       });
       if (srcTags.length > 0) {
         await tx.insert(transactionTags).values(srcTags.map((tag) => ({ transactionId: newTxId, tagId: tag.tagId })));

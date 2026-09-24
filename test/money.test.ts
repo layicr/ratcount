@@ -31,6 +31,14 @@ test("yuanToCents: 支持负数（期初余额为负）", () => {
   assert.strictEqual(yuanToCents("-4860"), -486000);
 });
 
+test("yuanToCents: 支持粘贴格式（千分位/货币符号/空白）", () => {
+  assert.strictEqual(yuanToCents("1,233.52"), 123352);
+  assert.strictEqual(yuanToCents("¥1,233.52"), 123352);
+  assert.strictEqual(yuanToCents("1 233.52"), 123352);
+  assert.strictEqual(yuanToCents("+1,233.52"), 123352);
+  assert.strictEqual(yuanToCents("-1,233.52"), -123352);
+});
+
 test("convertCents: 汇率折算", () => {
   // 1 USD = 7.2 CNY：10000 美分 → 72000 人民币分
   assert.strictEqual(convertCents(10000, "7.2", "1"), 72000);

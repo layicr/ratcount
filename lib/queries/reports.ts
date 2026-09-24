@@ -6,8 +6,8 @@
  * 共性：时间范围过滤下推到 SQL，分组用 Map O(n)，替代嵌套 filter O(n*m)
  * Common: time-range filter pushed to SQL; grouping via Map O(n) instead of nested filter O(n*m).
  */
-import { projects, tags, transactionTags, transactions, categories } from "@/db/schema"
-import { TX, type CategoryType } from "@/lib/constants"
+import { projects, tags, transactionTags, transactions, categories, investmentHoldings } from "@/db/schema"
+import { TX, INVESTMENT_STATUS, type CategoryType } from "@/lib/constants"
 import { and, count, eq, gte, lte, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 
@@ -24,6 +24,7 @@ export async function categoryBreakdown(ledgerId: string, type: CategoryType, pe
     .select({
       categoryId: transactions.categoryId,
       amountCents: transactions.amountCents,
+      baseAmountCents: transactions.baseAmountCents,
     })
     .from(transactions)
     .where(and(
@@ -35,7 +36,7 @@ export async function categoryBreakdown(ledgerId: string, type: CategoryType, pe
   const cats = await db.select().from(categories).where(eq(categories.ledgerId, ledgerId));
   const catsById = new Map(cats.map((c) => [c.id, c]));
   const map = new Map<string, number>();
-  for (const r of rows) if (r.categoryId) map.set(r.categoryId, (map.get(r.categoryId) ?? 0) + r.amountCents);
+  for (const r of rows) if (r.categoryId) map.set(r.categoryId, (map.get(r.categoryId) ?? 0) + r.baseAmountCents);
   const total = [...map.values()].reduce((s, x) => s + x, 0);
   return [...map.entries()].map(([id, v]) => ({
     category: catsById.get(id), // 预构建 Map，替代 O(n*m) 的 find / prebuilt Map instead of O(n*m) find
@@ -45,11 +46,25 @@ export async function categoryBreakdown(ledgerId: string, type: CategoryType, pe
 }
 
 /** 项目盈亏（Map 分组 O(n)，替代嵌套 filter O(n*m)）/ Project P&L (Map grouping O(n), not nested filter O(n*m)) */
-export async function projectSummary(ledgerId: string, period?: StatsPeriod, timeZone: string = DEFAULT_TIME_ZONE) {
+export type ProjectSummaryRow = {
+  id: string; name: string; icon: string; status: string; remark: string | null;
+  budgetCents: number;
+  income: number; expense: number; balance: number;
+  /** 关联持仓（status=active）基准口径汇总 / linked active holdings, base-currency totals */
+  investCost: number; investValue: number; investProfit: number;
+  /** 原币组成（交易收支净额 + 持仓市值，按 currencyCode 分组）；仅多币种时展示 / native composition by currency; shown only when multi-currency */
+  nativeBreakdown: { currency: string; amountCents: number }[];
+};
+
+export async function projectSummary(ledgerId: string, period?: StatsPeriod, timeZone: string = DEFAULT_TIME_ZONE): Promise<ProjectSummaryRow[]> {
   const { start: rangeStart, end: rangeEnd } = resolvePeriodRange(period, timeZone);
   const projs = await db.select().from(projects).where(eq(projects.ledgerId, ledgerId));
   const txs = await db
-    .select({ projectId: transactions.projectId, type: transactions.type, amountCents: transactions.amountCents })
+    .select({
+      projectId: transactions.projectId, type: transactions.type,
+      amountCents: transactions.amountCents, baseAmountCents: transactions.baseAmountCents,
+      currencyCode: transactions.currencyCode,
+    })
     .from(transactions)
     .where(and(
       eq(transactions.ledgerId, ledgerId),
@@ -57,18 +72,63 @@ export async function projectSummary(ledgerId: string, period?: StatsPeriod, tim
       gte(transactions.txDate, rangeStart),
       lte(transactions.txDate, rangeEnd),
     ));
-  // 一次遍历分组到 Map（O(n)）/ Single pass into a Map (O(n))
+  // 关联持仓（当前快照，不按时间范围过滤）/ linked holdings (current snapshot, not period-bound)
+  const holds = await db
+    .select({
+      projectId: investmentHoldings.projectId, currencyCode: investmentHoldings.currencyCode,
+      baseCostCents: investmentHoldings.baseCostCents, baseValueCents: investmentHoldings.baseValueCents,
+      currentValueCents: investmentHoldings.currentValueCents,
+    })
+    .from(investmentHoldings)
+    .where(and(
+      eq(investmentHoldings.ledgerId, ledgerId),
+      eq(investmentHoldings.status, INVESTMENT_STATUS.active),
+      sql`${investmentHoldings.projectId} IS NOT NULL`,
+    ));
+
+  // 一次遍历分组到 Map（O(n)）+ 原币按币种累计 / Single pass into Maps (O(n)) + native accumulation by currency
   const stats = new Map<string, { income: number; expense: number }>();
+  const invest = new Map<string, { cost: number; value: number }>();
+  const native = new Map<string, Map<string, number>>();
+  const addNative = (pid: string | null, cur: string | null, amt: number) => {
+    if (!pid || !cur || amt === 0) return;
+    let m = native.get(pid);
+    if (!m) { m = new Map(); native.set(pid, m); }
+    m.set(cur, (m.get(cur) ?? 0) + amt);
+  };
+
   for (const t of txs) {
     if (!t.projectId) continue;
     const s = stats.get(t.projectId) ?? { income: 0, expense: 0 };
-    if (t.type === TX.income) s.income += t.amountCents;
-    if (t.type === TX.expense) s.expense += t.amountCents;
+    if (t.type === TX.income) s.income += t.baseAmountCents;
+    if (t.type === TX.expense) s.expense += t.baseAmountCents;
     stats.set(t.projectId, s);
+    // 原币收支净额（transfer 不计入，与 projectSummary 口径一致）/ native net (transfers excluded, consistent with summary)
+    addNative(t.projectId, t.currencyCode, t.type === TX.income ? t.amountCents : t.type === TX.expense ? -t.amountCents : 0);
   }
+  for (const h of holds) {
+    if (!h.projectId) continue;
+    const v = invest.get(h.projectId) ?? { cost: 0, value: 0 };
+    v.cost += h.baseCostCents;
+    v.value += h.baseValueCents;
+    invest.set(h.projectId, v);
+    // 原币市值（正）/ native market value (positive)
+    addNative(h.projectId, h.currencyCode, h.currentValueCents);
+  }
+
   return projs.map((p) => {
     const s = stats.get(p.id) ?? { income: 0, expense: 0 };
-    return { ...p, income: s.income, expense: s.expense, balance: s.income - s.expense };
+    const iv = invest.get(p.id) ?? { cost: 0, value: 0 };
+    const nb = native.get(p.id);
+    const nativeBreakdown = nb
+      ? [...nb.entries()].filter(([, a]) => a !== 0).map(([currency, amountCents]) => ({ currency, amountCents }))
+      : [];
+    return {
+      ...p,
+      income: s.income, expense: s.expense, balance: s.income - s.expense,
+      investCost: iv.cost, investValue: iv.value, investProfit: iv.value - iv.cost,
+      nativeBreakdown,
+    };
   });
 }
 
@@ -83,7 +143,7 @@ export async function tagSummary(ledgerId: string, period?: StatsPeriod, timeZon
     .select({
       tagId: transactionTags.tagId,
       type: transactions.type,
-      sum: sql<number>`coalesce(sum(${transactions.amountCents}), 0)`,
+      sum: sql<number>`coalesce(sum(${transactions.baseAmountCents}), 0)`,
       cnt: count(),
     })
     .from(transactionTags)

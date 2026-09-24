@@ -404,4 +404,42 @@ test.describe("投资模块", () => {
     await clickModalOk(page, "删除");
     await expect(page.locator("tr", { hasText: name })).toHaveCount(0);
   });
+
+  test("基金：复制持仓（确认框 → 生成同源新持仓 + 买入流水）", async ({ page }) => {
+    const name = `E2E复制${stamp}`;
+    // 新增一条 active 持仓
+    await page.goto("/investments/funds");
+    await expect(page.locator("h1", { hasText: "基金管理" })).toBeVisible();
+    await page.locator('a[href*="/investments/new"]').click();
+    await fillIfVisible(page, "名称", name);
+    await fillIfVisible(page, "代码", "CPY");
+    await fillIfVisible(page, "份额", "10");
+    await fillIfVisible(page, "成本金额", "1000");
+    await fillIfVisible(page, "当前市值", "1200");
+    await fillIfVisible(page, "交易费用", "5");
+    await fillIfVisible(page, "买入日期", "2026-01-01");
+    await fillIfVisible(page, "关联账户", "", "select");
+    await fillIfVisible(page, "扣款账户", "", "select", 2);
+    await page.getByRole("button", { name: "保存", exact: true }).click();
+    await expect(modal(page).getByRole("heading", { name: "保存持仓" })).toBeVisible();
+    await clickModalOk(page, "保存");
+    await expect(page.locator("tr", { hasText: name })).toHaveCount(1);
+
+    // 行内「复制」：确认框 → 确认后生成一条名称带「（副本）」的新持仓
+    const row = page.locator("tr", { hasText: name });
+    await row.getByRole("button", { name: "复制" }).click();
+    await expect(modal(page).getByRole("heading", { name: "复制持仓" })).toBeVisible();
+    await clickModalOk(page, "复制");
+    await expect(modal(page)).toHaveCount(0);
+    await expect(page.locator("tr", { hasText: `${name}（副本）` })).toHaveCount(1);
+
+    // 清理：删除原持仓与复制持仓
+    for (const n of [name, `${name}（副本）`]) {
+      const r = page.locator("tr", { hasText: n });
+      await r.getByRole("button", { name: "删除" }).click();
+      await expect(modal(page).getByRole("heading", { name: "删除投资" })).toBeVisible();
+      await clickModalOk(page, "删除");
+    }
+    await expect(page.locator("tr", { hasText: name })).toHaveCount(0);
+  });
 });

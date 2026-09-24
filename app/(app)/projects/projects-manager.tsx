@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { createProject, updateProject, deleteProject } from "@/app/actions/common";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useMoney } from "@/components/currency-context";
+import { formatCurrency } from "@/lib/money";
 import { ConfirmButton, DeleteButton } from "../components/confirm";
 import { IconPicker } from "../components/icon-picker";
 import { PROJECT_STATUS, type ProjectStatus } from "@/lib/constants";
@@ -11,12 +12,15 @@ import { PROJECT_STATUS, type ProjectStatus } from "@/lib/constants";
 type Proj = {
   id: string; name: string; icon: string; status: string; remark: string | null;
   income: number; expense: number; balance: number; budgetCents: number;
+  investCost: number; investValue: number; investProfit: number;
+  nativeBreakdown: { currency: string; amountCents: number }[];
 };
 
 /** 项目：卡片 + 新增/编辑表单（独立显示） + 删除确认（i18n） */
 export function ProjectsManager({ projects }: { projects: Proj[] }) {
   const t = useTranslations();
   const money = useMoney();
+  const locale = useLocale();
   const [form, setForm] = useState({ name: "", icon: "📁", budgetYuan: "", status: PROJECT_STATUS.active as ProjectStatus, remark: "" });
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -210,6 +214,13 @@ export function ProjectsManager({ projects }: { projects: Proj[] }) {
                 <div><div className="text-red-600">-{money(p.expense)}</div><div className="text-slate-400">{t("reports.expense")}</div></div>
                 <div><div className={p.balance >= 0 ? "font-semibold" : "font-semibold text-red-600"}>{money(p.balance)}</div><div className="text-slate-400">{t("reports.balance")}</div></div>
               </div>
+              {(p.investCost > 0 || p.investValue > 0) && (
+                <div className="mt-2 grid grid-cols-3 gap-2 text-center text-xs">
+                  <div><div className="text-slate-700">{money(p.investCost)}</div><div className="text-slate-400">{t("projects.investCost")}</div></div>
+                  <div><div className="text-slate-700">{money(p.investValue)}</div><div className="text-slate-400">{t("projects.investValue")}</div></div>
+                  <div><div className={p.investProfit >= 0 ? "text-green-600" : "text-red-600"}>{money(p.investProfit)}</div><div className="text-slate-400">{t("projects.investProfit")}</div></div>
+                </div>
+              )}
               {p.budgetCents > 0 && (
                 <div className="mt-3">
                   <div className="flex justify-between text-[11px] text-slate-400">
@@ -222,6 +233,9 @@ export function ProjectsManager({ projects }: { projects: Proj[] }) {
               )}
               {p.remark && (
                 <p className="mt-2 text-xs text-slate-400">{p.remark}</p>
+              )}
+              {p.nativeBreakdown.length > 1 && (
+                <p className="mt-1 text-[11px] text-slate-400">{t("projects.nativeBreakdown")}：{p.nativeBreakdown.map((b) => formatCurrency(b.amountCents, b.currency, locale)).join(" / ")}</p>
               )}
             </div>
           );

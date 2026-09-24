@@ -54,9 +54,20 @@ export function formatPercent(ratio: number, locale: string = DEFAULT_LANGUAGE):
  */
 export const MAX_ABS_CENTS: Cents = 100_000_000_000;
 
+/** 分 → 元纯字符串（两位小数，无千分位），供表单输入回填 / 持仓→输入复用（如复制）/ Cents → plain yuan string (2 decimals, no thousands separators), for form-input backfill / holding→input reuse (e.g. copy) */
+export function centsToYuan(cents: Cents): string {
+  const negative = cents < 0;
+  const abs = Math.abs(Math.trunc(cents));
+  const yuan = Math.floor(abs / 100);
+  const fen = abs % 100;
+  return (negative ? "-" : "") + `${yuan}.${String(fen).padStart(2, "0")}`;
+}
+
 /** 元字符串/数字 → 分（最多两位小数）；非法或超上限返回 null / Yuan string/number → cents (max 2 decimals); invalid or over cap → null */
 export function yuanToCents(input: string | number): Cents | null {
-  const n = typeof input === "number" ? String(input) : input.trim();
+  const raw = typeof input === "number" ? String(input) : input.trim();
+  // 兼容从余额/报表复制进来的格式：去掉千分位逗号、空白、前导正号/常见货币符号；负号保留 / Support pasted values: strip thousands separators, spaces, leading plus/currency symbols; keep minus
+  const n = raw.replace(/[,\s]/g, "").replace(/^[+¥￥$€£]/, "");
   // 允许负号：期初余额（如信用卡）可为负；位数上限防超长数字串（另有 MAX_ABS_CENTS 兜底）/ Allow sign: opening balances (e.g. credit cards) may be negative; digit cap blocks over-long strings (MAX_ABS_CENTS is the final guard)
   if (!/^-?\d{1,15}(\.\d{1,2})?$/.test(n)) return null;
   const sign = n.startsWith("-") ? -1 : 1;

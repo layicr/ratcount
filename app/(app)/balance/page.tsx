@@ -35,15 +35,15 @@ export default async function BalancePage() {
                 <tr key={r.id} className="border-b border-slate-50">
                   <td className="px-4 py-2 font-medium text-slate-800">{r.icon} {r.name}</td>
                   <td className="text-xs text-slate-400">{r.currencyCode}{r.isAsset ? "" : ` · ${d.accounts.notAsset}`}</td>
-                  <td className="text-slate-500">{formatCurrency(r.openingBalanceCents, cur, locale)}</td>
+                  <td className="text-slate-500">{formatCurrency(r.openingBalanceCents, r.currencyCode, locale)}</td>
                   <td className={`text-right font-semibold ${r.balanceCents < 0 ? "text-red-600" : "text-slate-800"}`}>
-                    {formatCurrency(r.balanceCents, cur, locale)}
+                    {formatCurrency(r.balanceCents, r.currencyCode, locale)}
                   </td>
                   <td className="text-right text-slate-500">
-                    {r.snapshot ? `${formatCurrency(r.snapshot.balanceAmountCents, cur, locale)} (${r.snapshot.snapshotDate})` : "-"}
+                    {r.snapshot ? `${formatCurrency(r.snapshot.balanceAmountCents, r.currencyCode, locale)} (${r.snapshot.snapshotDate})` : "-"}
                   </td>
                   <td className={`text-right ${r.diff === null ? "text-slate-300" : r.diff === 0 ? "text-green-600" : "text-amber-600"}`}>
-                    {r.diff === null ? "-" : r.diff === 0 ? `✓ ${d.balance.ok}` : formatCurrency(r.diff, cur, locale)}
+                    {r.diff === null ? "-" : r.diff === 0 ? `✓ ${d.balance.ok}` : formatCurrency(r.diff, r.currencyCode, locale)}
                   </td>
                 </tr>
               ))}
@@ -52,7 +52,7 @@ export default async function BalancePage() {
         </div>
 
         <BalanceForm
-          accounts={rows.map((a) => ({ id: a.id, name: a.name, icon: a.icon, balanceCents: a.balanceCents }))}
+          accounts={rows.map((a) => ({ id: a.id, name: a.name, icon: a.icon, balanceCents: a.balanceCents, currencyCode: a.currencyCode }))}
         />
       </div>
     </div>

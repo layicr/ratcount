@@ -4,13 +4,14 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
-import { useMoney } from "@/components/currency-context";
+import { useMoney, useBaseCurrency } from "@/components/currency-context";
+import { formatCurrency } from "@/lib/money";
 import { TxTypeBadge } from "../components/badges";
 import { getWeekdayShortNames } from "@/lib/datetime";
 import { TX } from "@/lib/constants";
 
 type Tx = {
-  id: string; txDate: string; type: string; amountCents: number;
+  id: string; txDate: string; type: string; amountCents: number; currencyCode?: string;
   account: string; toAccount?: string; category?: string; remark: string | null;
 };
 
@@ -19,6 +20,8 @@ export function CalendarView({ month, txs, today }: { month: string; txs: Tx[]; 
   const t = useTranslations();
   const locale = useLocale();
   const money = useMoney();
+  const baseCur = useBaseCurrency();
+  const txMoney = (tx: Tx) => formatCurrency(tx.amountCents, tx.currencyCode ?? baseCur, locale);
   const router = useRouter();
   const [sel, setSel] = useState<string | null>(null);
   // 星期表头（周一为一周起点），随 locale 自动变化
@@ -142,7 +145,7 @@ export function CalendarView({ month, txs, today }: { month: string; txs: Tx[]; 
                     <span className="text-xs text-slate-400">{tx.account}{tx.toAccount ? ` → ${tx.toAccount}` : ""}</span>
                   </div>
                   <span className={`text-sm font-medium ${tx.type === TX.income ? "text-green-600" : tx.type === TX.expense ? "text-red-600" : "text-slate-500"}`}>
-                    {tx.type === TX.income ? "+" : tx.type === TX.expense ? "-" : ""}{money(tx.amountCents)}
+                    {tx.type === TX.income ? "+" : tx.type === TX.expense ? "-" : ""}{txMoney(tx)}
                   </span>
                 </li>
               ))}

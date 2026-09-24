@@ -143,9 +143,9 @@ export default async function InvestmentsPage({
                             ? "—"
                             : quantityToDisplay(h.type, h.quantity)}
                         </td>
-                        <td className="text-right text-slate-700">{formatCurrency(h.currentValueCents, cur, locale)}</td>
+                        <td className="text-right text-slate-700">{formatCurrency(h.currentValueCents, h.currencyCode, locale)}</td>
                         <td className={`text-right font-medium ${profit >= 0 ? "text-green-600" : "text-red-600"}`}>
-                          {formatCurrency(profit, cur, locale)}
+                          {formatCurrency(profit, h.currencyCode, locale)}
                         </td>
                         <td className={`text-right ${profit >= 0 ? "text-green-600" : "text-red-600"}`}>
                           {rate !== null ? formatPercent(rate, locale) : "—"}

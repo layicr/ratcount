@@ -2,13 +2,14 @@
 
 // 薄封装：守卫 + 取账本 + 调 lib/services/investments + 重新校验缓存（Next 专属，不进服务层）
 import { revalidatePath } from "next/cache";
+import { getTranslations } from "next-intl/server";
 import { getCurrentLedgerId } from "@/lib/ledger";
 import { requireLedgerAccess } from "@/lib/scope";
 import { investmentListHref } from "@/lib/investment-types";
-import { MR, DASHBOARD_PATH } from "@/lib/constants";
+import { MR, DASHBOARD_PATH, TRANSACTIONS_PATH } from "@/lib/constants";
 import {
   createInvestmentService, updateInvestmentService, sellInvestmentService,
-  dividendInvestmentService, deleteInvestmentService,
+  dividendInvestmentService, deleteInvestmentService, copyInvestmentService,
   type InvestmentInput, type InvestActionInput,
 } from "@/lib/services/investments";
 
@@ -24,7 +25,7 @@ export async function createInvestment(input: InvestmentInput) {
     revalidatePath("/investments");
     revalidatePath(investmentListHref(input.type as never));
     revalidatePath(DASHBOARD_PATH);
-    revalidatePath("/transactions");
+    revalidatePath(TRANSACTIONS_PATH);
   }
   return res;
 }
@@ -39,7 +40,7 @@ export async function updateInvestment(id: string, input: InvestmentInput) {
     revalidatePath("/investments");
     revalidatePath(investmentListHref(input.type as never));
     revalidatePath(DASHBOARD_PATH);
-    revalidatePath("/transactions");
+    revalidatePath(TRANSACTIONS_PATH);
   }
   return res;
 }
@@ -53,7 +54,7 @@ export async function sellInvestment(input: InvestActionInput) {
   if (res.ok) {
     revalidatePath("/investments");
     revalidatePath(DASHBOARD_PATH);
-    revalidatePath("/transactions");
+    revalidatePath(TRANSACTIONS_PATH);
   }
   return res;
 }
@@ -67,7 +68,7 @@ export async function dividendInvestment(input: InvestActionInput) {
   if (res.ok) {
     revalidatePath("/investments");
     revalidatePath(DASHBOARD_PATH);
-    revalidatePath("/transactions");
+    revalidatePath(TRANSACTIONS_PATH);
   }
   return res;
 }
@@ -82,7 +83,23 @@ export async function deleteInvestment(id: string, type: string) {
     revalidatePath("/investments");
     revalidatePath(investmentListHref(type as never));
     revalidatePath(DASHBOARD_PATH);
-    revalidatePath("/transactions");
+    revalidatePath(TRANSACTIONS_PATH);
+  }
+  return res;
+}
+
+/** 复制投资持仓 / Duplicate investment holding */
+export async function copyInvestment(id: string, type: string) {
+  const ledgerId = await getCurrentLedgerId();
+  if (!ledgerId) return { ok: false as const, error: "errors.noLedger" };
+  const { user } = await requireLedgerAccess(ledgerId, MR.editor);
+  const t = await getTranslations("investment");
+  const res = await copyInvestmentService({ id: user.id }, ledgerId, id, t("copied"));
+  if (res.ok) {
+    revalidatePath("/investments");
+    revalidatePath(investmentListHref(type as never));
+    revalidatePath(DASHBOARD_PATH);
+    revalidatePath(TRANSACTIONS_PATH);
   }
   return res;
 }

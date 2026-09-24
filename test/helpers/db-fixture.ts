@@ -75,6 +75,7 @@ const DDL_TABLES: string[] = [
     icon TEXT NOT NULL DEFAULT '💳',
     currency_code TEXT NOT NULL DEFAULT 'CNY',
     opening_balance_cents INTEGER NOT NULL DEFAULT 0,
+    base_opening_balance_cents INTEGER,
     is_asset INTEGER NOT NULL DEFAULT 1,
     sort INTEGER NOT NULL DEFAULT 0,
     remark TEXT,
@@ -123,6 +124,12 @@ const DDL_TABLES: string[] = [
     category_id TEXT,
     project_id TEXT,
     amount_cents INTEGER NOT NULL,
+    currency_code TEXT NOT NULL DEFAULT 'CNY',
+    to_currency_code TEXT,
+    used_rate_from TEXT,
+    used_rate_to TEXT,
+    to_amount_cents INTEGER,
+    base_amount_cents INTEGER,
     tx_date TEXT NOT NULL,
     remark TEXT,
     created_by TEXT NOT NULL,
@@ -155,6 +162,9 @@ const DDL_TABLES: string[] = [
     ledger_id TEXT NOT NULL,
     account_id TEXT NOT NULL,
     balance_amount_cents INTEGER NOT NULL,
+    currency_code TEXT NOT NULL DEFAULT 'CNY',
+    used_rate TEXT,
+    base_balance_amount_cents INTEGER,
     snapshot_date TEXT NOT NULL,
     remark TEXT,
     created_by TEXT NOT NULL,
@@ -203,8 +213,15 @@ const DDL_TABLES: string[] = [
     area_sqm INTEGER,
     status TEXT NOT NULL DEFAULT 'active',
     dividend_cents INTEGER NOT NULL DEFAULT 0,
+    currency_code TEXT NOT NULL DEFAULT 'CNY',
+    used_rate TEXT,
+    base_cost_cents INTEGER,
+    base_fee_cents INTEGER,
+    base_value_cents INTEGER,
+    base_dividend_cents INTEGER,
     remark TEXT,
     project_id TEXT,
+    buy_transaction_id TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   )`,
@@ -256,6 +273,37 @@ const DDL_TABLES: string[] = [
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   )`,
+  // 测试库触发器：模拟生产服务的「写入期快照 base*」，使直接 .values 插入的测试数据也带基准列（否则 base 默认 0 会让净资产/报表聚合失真）。
+  // 触发条件同时覆盖 NULL 与 0：drizzle 的 insert 会把带默认值的列显式写为 0，故用 =0 兜底；生产服务写入非零值则不触发，仍用服务计算的 base。
+  `CREATE TRIGGER IF NOT EXISTS trg_tx_base AFTER INSERT ON transactions WHEN NEW.base_amount_cents IS NULL OR NEW.base_amount_cents = 0 BEGIN
+     UPDATE transactions SET
+       currency_code = COALESCE((SELECT currency_code FROM accounts WHERE accounts.id = NEW.account_id), 'CNY'),
+       used_rate_from = COALESCE((SELECT COALESCE(rate,'1') FROM currencies WHERE code = (SELECT currency_code FROM accounts WHERE accounts.id = NEW.account_id)), '1'),
+       base_amount_cents = NEW.amount_cents,
+       to_currency_code = (SELECT currency_code FROM accounts WHERE accounts.id = NEW.to_account_id),
+       to_amount_cents = CASE WHEN NEW.to_account_id IS NOT NULL THEN NEW.amount_cents ELSE NULL END
+     WHERE id = NEW.id;
+   END`,
+  `CREATE TRIGGER IF NOT EXISTS trg_bal_base AFTER INSERT ON balances WHEN NEW.base_balance_amount_cents IS NULL OR NEW.base_balance_amount_cents = 0 BEGIN
+     UPDATE balances SET
+       currency_code = COALESCE((SELECT currency_code FROM accounts WHERE accounts.id = NEW.account_id), 'CNY'),
+       used_rate = COALESCE((SELECT COALESCE(rate,'1') FROM currencies WHERE code = (SELECT currency_code FROM accounts WHERE accounts.id = NEW.account_id)), '1'),
+       base_balance_amount_cents = NEW.balance_amount_cents
+     WHERE id = NEW.id;
+   END`,
+  `CREATE TRIGGER IF NOT EXISTS trg_inv_base AFTER INSERT ON investment_holdings WHEN NEW.base_cost_cents IS NULL OR NEW.base_cost_cents = 0 BEGIN
+     UPDATE investment_holdings SET
+       currency_code = COALESCE((SELECT currency_code FROM accounts WHERE accounts.id = NEW.account_id), 'CNY'),
+       used_rate = COALESCE((SELECT COALESCE(rate,'1') FROM currencies WHERE code = (SELECT currency_code FROM accounts WHERE accounts.id = NEW.account_id)), '1'),
+       base_cost_cents = NEW.cost_cents,
+       base_fee_cents = NEW.fee_cents,
+       base_value_cents = NEW.current_value_cents,
+       base_dividend_cents = NEW.dividend_cents
+     WHERE id = NEW.id;
+   END`,
+  `CREATE TRIGGER IF NOT EXISTS trg_acct_base AFTER INSERT ON accounts WHEN NEW.base_opening_balance_cents IS NULL OR NEW.base_opening_balance_cents = 0 BEGIN
+     UPDATE accounts SET base_opening_balance_cents = NEW.opening_balance_cents WHERE id = NEW.id;
+   END`,
 ];
 
 /** 初始化测试 DB：注入环境变量 + 动态 import lib/db（保证 env 先于模块求值生效）+ 建表 */

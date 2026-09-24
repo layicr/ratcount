@@ -55,6 +55,7 @@ export default async function CalendarPage({
     txDate: r.txDate,
     type: r.type,
     amountCents: r.amountCents,
+    currencyCode: r.currencyCode,
     account: acctMap.get(r.accountId)?.name ?? "-",
     toAccount: r.toAccountId ? (acctMap.get(r.toAccountId)?.name ?? "-") : undefined,
     category: r.categoryId ? (catMap.get(r.categoryId)?.name ?? "-") : undefined,

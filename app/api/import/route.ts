@@ -1,5 +1,5 @@
 import { accounts, categories, transactions } from "@/db/schema"
-import { type TransactionType, MR, AUDIT_ACTION, ENTITY, TX } from "@/lib/constants"
+import { type TransactionType, MR, AUDIT_ACTION, ENTITY, TX, DEFAULT_CURRENCY } from "@/lib/constants"
 import { requireUser, requireLedgerAccess } from "@/lib/scope"
 import { isTransfer } from "@/lib/constants"
 
@@ -10,10 +10,11 @@ import { db } from "@/lib/db";
 
 
 
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { withAudit } from "@/lib/audit";
 import { ensureAccount, ensureCategory } from "@/lib/ledger-refs";
 import { yuanToCents } from "@/lib/money";
+import { loadCurrencyRates, rateOf, toBaseCents } from "@/lib/currency";
 import * as XLSX from "@e965/xlsx";
 import { readLocale, getMergedDict } from "@/i18n/dict";
 
@@ -181,18 +182,28 @@ export async function POST(req: Request) {
             seenCat.add(key);
             await ensureCategory(tx, ledger.id, p.catName, normType, catIdByName);
           }
-          // 批量插入流水
+          // 批量插入流水（按账户原币存，并快照 baseAmountCents）
+          const rates = await loadCurrencyRates();
+          const acctRows = await tx.select({ id: accounts.id, currencyCode: accounts.currencyCode })
+            .from(accounts).where(inArray(accounts.id, [...acctIdByName.values()]));
+          const curByAcct = new Map(acctRows.map((a) => [a.id, a.currencyCode]));
           await tx.insert(transactions).values(
-            parsed.map((p) => ({
-              ledgerId: ledger.id,
-              accountId: acctIdByName.get(p.acctName)!,
-              type: p.type,
-              categoryId: isTransfer(p.type) ? null : (p.catName ? (catIdByName.get(`${p.type}::${p.catName}`) ?? null) : null),
-              amountCents: p.cents,
-              txDate: p.date,
-              remark: p.remark || null,
-              createdBy: user.id,
-            })),
+            parsed.map((p) => {
+              const accId = acctIdByName.get(p.acctName)!;
+              const cur = curByAcct.get(accId) ?? DEFAULT_CURRENCY;
+              return {
+                ledgerId: ledger.id,
+                accountId: accId,
+                type: p.type,
+                categoryId: isTransfer(p.type) ? null : (p.catName ? (catIdByName.get(`${p.type}::${p.catName}`) ?? null) : null),
+                amountCents: p.cents,
+                currencyCode: cur,
+                baseAmountCents: toBaseCents(p.cents, rateOf(rates, cur)),
+                txDate: p.date,
+                remark: p.remark || null,
+                createdBy: user.id,
+              };
+            }),
           );
         },
       );

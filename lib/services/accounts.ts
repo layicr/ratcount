@@ -8,6 +8,7 @@ import { AUDIT_ACTION, ENTITY } from "@/lib/constants";
 import { db } from "@/lib/db";
 import { withAudit } from "@/lib/audit";
 import { yuanToCents } from "@/lib/money";
+import { loadCurrencyRates, rateOf, toBaseCents } from "@/lib/currency";
 import { type Actor } from "./guard";
 
 /** 账户被流水/计划/持仓/快照引用：抛错回滚事务（含审计），由调用方转 i18n 错误码 */
@@ -37,6 +38,8 @@ export async function createAccountService(actor: Actor, ledgerId: string, input
   const d = parsed.data;
   const openingCents = d.openingYuan ? yuanToCents(d.openingYuan) : 0;
   if (openingCents === null) return { ok: false as const, error: "errors.openingBalanceInvalid" };
+  const rates = await loadCurrencyRates();
+  const baseOpeningCents = toBaseCents(openingCents, rateOf(rates, d.currencyCode));
 
   await withAudit(
     {
@@ -56,6 +59,7 @@ export async function createAccountService(actor: Actor, ledgerId: string, input
         icon: d.icon ?? "💳",
         currencyCode: d.currencyCode,
         openingBalanceCents: openingCents,
+        baseOpeningBalanceCents: baseOpeningCents,
         isAsset: d.isAsset ?? true,
         remark: d.remark ?? null,
         createdBy: actor.id,
@@ -71,6 +75,8 @@ export async function updateAccountService(actor: Actor, ledgerId: string, id: s
   const d = parsed.data;
   const openingCents = d.openingYuan ? yuanToCents(d.openingYuan) : 0;
   if (openingCents === null) return { ok: false as const, error: "errors.openingBalanceInvalid" };
+  const rates = await loadCurrencyRates();
+  const baseOpeningCents = toBaseCents(openingCents, rateOf(rates, d.currencyCode));
 
   await withAudit(
     {
@@ -92,6 +98,7 @@ export async function updateAccountService(actor: Actor, ledgerId: string, id: s
           icon: d.icon ?? "💳",
           currencyCode: d.currencyCode,
           openingBalanceCents: openingCents,
+          baseOpeningBalanceCents: baseOpeningCents,
           isAsset: d.isAsset ?? true,
           remark: d.remark ?? null,
         })

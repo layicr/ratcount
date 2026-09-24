@@ -11,7 +11,7 @@ import { db } from "@/lib/db";
 
 
 
-import { computeBalanceDelta } from "@/lib/balance";
+import { computeBalanceDelta, computeBaseBalanceDelta } from "@/lib/balance";
 
 /**
  * 账户列表 + 实时余额 / Account list + live balance
@@ -27,27 +27,40 @@ export const listAccountsWithBalance = cache(async (ledgerId: string) => {
     .where(eq(accounts.ledgerId, ledgerId))
     .orderBy(accounts.sort, accounts.name);
   // 余额增量在 SQL 层按 (账户 × 转入账户 × 类型) 聚合，聚合后行数 ≪ 流水总数 / Balance delta aggregated in SQL by (account × toAccount × type); rows ≪ tx count
+  // 同时聚合原币(toAmountCents 回退 amountCents) 与基准币种(baseAmountCents) 两列，分别算原生余额与基准余额
   const grouped = await db
     .select({
       accountId: transactions.accountId,
       toAccountId: transactions.toAccountId,
       type: transactions.type,
       sum: sql<number>`coalesce(sum(${transactions.amountCents}), 0)`,
+      toSum: sql<number>`coalesce(sum(coalesce(${transactions.toAmountCents}, ${transactions.amountCents})), 0)`,
+      baseSum: sql<number>`coalesce(sum(${transactions.baseAmountCents}), 0)`,
     })
     .from(transactions)
     .where(eq(transactions.ledgerId, ledgerId))
     .groupBy(transactions.accountId, transactions.toAccountId, transactions.type);
-  const delta = computeBalanceDelta(
+  const nativeDelta = computeBalanceDelta(
     grouped.map((r) => ({
       accountId: r.accountId,
       toAccountId: r.toAccountId,
       type: r.type,
       amountCents: Number(r.sum),
+      toAmountCents: Number(r.toSum),
+    })),
+  );
+  const baseDelta = computeBaseBalanceDelta(
+    grouped.map((r) => ({
+      accountId: r.accountId,
+      toAccountId: r.toAccountId,
+      type: r.type,
+      baseAmountCents: Number(r.baseSum),
     })),
   );
   return accts.map((a) => ({
     ...a,
-    balanceCents: a.openingBalanceCents + (delta.get(a.id) ?? 0),
+    balanceCents: a.openingBalanceCents + (nativeDelta.get(a.id) ?? 0),
+    baseBalanceCents: a.baseOpeningBalanceCents + (baseDelta.get(a.id) ?? 0),
   }));
 });
 

@@ -3,10 +3,11 @@
  * 用法：npm run db:seed / Usage: npm run db:seed
  */
 import { ledgers, ledgerMembers, currencies, accounts, categories, tags, projects, transactions, transactionTags, balances, settings, investmentHoldings, holdingTags, recurringPlans, auditLogs, menuGroups, menus, userMenuConfig, languages, users } from "../db/schema"
-import { GLOBAL_USER_ID, DEFAULT_CURRENCY, DEFAULT_LEDGER_ICON } from "../lib/constants"
+import { GLOBAL_USER_ID, DEFAULT_CURRENCY, DEFAULT_LEDGER_ICON, TX } from "../lib/constants"
 
 
 import { db } from "../lib/db";
+import { convertCents } from "../lib/money";
 import { eq } from "drizzle-orm";
 
 
@@ -32,6 +33,10 @@ async function main() {
   }
 
   const adminPassword = process.env.SEED_ADMIN_PASSWORD || "demo1234";
+
+  // 确保 schema 最新（含 buy_transaction_id 等增量列迁移，幂等）：本地库会按需要 ALTER 加列 / Ensure latest schema (incl. incremental column migrations; idempotent)
+  const { ensureSchema } = await import("../lib/db/bootstrap");
+  await ensureSchema();
 
   // 幂等：先清空（无外键约束，按逆依赖顺序删除）/ Idempotent: wipe first (no FK constraints; delete in reverse dependency order)
   await db.delete(userMenuConfig);
@@ -98,6 +103,14 @@ async function main() {
     ACTIVE_MENU_IDS.map((menuId) => ({ ledgerId: ledger.id, userId: admin.id, menuId })),
   );
 
+  // 多币种快照辅助：种子按「原币」存金额，并快照 usedRate / base*，与运行期服务口径一致
+  // Multi-currency snapshot helpers: seed stores native amounts + snapshots usedRate/base* (matches runtime services)
+  const rateMap = new Map(CURRENCY_DEFS.map((c) => [c.code, c.rate]));
+  const acctCurrencyByKey: Record<string, string> = {};
+  for (const a of acctDefs) acctCurrencyByKey[a.key] = a.currencyCode ?? "CNY";
+  const acctKeyByName: Record<string, string> = {};
+  for (const a of acctDefs) acctKeyByName[a.name] = a.key;
+
   // 5) 账户（opening = 目标余额 − 历史流水净额）/ Accounts (opening = target balance − historical tx net delta)
   const acctRows = await db.insert(accounts).values(
     acctDefs.map((a) => ({
@@ -107,6 +120,8 @@ async function main() {
       icon: a.icon,
       currencyCode: a.currencyCode ?? DEFAULT_CURRENCY,
       openingBalanceCents: a.openingBalanceCents,
+      // 基准期初 = 原币期初 × 汇率（外币账户按此折算，与运行期 convertCents 口径一致）/ base opening = native × rate (same as runtime convertCents)
+      baseOpeningBalanceCents: a.baseOpeningBalanceCents ?? convertCents(a.openingBalanceCents, rateMap.get(a.currencyCode ?? "CNY") ?? "1", "1"),
       isAsset: a.isAsset,
       createdBy: admin.id,
     })),
@@ -115,6 +130,27 @@ async function main() {
     acctRows.map((r) => [r.name, r.id]),
   ) as Record<string, string>;
   const acctId = (name: string) => acctIdByKey[name];
+
+  /** 计算一笔流水的币种快照字段（原币代码 + 目标币种 + 汇率 + 目标金额 + 基准金额）/ Resolve currency snapshot fields for one tx */
+  function txCurrencyFields(fromKey: string, toKey: string | null, type: string, amountCents: number) {
+    const fromCur = acctCurrencyByKey[fromKey] ?? "CNY";
+    const toCur = toKey ? (acctCurrencyByKey[toKey] ?? "CNY") : fromCur;
+    const fromRate = rateMap.get(fromCur) ?? "1";
+    const toRate = rateMap.get(toCur) ?? "1";
+    const isTransfer = type === "transfer" && !!toKey;
+    return {
+      currencyCode: fromCur,
+      toCurrencyCode: toKey ? toCur : null,
+      usedRateFrom: fromRate,
+      usedRateTo: isTransfer ? toRate : null,
+      toAmountCents: isTransfer ? convertCents(amountCents, fromRate, toRate) : null,
+      baseAmountCents: convertCents(amountCents, fromRate, "1"),
+    };
+  }
+  /** 同名封装：直接按账户名取币种 / name-based wrapper of txCurrencyFields */
+  function txCurByName(name: string, toName: string | null, type: string, amountCents: number) {
+    return txCurrencyFields(acctKeyByName[name] ?? "", toName ? (acctKeyByName[toName] ?? "") : null, type, amountCents);
+  }
 
   // 6) 分类 / Categories
   const cats = await db.insert(categories).values(
@@ -141,30 +177,34 @@ async function main() {
 
   // 9) 当月流水（2026-09）/ Current-month transactions (2026-09)
   const txRows = await db.insert(transactions).values([
-    { ledgerId: ledger.id, accountId: acctId("招行储蓄卡"), type: "income",  categoryId: catMap["工资"].id,         amountCents: 2000000, txDate: "2026-09-03", remark: "9 月工资到账",                    createdBy: admin.id },
-    { ledgerId: ledger.id, accountId: acctId("招行储蓄卡"), type: "expense", categoryId: catMap["餐饮"].id,          amountCents: 48600,   txDate: "2026-09-04", remark: "山姆会员店 · 周末采购",            createdBy: admin.id },
-    { ledgerId: ledger.id, accountId: acctId("招行储蓄卡"), type: "expense", categoryId: catMap["医疗"].id,          amountCents: 186000,  txDate: "2026-09-02", remark: "康复机构 · 月费", projectId: projMap["宝贝计划"], createdBy: admin.id },
-    { ledgerId: ledger.id, accountId: acctId("微信"),       type: "expense", categoryId: catMap["餐饮"].id,          amountCents: 3200,    txDate: "2026-09-01", remark: "楼下小馆 午餐",                    createdBy: admin.id },
-    { ledgerId: ledger.id, accountId: acctId("现金"),       type: "income",  categoryId: catMap["生意进账"].id,      amountCents: 800000,  txDate: "2026-09-02", remark: "奶茶店 周流水", projectId: projMap["奶茶店"],    createdBy: admin.id },
-    { ledgerId: ledger.id, accountId: acctId("现金"),       type: "transfer", toAccountId: acctId("招行储蓄卡"), amountCents: 500000,  txDate: "2026-09-02", remark: "现金 → 招行储蓄卡",                createdBy: admin.id },
-    { ledgerId: ledger.id, accountId: acctId("招行储蓄卡"), type: "expense", categoryId: catMap["消费型保险"].id,    amountCents: 380000,  txDate: "2026-09-05", remark: "重疾险 · 年缴保费",                createdBy: admin.id },
-    { ledgerId: ledger.id, accountId: acctId("招行储蓄卡"), type: "transfer", toAccountId: acctId("公积金账户"),  amountCents: 120000,  txDate: "2026-09-10", remark: "公积金缴存 · 月缴",                createdBy: admin.id },
+    { ledgerId: ledger.id, accountId: acctId("招行储蓄卡"), type: "income",  categoryId: catMap["工资"].id,         amountCents: 2000000, txDate: "2026-09-03", remark: "9 月工资到账",                    createdBy: admin.id, ...txCurByName("招行储蓄卡", null, "income", 2000000) },
+    { ledgerId: ledger.id, accountId: acctId("招行储蓄卡"), type: "expense", categoryId: catMap["餐饮"].id,          amountCents: 48600,   txDate: "2026-09-04", remark: "山姆会员店 · 周末采购",            createdBy: admin.id, ...txCurByName("招行储蓄卡", null, "expense", 48600) },
+    { ledgerId: ledger.id, accountId: acctId("招行储蓄卡"), type: "expense", categoryId: catMap["医疗"].id,          amountCents: 186000,  txDate: "2026-09-02", remark: "康复机构 · 月费", projectId: projMap["宝贝计划"], createdBy: admin.id, ...txCurByName("招行储蓄卡", null, "expense", 186000) },
+    { ledgerId: ledger.id, accountId: acctId("微信"),       type: "expense", categoryId: catMap["餐饮"].id,          amountCents: 3200,    txDate: "2026-09-01", remark: "楼下小馆 午餐",                    createdBy: admin.id, ...txCurByName("微信", null, "expense", 3200) },
+    { ledgerId: ledger.id, accountId: acctId("现金"),       type: "income",  categoryId: catMap["生意进账"].id,      amountCents: 800000,  txDate: "2026-09-02", remark: "奶茶店 周流水", projectId: projMap["奶茶店"],    createdBy: admin.id, ...txCurByName("现金", null, "income", 800000) },
+    { ledgerId: ledger.id, accountId: acctId("现金"),       type: "transfer", toAccountId: acctId("招行储蓄卡"), amountCents: 500000,  txDate: "2026-09-02", remark: "现金 → 招行储蓄卡",                createdBy: admin.id, ...txCurByName("现金", "招行储蓄卡", "transfer", 500000) },
+    { ledgerId: ledger.id, accountId: acctId("招行储蓄卡"), type: "expense", categoryId: catMap["消费型保险"].id,    amountCents: 380000,  txDate: "2026-09-05", remark: "重疾险 · 年缴保费",                createdBy: admin.id, ...txCurByName("招行储蓄卡", null, "expense", 380000) },
+    { ledgerId: ledger.id, accountId: acctId("招行储蓄卡"), type: "transfer", toAccountId: acctId("公积金账户"),  amountCents: 120000,  txDate: "2026-09-10", remark: "公积金缴存 · 月缴",                createdBy: admin.id, ...txCurByName("招行储蓄卡", "公积金账户", "transfer", 120000) },
   ]).returning();
 
   // 9.5) 历史流水（2026-03 ~ 2026-08）/ Historical transactions (2026-03 ~ 2026-08)
   const histTxRows = await db.insert(transactions).values(
-    HIST_TX.map((t) => ({
-      ledgerId: ledger.id,
-      accountId: acctIdByKey[acctDefs.find((a) => a.key === t.acct)!.name],
-      toAccountId: t.toAcct ? acctIdByKey[acctDefs.find((a) => a.key === t.toAcct)!.name] ?? null : null,
-      type: t.type,
-      categoryId: t.cat ? catMap[t.cat]?.id ?? null : null,
-      projectId: t.project ? projMap[t.project] ?? null : null,
-      amountCents: Math.round(t.yuan * 100),
-      txDate: t.date,
-      remark: t.remark,
-      createdBy: admin.id,
-    })),
+    HIST_TX.map((t) => {
+      const amountCents = Math.round(t.yuan * 100);
+      return {
+        ledgerId: ledger.id,
+        accountId: acctIdByKey[acctDefs.find((a) => a.key === t.acct)!.name],
+        toAccountId: t.toAcct ? acctIdByKey[acctDefs.find((a) => a.key === t.toAcct)!.name] ?? null : null,
+        type: t.type,
+        categoryId: t.cat ? catMap[t.cat]?.id ?? null : null,
+        projectId: t.project ? projMap[t.project] ?? null : null,
+        amountCents,
+        txDate: t.date,
+        remark: t.remark,
+        createdBy: admin.id,
+        ...txCurrencyFields(t.acct, t.toAcct ?? null, t.type, amountCents),
+      };
+    }),
   ).returning();
 
   // 10) 流水标签 / Transaction tags
@@ -185,19 +225,28 @@ async function main() {
 
   // 11) 余额快照（09-01 时点）/ Balance snapshots (as of 09-01)
   await db.insert(balances).values(
-    BALANCE_DEFS.map((b) => ({
-      ledgerId: ledger.id,
-      accountId: acctIdByKey[acctDefs.find((a) => a.key === b.accountId)!.name],
-      balanceAmountCents: b.balanceAmountCents,
-      snapshotDate: b.snapshotDate,
-      remark: b.remark ?? null,
-      createdBy: admin.id,
-    })),
+    BALANCE_DEFS.map((b) => {
+      const cur = acctCurrencyByKey[b.accountId] ?? "CNY";
+      const rate = rateMap.get(cur) ?? "1";
+      return {
+        ledgerId: ledger.id,
+        accountId: acctIdByKey[acctDefs.find((a) => a.key === b.accountId)!.name],
+        balanceAmountCents: b.balanceAmountCents,
+        snapshotDate: b.snapshotDate,
+        remark: b.remark ?? null,
+        createdBy: admin.id,
+        currencyCode: cur,
+        usedRate: rate,
+        baseBalanceAmountCents: convertCents(b.balanceAmountCents, rate, "1"),
+      };
+    }),
   );
 
   // 12) 投资持仓 / Investment holdings
   const holdingRows = await db.insert(investmentHoldings).values(
     HOLDING_DEFS.map((h) => {
+      const cur = acctCurrencyByKey[h.accountId] ?? "CNY";
+      const rate = rateMap.get(cur) ?? "1";
       const def: typeof investmentHoldings.$inferInsert = {
         ledgerId: ledger.id,
         createdBy: admin.id,
@@ -212,6 +261,12 @@ async function main() {
         purchaseDate: h.purchaseDate,
         status: h.status,
         remark: h.remark,
+        currencyCode: cur,
+        usedRate: rate,
+        baseCostCents: convertCents(h.costCents, rate, "1"),
+        baseFeeCents: convertCents(h.feeCents, rate, "1"),
+        baseValueCents: convertCents(h.currentValueCents, rate, "1"),
+        baseDividendCents: 0,
       };
       if (h.code) def.code = h.code;
       if (h.maturityDate) def.maturityDate = h.maturityDate;
@@ -223,8 +278,32 @@ async function main() {
     }),
   ).returning({ id: investmentHoldings.id, name: investmentHoldings.name });
 
-  // 12.5) 持仓标签（持仓级标签：列表「标签」列展示、编辑页可改）/ Holding tags (shown in list "tags" column, editable in the form)
+  // 持仓名 → id 映射（买入流水回写 + 持仓标签共用）/ name → id map (shared by buy-flow writeback + holding tags)
   const holdingIdByName: Record<string, string> = Object.fromEntries(holdingRows.map((h) => [h.name, h.id]));
+
+  // 12.4) 买入转账流水（与 createInvestmentService / insertHoldingCore 一致：扣款账户→关联账户，金额=成本+费用）/ Buy transfer flows
+  for (const h of HOLDING_DEFS) {
+    if (h.paymentAccountId === h.accountId) continue;
+    const buyCents = h.costCents + h.feeCents;
+    if (buyCents <= 0) continue;
+    const hid = holdingIdByName[h.name];
+    if (!hid) continue;
+    const [buyTx] = await db.insert(transactions).values({
+      ledgerId: ledger.id,
+      accountId: acctIdByKey[acctDefs.find((a) => a.key === h.paymentAccountId)!.name],
+      toAccountId: acctIdByKey[acctDefs.find((a) => a.key === h.accountId)!.name],
+      type: TX.transfer, categoryId: null, projectId: null,
+      amountCents: buyCents,
+      txDate: h.purchaseDate,
+      remark: `买入 ${h.name}`,
+      createdBy: admin.id,
+      ...txCurrencyFields(h.paymentAccountId, h.accountId, TX.transfer, buyCents),
+    }).returning({ id: transactions.id });
+    // 写回买入流水指针，使编辑持仓可精确改写 / 删除该流水（与 buyTransactionId 特性一致）
+    await db.update(investmentHoldings).set({ buyTransactionId: buyTx.id }).where(eq(investmentHoldings.id, hid));
+  }
+
+  // 12.5) 持仓标签（持仓级标签：列表「标签」列展示、编辑页可改）/ Holding tags (shown in list "tags" column, editable in the form)
   const holdingTagRows = HOLDING_TAG_DEFS
     .map((x) => ({ holdingId: holdingIdByName[x.holding], tagId: tagMap[x.tag]?.id }))
     .filter((x): x is { holdingId: string; tagId: string } => Boolean(x.holdingId && x.tagId));

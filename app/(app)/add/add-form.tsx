@@ -9,7 +9,7 @@ import { ConfirmButton } from "../components/confirm";
 import { TagPicker } from "../components/tag-picker";
 import { localDateKey } from "@/lib/datetime";
 import { DEFAULT_TIME_ZONE } from "@/i18n/timezones";
-import { DEFAULT_CURRENCY, TX, type TransactionType } from "@/lib/constants"
+import { DEFAULT_CURRENCY, TX, TRANSACTIONS_PATH, type TransactionType } from "@/lib/constants"
 import { isInvestmentAccount } from "@/lib/constants";
 
 /** 记一笔表单：类型切换 + 账户/分类/项目/标签（i18n） */
@@ -74,7 +74,7 @@ export function AddForm({
       : await createTransaction(input);
     setPending(false);
     if (r.ok) {
-      router.push("/transactions");
+      router.push(TRANSACTIONS_PATH);
       router.refresh();
     } else setErr(r.error);
   }
@@ -82,7 +82,7 @@ export function AddForm({
   /** 取消：优先回退上一页（保留来源页与筛选条件），无历史记录时兜底回流水列表 */
   function handleCancel() {
     if (typeof window !== "undefined" && window.history.length > 1) router.back();
-    else router.push("/transactions");
+    else router.push(TRANSACTIONS_PATH);
   }
 
   /** 保存前校验（替代原生 required，支持 i18n） */

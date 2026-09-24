@@ -38,6 +38,8 @@ export default async function RecurringPage() {
           dayOfMonth: p.dayOfMonth,
           dayOfWeek: p.dayOfWeek,
           account: acctMap.get(p.accountId)?.name ?? "-",
+          // 计划金额按关联账户币种存储：展示时用该账户的币种符号 / plan amount is in the account's currency
+          currencyCode: acctMap.get(p.accountId)?.currencyCode,
           toAccount: p.toAccountId ? (acctMap.get(p.toAccountId)?.name ?? "-") : undefined,
           category: p.categoryId ? (catMap.get(p.categoryId)?.name ?? "-") : undefined,
           nextDate: p.nextDate,

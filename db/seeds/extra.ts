@@ -98,7 +98,8 @@ export const BALANCE_DEFS: BalanceDef[] = [
   { accountId: "credit",       balanceAmountCents: -486000, snapshotDate: "2026-09-01" },
   { accountId: "wechat",       balanceAmountCents: 645200, snapshotDate: "2026-09-01" },
   { accountId: "stock",        balanceAmountCents: 15200000, snapshotDate: "2026-09-01" },
-  { accountId: "usd",          balanceAmountCents: 120000, snapshotDate: "2026-09-01" },
+  // 原币口径：$166.67（基准 ≈ ¥1,200，由 seed 按汇率折算）/ native: $166.67 (≈¥1,200 in base, converted in seed)
+  { accountId: "usd",          balanceAmountCents: 16667, snapshotDate: "2026-09-01" },
   { accountId: "bond",         balanceAmountCents: 8000000, snapshotDate: "2026-09-01" },
   { accountId: "gold",         balanceAmountCents: 2644000, snapshotDate: "2026-09-01" },
   // 新增保障类 / 资产类账户（无历史流水，余额 = 期初）/ Added protection / asset accounts (no history, balance = opening)

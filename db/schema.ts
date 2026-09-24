@@ -152,7 +152,8 @@ export const accounts = sqliteTable(
     type: text("type").$type<AccountType>().notNull().default(ACCT.cash),
     icon: text("icon").notNull().default("💳"), // 账户图标 / account icon
     currencyCode: text("currency_code").notNull().default(DEFAULT_CURRENCY), // 账户币种代码（默认 CNY）/ account currency code (default CNY)
-    openingBalanceCents: integer("opening_balance_cents").notNull().default(0), // 期初余额（分）/ opening balance (cents)
+    openingBalanceCents: integer("opening_balance_cents").notNull().default(0), // 期初余额（分，原币 = currencyCode）/ opening balance (cents, native = currencyCode)
+    baseOpeningBalanceCents: integer("base_opening_balance_cents").notNull().default(0), // 期初余额折算基准币种（分，写入时快照，历史不可变）/ opening balance in base currency (snapshot at write)
     isAsset: integer("is_asset", { mode: "boolean" }).notNull().default(TRUE), // 是否计入资产 / counts as asset
     sort: integer("sort").notNull().default(0),
     remark: text("remark"), // 备注（原 note 更名）/ remark (renamed from note)
@@ -234,7 +235,13 @@ export const transactions = sqliteTable(
     type: text("type").$type<TransactionType>().notNull(),
     categoryId: text("category_id"), // 分类（transfer 可为空）/ category (nullable for transfer)
     projectId: text("project_id"), // 归属项目（可空）/ owning project (nullable)
-    amountCents: integer("amount_cents").notNull(), // 金额（分，恒为正）/ amount (cents, always positive)
+    amountCents: integer("amount_cents").notNull(), // 金额（分，恒为正，原币 = currencyCode）/ amount (cents, positive, native = currencyCode)
+    currencyCode: text("currency_code").notNull().default(DEFAULT_CURRENCY), // 原币代码（= 来源账户币种）/ native currency (= source account's currency)
+    toCurrencyCode: text("to_currency_code"), // 转账目标账户币种（仅 transfer）/ transfer target currency (transfer only)
+    usedRateFrom: text("used_rate_from"), // 快照：原币→基准汇率（写入时）/ snapshot: native→base rate at write
+    usedRateTo: text("used_rate_to"), // 快照：目标币种→基准汇率（写入时）/ snapshot: target→base rate at write
+    toAmountCents: integer("to_amount_cents"), // 转账目标账户入账金额（分，原币 = toCurrencyCode；非 transfer 为空）/ transfer credit amount (native = toCurrencyCode; null for non-transfer)
+    baseAmountCents: integer("base_amount_cents").notNull().default(0), // 折算到基准币种的金额（分，写入时快照，历史不可变）/ amount in base currency (snapshot at write, immutable)
     txDate: text("tx_date").notNull(), // 发生日期 YYYY-MM-DD / occurred date YYYY-MM-DD
     remark: text("remark"), // 备注（原 note 更名）/ remark (renamed from note)
     createdBy: text("created_by").notNull(),
@@ -333,7 +340,10 @@ export const balances = sqliteTable(
     id: id(),
     ledgerId: text("ledger_id").notNull(),
     accountId: text("account_id").notNull(),
-    balanceAmountCents: integer("balance_amount_cents").notNull(), // 快照余额（分）/ snapshot balance (cents)
+    balanceAmountCents: integer("balance_amount_cents").notNull(), // 快照余额（分，原币 = currencyCode）/ snapshot balance (cents, native = currencyCode)
+    currencyCode: text("currency_code").notNull().default(DEFAULT_CURRENCY), // 原币代码（= 账户币种）/ native currency (= account currency)
+    usedRate: text("used_rate"), // 快照：原币→基准汇率（写入时）/ snapshot: native→base rate at write
+    baseBalanceAmountCents: integer("base_balance_amount_cents").notNull().default(0), // 折算基准币种余额（分，写入时快照）/ base-currency balance (snapshot)
     snapshotDate: text("snapshot_date").notNull(), // 快照日期 YYYY-MM-DD / snapshot date YYYY-MM-DD
     remark: text("remark"), // 备注 / remark
     createdBy: text("created_by").notNull(),
@@ -428,6 +438,13 @@ export const investmentHoldings = sqliteTable(
     dividendCents: integer("dividend_cents").notNull().default(0), // 累计派息（分）：派息时累加，市值同步除权 / cumulative dividends (cents): added on payout, value ex-div
     remark: text("remark"),
     projectId: text("project_id"), // 归属项目（可空）/ owning project (nullable)
+    buyTransactionId: text("buy_transaction_id"), // 买入「转账」流水 id 指针；为空表示旧持仓 / 未生成买入流水（paymentAccountId=关联账户 或 金额=0）/ buy transfer id pointer; null for legacy holdings or when no buy transfer was generated
+    currencyCode: text("currency_code").notNull().default(DEFAULT_CURRENCY), // 原币代码（= 关联账户币种）/ native currency (= linked account currency)
+    usedRate: text("used_rate"), // 快照：原币→基准汇率（写入时）/ snapshot: native→base rate at write
+    baseCostCents: integer("base_cost_cents").notNull().default(0), // 成本折算基准（分）/ cost in base
+    baseFeeCents: integer("base_fee_cents").notNull().default(0), // 费用折算基准（分）/ fee in base
+    baseValueCents: integer("base_value_cents").notNull().default(0), // 市值折算基准（分）/ value in base
+    baseDividendCents: integer("base_dividend_cents").notNull().default(0), // 累计派息折算基准（分）/ cumulative dividend in base
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

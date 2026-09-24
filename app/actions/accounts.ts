@@ -2,7 +2,7 @@
 
 // ratcount · 账户写操作（薄封装）/ Account writes (thin wrapper)
 //  - 写逻辑已抽到 lib/services/accounts；此处仅做「守卫 + 当前账本 + revalidatePath」，服务端行为零回归。
-import { DASHBOARD_PATH } from "@/lib/constants";
+import { DASHBOARD_PATH, BALANCE_PATH } from "@/lib/constants";
 import { requireLedgerEditor } from "@/lib/scope";
 import { getCurrentLedgerId } from "@/lib/ledger";
 import * as svc from "@/lib/services/accounts";
@@ -17,7 +17,7 @@ export async function createAccount(input: AccountInput) {
   if (r.ok) {
     revalidatePath("/accounts");
     revalidatePath(DASHBOARD_PATH);
-    revalidatePath("/balance");
+    revalidatePath(BALANCE_PATH);
   }
   return r;
 }
@@ -30,7 +30,7 @@ export async function updateAccount(id: string, input: AccountInput) {
   if (r.ok) {
     revalidatePath("/accounts");
     revalidatePath(DASHBOARD_PATH);
-    revalidatePath("/balance");
+    revalidatePath(BALANCE_PATH);
   }
   return r;
 }
@@ -43,7 +43,7 @@ export async function deleteAccount(id: string) {
   if (r.ok) {
     revalidatePath("/accounts");
     revalidatePath(DASHBOARD_PATH);
-    revalidatePath("/balance");
+    revalidatePath(BALANCE_PATH);
   }
   return r;
 }

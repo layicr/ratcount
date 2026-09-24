@@ -24,7 +24,7 @@ import { DEFAULT_TIME_ZONE } from "@/i18n/timezones";
 /** 近 6 月收支趋势（按 nowTotal 向前补 6 个月，空月补零）/ Last-6-month trend (fill 6 months back from now, zero-pad empty months) */
 function buildTrend(
   nowTotal: number,
-  trendTxs: { type: string; amountCents: number; txDate: string }[],
+  trendTxs: { type: string; baseAmountCents: number; txDate: string }[],
 ): { m: string; income: number; expense: number }[] {
   const trend: { m: string; income: number; expense: number }[] = [];
   const trendMap = new Map<string, { income: number; expense: number }>();
@@ -37,8 +37,8 @@ function buildTrend(
   for (const t of trendTxs) {
     const slot = trendMap.get(t.txDate.slice(0, 7));
     if (slot) {
-      if (t.type === TX.income) slot.income += t.amountCents;
-      if (t.type === TX.expense) slot.expense += t.amountCents;
+      if (t.type === TX.income) slot.income += t.baseAmountCents;
+      if (t.type === TX.expense) slot.expense += t.baseAmountCents;
     }
   }
   return trend;
@@ -46,12 +46,12 @@ function buildTrend(
 
 /** 资产分布（账户类型 + 投资伪类型 invest_*，避免与账户类型同名冲突），按金额降序 / Asset distribution (account type + invest_ pseudo-type to avoid name clash with account types), sorted by amount desc */
 function buildDistribution(
-  accts: { type: string; isAsset: boolean; balanceCents: number }[],
+  accts: { type: string; isAsset: boolean; baseBalanceCents: number }[],
   investByType: Map<string, number>,
 ): { type: string; cents: number; pct: number }[] {
   const dist = new Map<string, number>();
-  for (const a of accts) if (a.isAsset && a.balanceCents > 0) {
-    dist.set(a.type, (dist.get(a.type) ?? 0) + a.balanceCents);
+  for (const a of accts) if (a.isAsset && a.baseBalanceCents > 0) {
+    dist.set(a.type, (dist.get(a.type) ?? 0) + a.baseBalanceCents);
   }
   for (const [t, v] of investByType) {
     const k = investDistKey(t);
@@ -86,7 +86,7 @@ export async function dashboardStats(
   const rangeStart = periodStart < trendStart ? periodStart : trendStart;
   const rangeEnd = periodEnd > today ? periodEnd : today;
   const txQuery = db
-    .select({ type: transactions.type, amountCents: transactions.amountCents, txDate: transactions.txDate })
+    .select({ type: transactions.type, amountCents: transactions.amountCents, baseAmountCents: transactions.baseAmountCents, txDate: transactions.txDate })
     .from(transactions)
     .where(and(
       eq(transactions.ledgerId, ledgerId),
@@ -101,9 +101,9 @@ export async function dashboardStats(
     db
       .select({
         type: investmentHoldings.type,
-        v: investmentHoldings.currentValueCents,
-        cost: investmentHoldings.costCents,
-        fee: investmentHoldings.feeCents,
+        v: investmentHoldings.baseValueCents,
+        cost: investmentHoldings.baseCostCents,
+        fee: investmentHoldings.baseFeeCents,
       })
       .from(investmentHoldings)
       .where(investNetWorthFilter(ledgerId)),
@@ -120,18 +120,18 @@ export async function dashboardStats(
     if (v > 0) investByType.set(r.type, (investByType.get(r.type) ?? 0) + v);
   }
 
-  // 净资产 = Σ is_asset 余额 + Σ 投资未实现盈亏 + Σ 负债（is_asset=false 的信用类）/ Net worth = Σ asset balances + Σ investment unrealized P&L + Σ liabilities (credit-type, is_asset=false)
+  // 净资产 = Σ is_asset 基准余额 + Σ 投资未实现盈亏 + Σ 负债（is_asset=false 的信用类）/ Net worth = Σ asset base balances + Σ investment unrealized P&L + Σ liabilities (credit-type, is_asset=false)
   let assets = investmentValue, liabilities = 0;
   for (const a of accts) {
-    if (a.isAsset) assets += a.balanceCents;
-    else if (a.balanceCents < 0) liabilities += Math.abs(a.balanceCents);
+    if (a.isAsset) assets += a.baseBalanceCents;
+    else if (a.baseBalanceCents < 0) liabilities += Math.abs(a.baseBalanceCents);
   }
   const netWorth = assets - liabilities;
 
   let monthIncome = 0, monthExpense = 0, incomeCount = 0, expenseCount = 0;
   for (const t of periodTxs) {
-    if (t.type === TX.income) { monthIncome += t.amountCents; incomeCount++; }
-    if (t.type === TX.expense) { monthExpense += t.amountCents; expenseCount++; }
+    if (t.type === TX.income) { monthIncome += t.baseAmountCents; incomeCount++; }
+    if (t.type === TX.expense) { monthExpense += t.baseAmountCents; expenseCount++; }
   }
 
   const trend = buildTrend(nowTotal, trendTxs);
@@ -147,7 +147,7 @@ export async function dashboardStats(
     incomeCount, expenseCount, totalCount: incomeCount + expenseCount,
     trend, distribution,
     recent,
-    totalBalance: accts.reduce((s, a) => s + (a.isAsset ? a.balanceCents : 0), 0),
+    totalBalance: accts.reduce((s, a) => s + (a.isAsset ? a.baseBalanceCents : 0), 0),
   };
 }
 
@@ -157,7 +157,7 @@ export async function yearSummary(ledgerId: string, year?: number, timeZone: str
   const yearStart = `${y}-01-01`;
   const yearEnd = `${y}-12-31`;
   const txs = await db
-    .select({ type: transactions.type, amountCents: transactions.amountCents, txDate: transactions.txDate })
+    .select({ type: transactions.type, baseAmountCents: transactions.baseAmountCents, txDate: transactions.txDate })
     .from(transactions)
     .where(and(
       eq(transactions.ledgerId, ledgerId),
@@ -169,8 +169,8 @@ export async function yearSummary(ledgerId: string, year?: number, timeZone: str
   for (const t of txs) {
     const mi = parseInt(t.txDate.slice(5, 7), 10);
     if (mi >= 1 && mi <= 12) {
-      if (t.type === TX.income) months[mi - 1].income += t.amountCents;
-      if (t.type === TX.expense) months[mi - 1].expense += t.amountCents;
+      if (t.type === TX.income) months[mi - 1].income += t.baseAmountCents;
+      if (t.type === TX.expense) months[mi - 1].expense += t.baseAmountCents;
     }
   }
   return months;

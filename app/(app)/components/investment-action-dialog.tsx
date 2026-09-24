@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { todayStr } from "@/lib/investment-flow";
 import { TagPicker } from "./tag-picker";
 import { ConfirmButton } from "./confirm";
-import { useMoney } from "@/components/currency-context";
+import { useBaseCurrency } from "@/components/currency-context";
+import { formatCurrency } from "@/lib/money";
 
 /**
  * 投资操作弹窗（卖出 / 到期 / 派息共用）
@@ -34,6 +35,7 @@ export function InvestmentActionDialog({
   dividendQty,
   splitAmount,
   dividendMode,
+  currencyCode,
 }: {
   action: (input: {
     amountYuan: string;
@@ -67,9 +69,14 @@ export function InvestmentActionDialog({
   splitAmount?: { principalCents: number; interestCents: number };
   /** 派息模式：金额标签用「派息金额」（无数量口径的持仓，如储蓄型保险，也走这条） */
   dividendMode?: boolean;
+  /** 持仓币种（原币）：弹窗内金额均按此币种符号展示 */
+  currencyCode?: string;
 }) {
   const t = useTranslations();
-  const money = useMoney();
+  const baseCur = useBaseCurrency();
+  const locale = useLocale();
+  // 弹窗内金额均为原币（持仓币种）口径，按各自币种符号展示 / dialog amounts are native, shown with the holding's own symbol
+  const nativeMoney = (cents: number) => formatCurrency(cents, currencyCode ?? baseCur, locale);
   const [open, setOpen] = useState(false);
   const [amountYuan, setAmountYuan] = useState(defaultAmountYuan);
   // 定期到期：本金 / 利息分开录入（未传 splitAmount 时不使用）
@@ -311,7 +318,7 @@ export function InvestmentActionDialog({
                   <div className="flex items-center justify-between rounded-lg bg-slate-50 px-2 py-1.5 text-xs">
                     <span className="text-slate-500">{t("common.total")}</span>
                     <span className="font-semibold text-slate-700">
-                      {splitTotalCents !== null ? money(splitTotalCents) : "—"}
+                      {splitTotalCents !== null ? nativeMoney(splitTotalCents) : "—"}
                     </span>
                   </div>
                 </>
@@ -348,7 +355,7 @@ export function InvestmentActionDialog({
                 <div className="flex items-center justify-between rounded-lg bg-slate-50 px-2 py-1.5 text-xs">
                   <span className="text-slate-500">{t("investment.netProceeds")}</span>
                   <span className="font-semibold text-slate-700">
-                    {netPreviewCents !== null ? money(netPreviewCents) : "—"}
+                    {netPreviewCents !== null ? nativeMoney(netPreviewCents) : "—"}
                   </span>
                 </div>
               )}

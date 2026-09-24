@@ -57,9 +57,9 @@ function purchaseDateInRange(start: string, end: string): SQL {
 export async function investmentNetWorthValue(ledgerId: string): Promise<number> {
   const rows = await db
     .select({
-      v: investmentHoldings.currentValueCents,
-      cost: investmentHoldings.costCents,
-      fee: investmentHoldings.feeCents,
+      v: investmentHoldings.baseValueCents,
+      cost: investmentHoldings.baseCostCents,
+      fee: investmentHoldings.baseFeeCents,
     })
     .from(investmentHoldings)
     .where(investNetWorthFilter(ledgerId));
@@ -85,10 +85,10 @@ export async function investmentOverview(ledgerId: string, period?: StatsPeriod,
     .select({
       type: investmentHoldings.type,
       cnt: count(),
-      cost: sql<number>`coalesce(sum(${investmentHoldings.costCents}), 0)`,
-      fee: sql<number>`coalesce(sum(${investmentHoldings.feeCents}), 0)`,
-      value: sql<number>`coalesce(sum(${investmentHoldings.currentValueCents}), 0)`,
-      dividend: sql<number>`coalesce(sum(${investmentHoldings.dividendCents}), 0)`,
+      cost: sql<number>`coalesce(sum(${investmentHoldings.baseCostCents}), 0)`,
+      fee: sql<number>`coalesce(sum(${investmentHoldings.baseFeeCents}), 0)`,
+      value: sql<number>`coalesce(sum(${investmentHoldings.baseValueCents}), 0)`,
+      dividend: sql<number>`coalesce(sum(${investmentHoldings.baseDividendCents}), 0)`,
     })
     .from(investmentHoldings)
     .where(inRange)

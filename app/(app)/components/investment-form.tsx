@@ -37,6 +37,8 @@ export type HoldingItem = {
   remark: string | null;
   /** 累计派息（分）：派息时累加，市值同步除权 */
   dividendCents: number;
+  /** 持仓币种（原币存储，展示用各自币种符号）/ holding currency (native; display with its own symbol */
+  currencyCode?: string;
   /** 持仓标签 ID（编辑回显用，由页面查询后附上） */
   tagIds?: string[];
   /** 持仓标签完整信息（列表展示用，由页面查询后附上） */

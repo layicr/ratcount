@@ -41,7 +41,7 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /** 默认语言翻译器（懒加载，渲染 summaryKey 得到可搜索/回退的默认语言文本）/ Default-locale translator (lazy): renders summaryKey into searchable/fallback default-language text */
 let defaultTranslator: ((key: string, params?: Record<string, unknown>) => string) | null = null;
-function getDefaultTranslator() {
+export function getDefaultTranslator() {
   if (!defaultTranslator) {
     try {
       defaultTranslator = createTranslator({
