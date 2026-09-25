@@ -12,9 +12,11 @@ import { test, before } from "node:test";
 import assert from "node:assert/strict";
 
 import { setupTestDb, seedTestData } from "./helpers/db-fixture";
+import { accounts } from "../db/schema";
 
 let db: any;
 let seed: any;
+let payer: any;
 let createInvestmentService: any;
 let listInvestmentsByType: any;
 
@@ -22,6 +24,11 @@ before(async () => {
   const ctx = await setupTestDb();
   db = ctx.db;
   seed = await seedTestData(db);
+  const [payerAcct] = await db.insert(accounts).values({
+    ledgerId: seed.l1.id, name: "付款账户", type: "cash",
+    openingBalanceCents: 1_000_000, isAsset: true, createdBy: seed.u1.id,
+  }).returning();
+  payer = payerAcct.id as string;
   ({ createInvestmentService } = await import("../lib/services/investments"));
   ({ listInvestmentsByType } = await import("../lib/queries/investments"));
 });
@@ -36,7 +43,7 @@ test("定期管理：列表按起息日降序", async () => {
         type: "deposit",
         name: `定存${i}`,
         accountId: seed.ac2.id,
-        paymentAccountId: seed.ac1.id,
+        paymentAccountId: payer,
         quantity: 0,
         costYuan: "1000.00",
         feeYuan: "0",
@@ -66,7 +73,7 @@ test("固收类（国债）：同样按起息日降序", async () => {
         type: "bond",
         name: `国债${i}`,
         accountId: seed.ac2.id,
-        paymentAccountId: seed.ac1.id,
+        paymentAccountId: payer,
         quantity: 0,
         costYuan: "1000.00",
         feeYuan: "0",
@@ -96,7 +103,7 @@ test("股票管理：仍按市值降序（不受定期排序影响）", async ()
         type: "stock",
         name: `股票${i}`,
         accountId: seed.ac2.id,
-        paymentAccountId: seed.ac1.id,
+        paymentAccountId: payer,
         quantity: 10,
         costYuan: "100.00",
         feeYuan: "0",

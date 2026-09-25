@@ -179,6 +179,23 @@ export function InvestmentForm({
     checks.push({ ok: !!form.paymentAccountId, err: "investment.paymentAccountRequired" });
     // 借贷必须选择方向（借出 / 借入）
     if (cfg.isLoan) checks.push({ ok: !!form.direction, err: "investment.directionRequired" });
+    // 扣款账户余额不足提示（与定期 / 服务端口径一致）：非借入、跨账户买入时校验
+    if (!(cfg.isLoan && form.direction === "borrow") && form.paymentAccountId && form.paymentAccountId !== form.accountId) {
+      const buyCents = Math.round(Number(form.costYuan || 0) * 100) + Math.round(Number(form.feeYuan || 0) * 100);
+      if (buyCents > 0) {
+        const payer = accounts.find((a) => a.id === form.paymentAccountId);
+        if (payer) {
+          // 编辑态下，若扣款账户未变，旧买入流水会被删除释放额度，计入可用余额（与服务端口径一致）
+          const oldBuyCents =
+            initial && initial.paymentAccountId === form.paymentAccountId
+              ? (initial.costCents || 0) + (initial.feeCents || 0)
+              : 0;
+          if (payer.balanceCents + oldBuyCents < buyCents) {
+            checks.push({ ok: false, err: "errors.insufficientBalance" });
+          }
+        }
+      }
+    }
     const failed = checks.find((c) => !c.ok);
     if (failed) { setErr(failed.err); return false; }
     return true;

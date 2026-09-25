@@ -19,6 +19,7 @@ import { setupTestDb, seedTestData } from "./helpers/db-fixture";
 
 let db: any;
 let seed: any;
+let payer: any;
 let createInvestmentService: any;
 let sellInvestmentService: any;
 let investmentNetWorthValue: any;
@@ -36,6 +37,11 @@ before(async () => {
   } = await import("../lib/services/investments"));
   ({ investmentNetWorthValue } = await import("../lib/queries/investments"));
   ({ investmentHoldings, transactions, accounts } = await import("../db/schema"));
+  const [payerAcct] = await db.insert(accounts).values({
+    ledgerId: seed.l1.id, name: "付款账户", type: "cash",
+    openingBalanceCents: 1_000_000, isAsset: true, createdBy: seed.u1.id,
+  }).returning();
+  payer = payerAcct.id as string;
 });
 
 /** 为某账本新建一个借入负债账户（isAsset=false）并返回其 id */
@@ -92,7 +98,7 @@ test("借出：买入转账 扣款账户 → 关联账户，净资产正贡献",
       name: "借出老王",
       direction: "lend",
       accountId: seed.ac2.id, // 关联账户（借出资产）
-      paymentAccountId: seed.ac1.id, // 扣款账户（现金）
+      paymentAccountId: payer, // 扣款账户（充足余额）
       quantity: 0,
       costYuan: "1000.00",
       feeYuan: "0",

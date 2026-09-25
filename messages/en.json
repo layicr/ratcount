@@ -235,6 +235,7 @@
     "onlyXlsx": "Only .xlsx / .csv supported",
     "importFailed": "Batch parse failed, no data imported",
     "saveFailed": "Save failed, try again",
+    "insufficientBalance": "Insufficient payment account balance; this run was skipped",
     "txNotFound": "Transaction not found",
     "fileTooLarge": "File too large, max {max}MB",
     "tooManyRows": "Max {max} rows per import, got {count}",

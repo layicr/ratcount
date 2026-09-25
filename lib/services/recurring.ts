@@ -4,6 +4,7 @@ import { transactions, recurringPlans } from "@/db/schema";
 import { MR, recurringFrequencies, AUDIT_ACTION, ENTITY, RECURRING_STATUS, TX } from "@/lib/constants";
 import { db } from "@/lib/db";
 import { withAudit } from "@/lib/audit";
+import { listAccountsWithBalance } from "@/lib/queries";
 import { yuanToCents } from "@/lib/money";
 import { loadCurrencyRates } from "@/lib/currency";
 import { resolveTransactionMoney } from "@/lib/tx-currency";
@@ -150,6 +151,14 @@ export async function runRecurringPlanService(actor: Actor, ledgerId: string, id
   }
   const txDate = postDate ?? p.nextDate;
   const nextDate = nextRecurringDate(p.frequency, p.nextDate, { dayOfMonth: p.dayOfMonth, dayOfWeek: p.dayOfWeek });
+
+  // 余额守卫：支出 / 转账的扣款账户（accountId）余额不足以覆盖计划金额时拦截，避免账户透支变负
+  // Balance guard: for expense/transfer, block when the payer account can't cover the planned amount
+  if (p.type === TX.expense || p.type === TX.transfer) {
+    const accts = await listAccountsWithBalance(ledgerId);
+    const bal = accts.find((a) => a.id === p.accountId)?.balanceCents ?? 0;
+    if (bal < p.amountCents) return { ok: false as const, error: "errors.insufficientBalance" };
+  }
 
   try {
     await withAudit(

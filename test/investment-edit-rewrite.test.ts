@@ -16,9 +16,11 @@ import assert from "node:assert/strict";
 import { eq, and } from "drizzle-orm";
 
 import { setupTestDb, seedTestData } from "./helpers/db-fixture";
+import { accounts } from "../db/schema";
 
 let db: any;
 let seed: any;
+let payer: any;
 let createInvestmentService: any;
 let updateInvestmentService: any;
 let investmentHoldings: any;
@@ -31,6 +33,11 @@ before(async () => {
   seed = await seedTestData(db);
   ({ createInvestmentService, updateInvestmentService } = await import("../lib/services/investments"));
   ({ investmentHoldings, transactions, transactionTags } = await import("../db/schema"));
+  const [payerAcct] = await db.insert(accounts).values({
+    ledgerId: seed.l1.id, name: "付款账户", type: "cash",
+    openingBalanceCents: 1_000_000, isAsset: true, createdBy: seed.u1.id,
+  }).returning();
+  payer = payerAcct.id as string;
 });
 
 /** 通过 create 服务新建一条「带买入流水」的持仓，返回持仓 id（买入流水 from=ac1→to=ac2，buy_transaction_id 已写回） */
@@ -42,7 +49,7 @@ async function createHolding(name: string, input: Record<string, unknown> = {}) 
       type: "stock",
       name,
       accountId: seed.ac2.id, // 关联账户
-      paymentAccountId: seed.ac1.id, // 扣款账户（与关联账户不同 → 生成买入流水）
+      paymentAccountId: payer, // 扣款账户（充足余额，与关联账户不同 → 生成买入流水）
       quantity: 100,
       costYuan: "500.00",
       feeYuan: "10.00",
@@ -78,7 +85,7 @@ test("编辑改成本/费用：按指针改写买入流水金额（不重复）�
     id,
     {
       type: "stock", name,
-      accountId: seed.ac2.id, paymentAccountId: seed.ac1.id,
+      accountId: seed.ac2.id, paymentAccountId: payer,
       quantity: 100, costYuan: "800.00", feeYuan: "20.00", valueYuan: "900.00",
       purchaseDate: "2026-01-01",
     },
@@ -200,7 +207,7 @@ test("编辑携带 tagIds：买入流水标签整体替换为持仓标签", asyn
     id,
     {
       type: "stock", name,
-      accountId: seed.ac2.id, paymentAccountId: seed.ac1.id,
+      accountId: seed.ac2.id, paymentAccountId: payer,
       quantity: 100, costYuan: "500.00", feeYuan: "10.00", valueYuan: "600.00",
       purchaseDate: "2026-01-01",
       tagIds: [], // 清空标签

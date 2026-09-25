@@ -11,6 +11,7 @@ import { ensureCategory, type Tx, assertRefsInLedger, RefNotInLedgerError } from
 import { yuanToCents, centsToYuan } from "@/lib/money";
 import { loadCurrencyRates, rateOf, toBaseCents } from "@/lib/currency";
 import { resolveTransactionMoney } from "@/lib/tx-currency";
+import { listAccountsWithBalance } from "@/lib/queries";
 import { actualCostCents, profitCents, prorateSell, todayStr, isDateStr, daysBetween } from "@/lib/investment-flow";
 import { fmtDate, parseDate } from "@/lib/recurring";
 import { type Actor } from "./guard";
@@ -105,6 +106,19 @@ export async function createInvestmentService(actor: Actor, ledgerId: string, in
   const feeCents = d.feeYuan ? toCents(d.feeYuan) : 0;
   if (costCents === null || valueCents === null || feeCents === null) {
     return { ok: false as const, error: "errors.invalidInput" };
+  }
+
+  // 余额守卫：非借入且跨账户买入（扣款账户 ≠ 关联账户）时，校验扣款账户余额是否足以支付（成本+费用），
+  // 不足则拦截，避免账户透支变负（与定期计划 runRecurringPlanService 口径一致）。借入方向现金到账增加，不校验。
+  // Balance guard: for non-borrow cross-account buy, block when the payer can't cover cost+fee (mirrors recurring run guard).
+  const isBorrow = d.type === INV.loan && d.direction === "borrow";
+  if (!isBorrow && d.paymentAccountId !== d.accountId) {
+    const buyCents = actualCostCents(costCents, feeCents);
+    if (buyCents > 0) {
+      const accts = await listAccountsWithBalance(ledgerId);
+      const payerBal = accts.find((a) => a.id === d.paymentAccountId)?.balanceCents ?? 0;
+      if (payerBal < buyCents) return { ok: false as const, error: "errors.insufficientBalance" };
+    }
   }
 
   try {
@@ -351,6 +365,29 @@ export async function updateInvestmentService(actor: Actor, ledgerId: string, id
     .limit(1);
   if (!cur) return { ok: false as const, error: "investment.notFound" };
   if (cur.status !== INVESTMENT_STATUS.active) return { ok: false as const, error: "investment.notActive" };
+
+  // 编辑买入同样做余额守卫：非借入、跨账户买入时，扣款账户在「回写买入流水」后余额不得透支。
+  // 编辑会先删除旧买入流水（释放旧买入额）再写入新流水（扣新买入额），故可用余额 = 当前余额 + 旧买入额
+  // （仅当旧流水扣款账户与本次一致时，旧买入额才计入本次可用额度；若编辑切换了扣款账户则不计）。
+  // Edit also guards the payer: available = current balance + old buy amount (only if same payer), mirrored from create.
+  const isBorrowEdit = d.type === INV.loan && d.direction === "borrow";
+  if (!isBorrowEdit && d.paymentAccountId !== d.accountId) {
+    const newBuyCents = actualCostCents(costCents, feeCents);
+    if (newBuyCents > 0) {
+      const accts = await listAccountsWithBalance(ledgerId);
+      const payerBal = accts.find((a) => a.id === d.paymentAccountId)?.balanceCents ?? 0;
+      let oldBuyCents = 0;
+      if (cur.buyTransactionId) {
+        const [oldBuy] = await db
+          .select({ amountCents: transactions.amountCents, accountId: transactions.accountId })
+          .from(transactions)
+          .where(and(eq(transactions.id, cur.buyTransactionId), eq(transactions.ledgerId, ledgerId)))
+          .limit(1);
+        if (oldBuy && oldBuy.accountId === d.paymentAccountId) oldBuyCents = oldBuy.amountCents ?? 0;
+      }
+      if (newBuyCents > payerBal + oldBuyCents) return { ok: false as const, error: "errors.insufficientBalance" };
+    }
+  }
 
   try {
     await withAudit(

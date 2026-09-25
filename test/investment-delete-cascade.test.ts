@@ -14,9 +14,11 @@ import assert from "node:assert/strict";
 import { and, eq } from "drizzle-orm";
 
 import { setupTestDb, seedTestData } from "./helpers/db-fixture";
+import { accounts } from "../db/schema";
 
 let db: any;
 let seed: any;
+let payer: any;
 let createInvestmentService: any;
 let deleteInvestmentService: any;
 let dividendInvestmentService: any;
@@ -37,10 +39,15 @@ before(async () => {
   } = await import("../lib/services/investments"));
   ({ listAccountsWithBalance: listAccounts } = await import("../lib/queries/accounts"));
   ({ investmentHoldings, transactions, transactionTags, holdingTags } = await import("../db/schema"));
+  const [payerAcct] = await db.insert(accounts).values({
+    ledgerId: seed.l1.id, name: "付款账户", type: "cash",
+    openingBalanceCents: 1_000_000, isAsset: true, createdBy: seed.u1.id,
+  }).returning();
+  payer = payerAcct.id as string;
 });
 
 test("定期删除：级联删除买入流水，账户余额回滚", async () => {
-  const before = (await listAccounts(seed.l1.id)).find((x: any) => x.id === seed.ac1.id).baseBalanceCents;
+  const before = (await listAccounts(seed.l1.id)).find((x: any) => x.id === payer).baseBalanceCents;
   const res = await createInvestmentService(
     { id: seed.u1.id },
     seed.l1.id,
@@ -48,7 +55,7 @@ test("定期删除：级联删除买入流水，账户余额回滚", async () =>
       type: "deposit",
       name: "定存A",
       accountId: seed.ac2.id, // 关联账户（定期）
-      paymentAccountId: seed.ac1.id, // 扣款账户（现金）
+      paymentAccountId: payer, // 扣款账户（充足余额）
       quantity: 0,
       costYuan: "1000.00",
       feeYuan: "0",
@@ -69,7 +76,7 @@ test("定期删除：级联删除买入流水，账户余额回滚", async () =>
   assert.equal(linked.length, 1, "买入流水应回指持仓");
 
   // 现金账户因转账减少 1000.00 = 100000 分
-  const afterCreate = (await listAccounts(seed.l1.id)).find((x: any) => x.id === seed.ac1.id).baseBalanceCents;
+  const afterCreate = (await listAccounts(seed.l1.id)).find((x: any) => x.id === payer).baseBalanceCents;
   assert.equal(afterCreate, before - 100000, "创建定存后现金余额应减少 1000.00");
 
   // 删除持仓
@@ -91,7 +98,7 @@ test("定期删除：级联删除买入流水，账户余额回滚", async () =>
   }
 
   // 余额回滚到创建前
-  const afterDelete = (await listAccounts(seed.l1.id)).find((x: any) => x.id === seed.ac1.id).baseBalanceCents;
+  const afterDelete = (await listAccounts(seed.l1.id)).find((x: any) => x.id === payer).baseBalanceCents;
   assert.equal(afterDelete, before, "删除后现金余额应回滚到创建前");
 });
 
@@ -103,7 +110,7 @@ test("股票带标签 + 派息：删除持仓同时清理买入流水、派息�
       type: "stock",
       name: "测试股",
       accountId: seed.ac2.id,
-      paymentAccountId: seed.ac1.id,
+      paymentAccountId: payer,
       quantity: 100,
       costYuan: "500.00",
       feeYuan: "10.00",
@@ -168,7 +175,7 @@ async function loanCascadeCase(dir: "borrow" | "lend"): Promise<void> {
       name: isBorrow ? "借入A" : "借出A",
       // 表单语义：借入时现金在 paymentAccountId、负债账户在 accountId；借出相反（服务层据此决定流水方向）
       accountId: isBorrow ? seed.ac1.id : seed.ac2.id,
-      paymentAccountId: isBorrow ? seed.ac2.id : seed.ac1.id,
+      paymentAccountId: payer,
       quantity: 0,
       costYuan: "2000.00",
       feeYuan: "0",

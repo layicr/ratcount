@@ -235,6 +235,7 @@
     "onlyXlsx": "僅支援 .xlsx / .csv 格式",
     "importFailed": "批次解析失敗，未匯入任何資料",
     "saveFailed": "儲存失敗，請重試",
+    "insufficientBalance": "扣款賬戶餘額不足，本期未執行",
     "txNotFound": "原交易不存在",
     "fileTooLarge": "檔案過大，最大 {max}MB",
     "tooManyRows": "單次匯入最多 {max} 行，當前 {count} 行",

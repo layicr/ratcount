@@ -435,7 +435,7 @@ export function RecurringManager({
             <div className="flex items-center gap-1">
               <button type="button" onClick={() => startEdit(p)} className="text-xs text-slate-500 hover:text-teal-600 hover:underline">{t("common.edit")}</button>
               <ConfirmButton
-                action={async () => { const r = await runRecurringPlan(p.id); flash(r.ok ? { ok: true, text: t("recurring.runOk") } : { ok: false, text: r.error ?? "" }); }}
+                action={async () => { const r = await runRecurringPlan(p.id); flash(r.ok ? { ok: true, text: t("recurring.runOk") } : { ok: false, text: r.error ? t(r.error, { defaultValue: r.error }) : "" }); }}
                 title={t("recurring.runTitle")}
                 desc={t("recurring.runDesc", { name: p.name })}
                 okText={t("recurring.run")}
