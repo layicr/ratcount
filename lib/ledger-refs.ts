@@ -102,6 +102,52 @@ export async function ensureAccount(
   return created.id;
 }
 
+/** 按「账本 + 名称」匹配项目，缺失则自动创建，返回项目 id（与 ensureAccount/ensureCategory 口径一致）/ Match a project by ledger + name; auto-create if missing; return id */
+export async function ensureProject(
+  tx: Tx,
+  ledgerId: string,
+  name: string,
+  opts: { createdBy: string; cache?: Map<string, string> },
+): Promise<string> {
+  const cached = opts.cache?.get(name);
+  if (cached) return cached;
+  const [exist] = await tx
+    .select({ id: projects.id })
+    .from(projects)
+    .where(and(eq(projects.ledgerId, ledgerId), eq(projects.name, name)))
+    .limit(1);
+  if (exist) { opts.cache?.set(name, exist.id); return exist.id; }
+  const [created] = await tx
+    .insert(projects)
+    .values({ ledgerId, name, createdBy: opts.createdBy })
+    .returning({ id: projects.id });
+  opts.cache?.set(name, created.id);
+  return created.id;
+}
+
+/** 按「账本 + 名称」匹配标签，缺失则自动创建（默认青色），返回标签 id / Match a tag by ledger + name; auto-create if missing (default teal); return id */
+export async function ensureTag(
+  tx: Tx,
+  ledgerId: string,
+  name: string,
+  opts: { createdBy: string; cache?: Map<string, string> },
+): Promise<string> {
+  const cached = opts.cache?.get(name);
+  if (cached) return cached;
+  const [exist] = await tx
+    .select({ id: tags.id })
+    .from(tags)
+    .where(and(eq(tags.ledgerId, ledgerId), eq(tags.name, name)))
+    .limit(1);
+  if (exist) { opts.cache?.set(name, exist.id); return exist.id; }
+  const [created] = await tx
+    .insert(tags)
+    .values({ ledgerId, name })
+    .returning({ id: tags.id });
+  opts.cache?.set(name, created.id);
+  return created.id;
+}
+
 /** 引用不属于当前账本时抛出，由调用方转为 i18n 错误码 / Thrown when a reference does not belong to the ledger; caller maps it to an i18n error code */
 export class RefNotInLedgerError extends Error {
   constructor(public field: string) {

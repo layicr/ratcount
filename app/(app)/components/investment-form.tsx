@@ -4,8 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations, useFormatter } from "next-intl";
 import { createInvestment, updateInvestment } from "@/app/actions/investments";
-import { type InvestmentType, INV, type MetalSubType, DEFAULT_CURRENCY } from "@/lib/constants";
-import { METAL_SUB_TYPES, displayToQuantity, quantityToDisplay, areaToDisplay, displayToArea, isStockLike, isFixedIncome, linkedAccountTypeOf } from "@/lib/investment-types";
+import { type InvestmentType, INV, ACCT, type MetalSubType, DEFAULT_CURRENCY } from "@/lib/constants";
+import { METAL_SUB_TYPES, displayToQuantity, quantityToDisplay, areaToDisplay, displayToArea, linkedAccountTypeOf, investmentTypeConfig } from "@/lib/investment-types";
 import { TagPicker } from "./tag-picker";
 import { ConfirmButton, useToast } from "./confirm";
 
@@ -35,10 +35,17 @@ export type HoldingItem = {
   projectId: string | null;
   status: string; // active / sold / matured / deleted
   remark: string | null;
+  /** 借贷方向：lend 借出 / borrow 借入（仅 loan 类型有意义）/ loan direction: lend out / borrow in (loan only) */
+  direction?: string | null;
   /** 累计派息（分）：派息时累加，市值同步除权 */
   dividendCents: number;
   /** 持仓币种（原币存储，展示用各自币种符号）/ holding currency (native; display with its own symbol */
   currencyCode?: string;
+  /** 基准币种折算快照（写入时按汇率折算，跨币种汇总用；缺失回退原币字段）/ base-currency snapshots (converted at write); used for cross-currency summary; fall back to native if absent */
+  baseCostCents?: number;
+  baseValueCents?: number;
+  baseFeeCents?: number;
+  baseDividendCents?: number;
   /** 持仓标签 ID（编辑回显用，由页面查询后附上） */
   tagIds?: string[];
   /** 持仓标签完整信息（列表展示用，由页面查询后附上） */
@@ -68,6 +75,7 @@ function initialForm(initial: HoldingItem | null, defaultSubType?: string) {
     subType: initial?.subType ?? defaultSubType ?? "gold",
     remark: initial?.remark ?? "",
     projectId: initial?.projectId ?? "",
+    direction: initial?.direction ?? "",
   };
 }
 
@@ -108,52 +116,71 @@ export function InvestmentForm({
   const [tagIds, setTagIds] = useState<string[]>(initial?.tagIds ?? []);
   const set = (k: keyof ReturnType<typeof initialForm>, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
-  const isMetal = type === INV.metal;
-  const isEstate = type === INV.real_estate;
-  const isInsurance = type === INV.insurance;
-  // 定期存款无「当前市值」概念：不显示该字段，保存时市值取本金
-  const isDeposit = type === INV.deposit;
-  // 类股票（股票 / 数字资产）：代码 + 数量为必填（标签带红色 *），并显示详细成本/收益文案
-  const showCode = isStockLike(type) || type === INV.fund || type === INV.collectible;
+  // 借贷方向切换：翻转后关联账户类型（loan / borrowed）随之变化，原选账户大概率不符，清空避免错配
+  // Loan direction switch: the linked account type (loan / borrowed) changes, so clear a mismatched selection
+  function setDirection(d: "lend" | "borrow") {
+    setForm((f) => {
+      const nextType = d === "borrow" ? ACCT.borrowed : ACCT.loan;
+      const cur = f.accountId ? accounts.find((a) => a.id === f.accountId) : undefined;
+      const keep = cur && cur.accountType === nextType ? f.accountId : "";
+      return { ...f, direction: d, accountId: keep };
+    });
+  }
+
+  // 投资类型 UI 配置（单一数据源）：集中管理类型判定 / 字段显隐 / 必填 / 数量标签，新增类型只改 investmentTypeConfig
+  // Investment type UI config (single source): type flags / field visibility / required / qty label
+  const cfg = investmentTypeConfig(type);
   // 关联账户按持仓类型限定账户类型（基金 → 基金账户；无匹配则不筛选）；
-  // 已选账户若不属于该类型（历史数据）仍保留在选项里，避免编辑页回显为空
-  const linkedType = linkedAccountTypeOf(type);
+  // 借贷按方向切换关联账户类型：借出 → loan 资产账户，借入 → borrowed 负债账户
+  const linkedType = cfg.isLoan
+    ? (form.direction === "borrow" ? ACCT.borrowed : ACCT.loan)
+    : linkedAccountTypeOf(type);
   const accountOptions = (() => {
     const matched = linkedType ? accounts.filter((a) => a.accountType === linkedType) : accounts;
     const cur = form.accountId ? accounts.find((a) => a.id === form.accountId) : undefined;
     return cur && !matched.some((a) => a.id === cur.id) ? [...matched, cur] : matched;
   })();
 
-  /** 保存前校验（替代原生 required，支持 i18n）：返回 false 时只显示错误、不弹确认框 */
+  /** 保存前校验（替代原生 required，支持 i18n）：声明式校验列表，按类型组装，返回首个失败的错误 key */
   function validateBeforeSave(): boolean {
     setErr(null);
+    const num = (s: string) => Number(s);
     if (!form.name.trim()) { setErr("common.nameRequired"); return false; }
-    // 股票类型必填校验：代码/数量/成本金额/当前市值/交易费用/买入日期
-    if (isStockLike(type)) {
-      if (!form.code.trim()) { setErr("investment.codeRequired"); return false; }
-      if (!form.qty || Number(form.qty) <= 0) { setErr("investment.quantityRequired"); return false; }
-      if (!form.costYuan || Number(form.costYuan) <= 0) { setErr("investment.costAmountRequired"); return false; }
-      if (!form.valueYuan || Number(form.valueYuan) <= 0) { setErr("investment.valueAmountRequired"); return false; }
-      if (form.feeYuan === "") { setErr("investment.feeRequired"); return false; }
-      if (!form.purchaseDate) { setErr("investment.purchaseDateRequired"); return false; }
+    const checks: { ok: boolean; err: string }[] = [];
+    if (cfg.isStockLike) {
+      checks.push({ ok: !!form.code.trim(), err: "investment.cfg.codeRequired" });
+      checks.push({ ok: !!form.qty && num(form.qty) > 0, err: "investment.quantityRequired" });
+      checks.push({ ok: !!form.costYuan && num(form.costYuan) > 0, err: "investment.costAmountRequired" });
+      checks.push({ ok: !!form.valueYuan && num(form.valueYuan) > 0, err: "investment.valueAmountRequired" });
+      checks.push({ ok: form.feeYuan !== "", err: "investment.feeRequired" });
+      checks.push({ ok: !!form.purchaseDate, err: "investment.purchaseDateRequired" });
     }
-    // 储蓄型保险：本金/当前市值/利率/起息日/到期日必填
-    if (isInsurance) {
-      if (!form.costYuan.trim()) { setErr("investment.principalRequired"); return false; }
-      const principalNum = Number(form.costYuan);
-      if (!Number.isFinite(principalNum) || principalNum <= 0) { setErr("investment.principalInvalid"); return false; }
-      if (!form.valueYuan.trim()) { setErr("investment.valueAmountRequired"); return false; }
-      const valueNum = Number(form.valueYuan);
-      if (!Number.isFinite(valueNum) || valueNum <= 0) { setErr("investment.valueAmountInvalid"); return false; }
-      if (!form.interestRate.trim()) { setErr("investment.interestRateRequired"); return false; }
-      const rateNum = parseFloat(form.interestRate);
-      if (!Number.isFinite(rateNum)) { setErr("investment.interestRateInvalid"); return false; }
-      if (!form.purchaseDate) { setErr("investment.purchaseDateRequired"); return false; }
-      if (!form.maturityDate) { setErr("investment.maturityDateRequired"); return false; }
+    if (cfg.isMetal) checks.push({ ok: !!form.qty && num(form.qty) > 0, err: "investment.gramsRequired" });
+    if (cfg.isCollectible) checks.push({ ok: !!form.qty && num(form.qty) > 0, err: "investment.piecesRequired" });
+    if (cfg.isFund) {
+      checks.push({ ok: !!form.code.trim(), err: "investment.cfg.codeRequired" });
+      checks.push({ ok: !!form.qty && num(form.qty) > 0, err: "investment.sharesRequired" });
+    }
+    if (cfg.isInsurance) {
+      const p = form.costYuan.trim(); const pn = num(p);
+      checks.push({ ok: !!p, err: "investment.principalRequired" });
+      checks.push({ ok: Number.isFinite(pn) && pn > 0, err: "investment.principalInvalid" });
+      const vv = form.valueYuan.trim(); const vn = num(vv);
+      checks.push({ ok: !!vv, err: "investment.valueAmountRequired" });
+      checks.push({ ok: Number.isFinite(vn) && vn > 0, err: "investment.valueAmountInvalid" });
+      const r = form.interestRate.trim(); const rn = parseFloat(r);
+      checks.push({ ok: !!r, err: "investment.interestRateRequired" });
+      checks.push({ ok: Number.isFinite(rn), err: "investment.interestRateInvalid" });
+      checks.push({ ok: !!form.purchaseDate, err: "investment.purchaseDateRequired" });
+      checks.push({ ok: !!form.maturityDate, err: "investment.maturityDateRequired" });
     }
     // 关联账户 / 扣款账户：全部投资类型必填（放在业务字段之后）
-    if (!form.accountId) { setErr("investment.accountRequired"); return false; }
-    if (!form.paymentAccountId) { setErr("investment.paymentAccountRequired"); return false; }
+    checks.push({ ok: !!form.accountId, err: "investment.accountRequired" });
+    checks.push({ ok: !!form.paymentAccountId, err: "investment.paymentAccountRequired" });
+    // 借贷必须选择方向（借出 / 借入）
+    if (cfg.isLoan) checks.push({ ok: !!form.direction, err: "investment.directionRequired" });
+    const failed = checks.find((c) => !c.ok);
+    if (failed) { setErr(failed.err); return false; }
     return true;
   }
 
@@ -164,24 +191,25 @@ export function InvestmentForm({
     try {
       const input = {
         type,
-        subType: isMetal ? (form.subType as MetalSubType) : null,
+        subType: cfg.isMetal ? (form.subType as MetalSubType) : null,
         name: form.name.trim(),
         code: form.code || null,
         accountId: form.accountId,
         paymentAccountId: form.paymentAccountId,
-        quantity: isEstate || isFixedIncome(type) ? 0 : displayToQuantity(type, Number(form.qty || 0)),
+        quantity: cfg.isEstate || cfg.isFixedIncome ? 0 : displayToQuantity(type, Number(form.qty || 0)),
         costYuan: form.costYuan || "0",
         feeYuan: form.feeYuan || "0",
         // 定期不显示市值输入框：新建时市值 = 本金；编辑时保留库中原值（可能已派息除权）
-        valueYuan: isDeposit ? form.valueYuan || form.costYuan || "0" : form.valueYuan || "0",
+        valueYuan: cfg.isDeposit ? form.valueYuan || form.costYuan || "0" : form.valueYuan || "0",
         purchaseDate: form.purchaseDate || null,
         maturityDate: form.maturityDate || null,
         interestRate: form.interestRate || null,
         location: form.location || null,
-        areaSqm: isEstate && form.area ? displayToArea(Number(form.area)) : null,
+        areaSqm: cfg.isEstate && form.area ? displayToArea(Number(form.area)) : null,
         remark: form.remark || null,
         tagIds, // 持仓标签：新建/编辑均保存（新建时同一组标签打到买入流水上）
         projectId: form.projectId || null,
+        direction: (cfg.isLoan ? (form.direction || null) : null) as "lend" | "borrow" | null,
       };
       const r = initial
         ? await updateInvestment(initial.id, input)
@@ -208,7 +236,7 @@ export function InvestmentForm({
           <input value={form.name} onChange={(e) => set("name", e.target.value)} className={inputCls} />
         </div>
 
-        {isMetal && (
+        {cfg.isMetal && (
           <div>
             <label className={labelCls}>{t("investment.subType")}</label>
             <select value={form.subType} onChange={(e) => set("subType", e.target.value)} className={inputCls}>
@@ -219,29 +247,29 @@ export function InvestmentForm({
           </div>
         )}
 
-        {showCode && (
+        {cfg.showCode && (
           <div>
-            <label className={labelCls}>{t("investment.code")}{isStockLike(type) && <span className="text-red-500">*</span>}</label>
+            <label className={labelCls}>{t("investment.code")}{cfg.codeRequired && <span className="text-red-500">*</span>}</label>
             <input value={form.code} onChange={(e) => set("code", e.target.value)} className={inputCls} />
           </div>
         )}
 
-        {!isEstate && !isFixedIncome(type) && (
+        {!cfg.isEstate && !cfg.isFixedIncome && (
           <div>
-            <label className={labelCls}>{type === INV.collectible ? t("investment.pieces") : type === INV.fund ? t("investment.shares") : type === INV.metal ? t("investment.grams") : t("investment.quantity")}{isStockLike(type) && <span className="text-red-500">*</span>}</label>
+            <label className={labelCls}>{t(cfg.qtyLabelKey)}{cfg.qtyRequired && <span className="text-red-500">*</span>}</label>
             <input value={form.qty} onChange={(e) => set("qty", e.target.value)} inputMode="decimal" className={inputCls} />
           </div>
         )}
 
         <div>
-          <label className={labelCls}>{isFixedIncome(type) ? t("investment.principal") : t("investment.costAmount")} <span className="text-red-500">*</span></label>
+          <label className={labelCls}>{cfg.isFixedIncome ? t("investment.principal") : t("investment.costAmount")} <span className="text-red-500">*</span></label>
           <input value={form.costYuan} onChange={(e) => set("costYuan", e.target.value)} inputMode="decimal" className={inputCls} />
         </div>
 
         {/* 定期存款：不显示「当前市值」（市值 = 本金），保存时自动取本金 */}
-        {!isDeposit && (
+        {!cfg.isDeposit && (
           <div>
-            <label className={labelCls}>{isEstate ? t("investment.currentAppraisal") : t("investment.valueAmount")} <span className="text-red-500">*</span></label>
+            <label className={labelCls}>{cfg.isEstate ? t("investment.currentAppraisal") : t("investment.valueAmount")} <span className="text-red-500">*</span></label>
             <input value={form.valueYuan} onChange={(e) => set("valueYuan", e.target.value)} inputMode="decimal" className={inputCls} />
           </div>
         )}
@@ -257,33 +285,33 @@ export function InvestmentForm({
           </div>
         )}
 
-        {!isFixedIncome(type) && !isEstate && (
+        {!cfg.isFixedIncome && !cfg.isEstate && (
           <div>
             <label className={labelCls}>{t("investment.fee")} <span className="text-red-500">*</span></label>
             <input value={form.feeYuan} onChange={(e) => set("feeYuan", e.target.value)} inputMode="decimal" className={inputCls} />
           </div>
         )}
 
-        {isFixedIncome(type) && (
+        {cfg.isFixedIncome && (
           <div>
-            <label className={labelCls}>{t("investment.interestRate")}{isInsurance && <span className="text-red-500">*</span>}</label>
+            <label className={labelCls}>{t("investment.interestRate")}{cfg.isInsurance && <span className="text-red-500">*</span>}</label>
             <input value={form.interestRate} onChange={(e) => set("interestRate", e.target.value)} placeholder="2.60%" className={inputCls} />
           </div>
         )}
 
         <div>
-          <label className={labelCls}>{isFixedIncome(type) ? t("investment.startDate") : t("investment.purchaseDate")} <span className="text-red-500">*</span></label>
+          <label className={labelCls}>{cfg.isFixedIncome ? t("investment.startDate") : t("investment.purchaseDate")} <span className="text-red-500">*</span></label>
           <input type="date" value={form.purchaseDate} onChange={(e) => set("purchaseDate", e.target.value)} className={inputCls} />
         </div>
 
-        {isFixedIncome(type) && (
+        {cfg.isFixedIncome && (
           <div>
-            <label className={labelCls}>{t("investment.maturityDate")}{isInsurance && <span className="text-red-500">*</span>}</label>
+            <label className={labelCls}>{t("investment.maturityDate")}{cfg.isInsurance && <span className="text-red-500">*</span>}</label>
             <input type="date" value={form.maturityDate} onChange={(e) => set("maturityDate", e.target.value)} className={inputCls} />
           </div>
         )}
 
-        {isEstate && (
+        {cfg.isEstate && (
           <>
             <div>
               <label className={labelCls}>{t("investment.location")}</label>
@@ -294,6 +322,24 @@ export function InvestmentForm({
               <input value={form.area} onChange={(e) => set("area", e.target.value)} inputMode="decimal" className={inputCls} />
             </div>
           </>
+        )}
+
+        {cfg.isLoan && (
+          <div className="sm:col-span-2">
+            <label className={labelCls}>{t("investment.direction")} <span className="text-red-500">*</span></label>
+            <div className="flex gap-2">
+              {(["lend", "borrow"] as const).map((d) => (
+                <button
+                  type="button"
+                  key={d}
+                  onClick={() => setDirection(d)}
+                  className={`rounded-lg border px-4 py-2 text-sm ${form.direction === d ? "border-teal-500 bg-teal-50 text-teal-700" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+                >
+                  {d === "lend" ? t("investment.lend") : t("investment.borrow")}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
 
         <div className="sm:col-span-2">
@@ -307,7 +353,7 @@ export function InvestmentForm({
         </div>
 
         <div className="sm:col-span-2">
-          <label className={labelCls}>{t("investment.paymentAccount")} <span className="text-red-500">*</span></label>
+          <label className={labelCls}>{cfg.isLoan && form.direction === "borrow" ? t("investment.receiveAccount") : t("investment.paymentAccount")} <span className="text-red-500">*</span></label>
           <select value={form.paymentAccountId} onChange={(e) => set("paymentAccountId", e.target.value)} className={inputCls}>
             <option value="">{t("investment.plsSelect")}</option>
             {accounts.map((a) => (

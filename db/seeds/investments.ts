@@ -35,6 +35,8 @@ export type HoldingDef = {
   areaSqm?: number;
   status: "active" | "sold" | "matured";
   remark: string;
+  /** 借贷方向（仅 type=loan）；lend 借出 / borrow 借入，缺省按 lend 处理 / loan direction (type=loan only); lend out / borrow in, defaults to lend */
+  direction?: "lend" | "borrow";
 };
 
 /** 演示用投资持仓列表（按账户分组）/ Demo holding list (grouped by account) */
@@ -178,7 +180,7 @@ export const HOLDING_DEFS: HoldingDef[] = [
   // 民间借贷 · 借给老王 / Private loan · lent to Lao Wang
   {
     type: "loan", name: "借给老王(经营周转)",
-    accountId: "loan", paymentAccountId: "cmb",
+    accountId: "loan", paymentAccountId: "cmb", direction: "lend",
     quantity: 0, costCents: 10000000, feeCents: 0, currentValueCents: 10000000,
     purchaseDate: "2025-03-01", maturityDate: "2026-03-01", interestRate: "6.00%",
     status: "active", remark: "民间借贷 · 待收回",

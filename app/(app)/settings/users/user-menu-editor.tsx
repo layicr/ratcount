@@ -165,7 +165,7 @@ export function UsersManager({
               </tr>
             ) : (
               initialUsers.map((user) => (
-                <tr key={user.id} className="border-b border-slate-100 hover:bg-slate-50/50">
+                <tr key={user.id} className="border-b border-slate-100">
                   {/* 用户编号 / User ID */}
                   <td className="px-4 py-3">
                     <span className="font-mono text-xs text-slate-500">{user.id.substring(0, 8)}...</span>

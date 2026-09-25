@@ -1,10 +1,10 @@
 // ratcount · 投资持仓 业务服务 / Investment holdings business services
 //  - 从 app/actions/investments.ts 抽出的「校验 + 审计 + 写库」纯逻辑（不依赖 'use server' / cookie），
 //    服务端 action 与桌面 IPC 共用。签名显式接收 actor 与 ledgerId，便于双模式注入。
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 import { z } from "zod";
 import { transactions, transactionTags, tags, holdingTags, investmentHoldings, accounts } from "@/db/schema";
-import { investmentTypes, metalSubTypes, INV, MR, AUDIT_ACTION, ENTITY, INVESTMENT_STATUS, TX, DEFAULT_CURRENCY } from "@/lib/constants";
+import { investmentTypes, investmentDirections, metalSubTypes, INV, MR, AUDIT_ACTION, ENTITY, INVESTMENT_STATUS, TX, DEFAULT_CURRENCY } from "@/lib/constants";
 import { db } from "@/lib/db";
 import { withAudit, getDefaultTranslator } from "@/lib/audit";
 import { ensureCategory, type Tx, assertRefsInLedger, RefNotInLedgerError } from "@/lib/ledger-refs";
@@ -43,6 +43,28 @@ const investmentSchema = z.object({
   remark: z.string().max(200).nullable().optional(),
   tagIds: z.array(z.string()).optional(), // 持仓标签（新建时同一组标签同时打到「买入/存入」流水上）
   projectId: z.string().min(1).nullable().optional(), // 归属项目（可选）
+  direction: z.enum(investmentDirections).nullable().optional(), // 借贷方向：lend 借出 / borrow 借入（仅 type=loan 有意义）
+}).superRefine((d, ctx) => {
+  // 借贷必须明确方向，否则无法判定资产/负债与流水方向
+  // Loans must specify a direction; otherwise asset/liability and transfer direction are ambiguous.
+  if (d.type === INV.loan && !d.direction) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["direction"], message: "investment.directionRequired" });
+  }
+  // 收藏品件数为必填（计量与卖出均依赖件数）
+  // Collectibles must specify the number of pieces (used for accounting and selling).
+  if (d.type === INV.collectible && (!d.quantity || d.quantity < 1)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["quantity"], message: "investment.piecesRequired" });
+  }
+  // 基金：代码 + 份额为必填（与类股票一致）
+  // Funds must specify a code and share quantity (consistent with stock-like types).
+  if (d.type === INV.fund) {
+    if (!d.code || !d.code.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["code"], message: "investment.codeRequired" });
+    }
+    if (!d.quantity || d.quantity < 1) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["quantity"], message: "investment.sharesRequired" });
+    }
+  }
 });
 
 export type InvestmentInput = z.infer<typeof investmentSchema>;
@@ -138,6 +160,7 @@ async function insertHoldingCore(
     ledgerId, createdBy: actorId,
     type: input.type, subType: input.subType ?? null, name: input.name, code: input.code ?? null,
     accountId: input.accountId, paymentAccountId: input.paymentAccountId,
+    direction: input.type === INV.loan ? (input.direction ?? null) : null,
     quantity: input.quantity, costCents, feeCents, currentValueCents: valueCents,
     currencyCode: holdingCur, usedRate: holdingRate,
     baseCostCents: toBaseCents(costCents, holdingRate),
@@ -150,16 +173,24 @@ async function insertHoldingCore(
   }).returning({ id: investmentHoldings.id });
   await replaceHoldingTags(tx, ledgerId, holding.id, input.tagIds);
 
+  // 借入：买入转账方向翻转（借入负债账户 → 收款现金账户），与净资产负债口径一致
+  // Borrow: flip the buy-transfer direction (borrowed liability → receiving cash), consistent with the liability net-worth accounting
+  const isBorrow = input.type === INV.loan && input.direction === "borrow";
+  const buyFromId = isBorrow ? input.accountId : input.paymentAccountId;
+  const buyToId = isBorrow ? input.paymentAccountId : input.accountId;
+  const buyRemarkKey = isBorrow ? "investment.borrowBuyRemark" : "investment.buyRemark";
+
   const buyCents = actualCostCents(costCents, feeCents);
   if (input.paymentAccountId !== input.accountId && buyCents > 0) {
     const buyMoney = await resolveTransactionMoney(tx, ledgerId, {
-      accountId: input.paymentAccountId, toAccountId: input.accountId,
+      accountId: buyFromId, toAccountId: buyToId,
       amountCents: buyCents, type: TX.transfer, rates,
     });
     const [buyTx] = await tx.insert(transactions).values({
-      ledgerId, accountId: input.paymentAccountId, toAccountId: input.accountId,
+      ledgerId, accountId: buyFromId, toAccountId: buyToId,
       type: TX.transfer, categoryId: null, projectId: null, amountCents: buyCents,
-      txDate: input.purchaseDate ?? todayStr(), remark: t0("investment.buyRemark", { name: input.name }), createdBy: actorId,
+      txDate: input.purchaseDate ?? todayStr(), remark: t0(buyRemarkKey, { name: input.name }), createdBy: actorId,
+      investmentHoldingId: holding.id,
       ...buyMoney,
     }).returning({ id: transactions.id });
     await linkTags(tx, ledgerId, input.tagIds, buyTx.id);
@@ -266,17 +297,22 @@ async function reconcileBuyFlow(
   const warranted = d.paymentAccountId !== d.accountId && newBuyCents > 0;
   const rates = await loadCurrencyRates();
   const t0 = getDefaultTranslator();
+  // 借入：买入流水方向翻转（借入负债账户 → 收款现金账户）
+  const isBorrow = d.type === INV.loan && d.direction === "borrow";
+  const buyFromId = isBorrow ? d.accountId : d.paymentAccountId;
+  const buyToId = isBorrow ? d.paymentAccountId : d.accountId;
+  const buyRemarkKey = isBorrow ? "investment.borrowBuyRemark" : "investment.buyRemark";
 
   if (warranted) {
     const buyMoney = await resolveTransactionMoney(tx, ledgerId, {
-      accountId: d.paymentAccountId, toAccountId: d.accountId, amountCents: newBuyCents, type: TX.transfer, rates,
+      accountId: buyFromId, toAccountId: buyToId, amountCents: newBuyCents, type: TX.transfer, rates,
     });
     await tx.update(transactions).set({
-      accountId: d.paymentAccountId,
-      toAccountId: d.accountId,
+      accountId: buyFromId,
+      toAccountId: buyToId,
       amountCents: newBuyCents,
       txDate: d.purchaseDate ?? todayStr(),
-      remark: t0("investment.buyRemark", { name: d.name }),
+      remark: t0(buyRemarkKey, { name: d.name }),
       ...buyMoney,
     }).where(eq(transactions.id, cur.buyTransactionId));
     // 标签：仅当本次编辑携带 tagIds 时才整体替换为持仓标签（与 replaceHoldingTags 行为一致）
@@ -337,6 +373,7 @@ export async function updateInvestmentService(actor: Actor, ledgerId: string, id
         const upd = await tx.update(investmentHoldings).set({
           type: d.type, subType: d.subType ?? null, name: d.name, code: d.code ?? null,
           accountId: d.accountId, paymentAccountId: d.paymentAccountId, quantity: d.quantity,
+          direction: d.type === INV.loan ? (d.direction ?? null) : null,
           costCents, feeCents, currentValueCents: valueCents,
           currencyCode: holdingCur, usedRate: holdingRate,
           baseCostCents: toBaseCents(costCents, holdingRate),
@@ -393,8 +430,12 @@ export async function sellInvestmentService(actor: Actor, ledgerId: string, inpu
   if (!h) return { ok: false as const, error: "investment.notFound" };
   if (h.status !== INVESTMENT_STATUS.active) return { ok: false as const, error: "investment.notActive" };
 
-  const fromAccount = h.accountId;
-  const toAccount = d.accountId ?? h.paymentAccountId;
+  const isBorrow = h.type === INV.loan && h.direction === "borrow";
+  // 借入还款：现金账户 → 借入负债账户（负债减少）；借出收款：借出资产账户 → 现金账户
+  // Borrow repay: cash → borrowed liability (liability decreases); lend collect: loan asset → cash
+  const fromAccount = isBorrow ? (d.accountId ?? h.paymentAccountId) : h.accountId;
+  const toAccount = isBorrow ? h.accountId : (d.accountId ?? h.paymentAccountId);
+  const profitAccount = isBorrow ? (d.accountId ?? h.paymentAccountId) : toAccount;
   if (fromAccount === toAccount) return { ok: false as const, error: "investment.accountPairRequired" };
 
   const sellQty = d.quantity ?? 0;
@@ -410,7 +451,7 @@ export async function sellInvestmentService(actor: Actor, ledgerId: string, inpu
   const nextStatus = isFixed ? INVESTMENT_STATUS.matured : INVESTMENT_STATUS.sold;
   // 自动记账的备注/类目名走 i18n：入库为用户数据，按默认语言（zh-CN）渲染（与「买入」备注一致）
   const t0 = getDefaultTranslator();
-  const actionVerb = t0(isFixed ? "investment.matured" : "investment.sold");
+  const actionVerb = isBorrow ? t0("investment.repay") : t0(isFixed ? "investment.matured" : "investment.sold");
   const txDate = d.txDate ?? todayStr();
 
   try {
@@ -433,7 +474,8 @@ export async function sellInvestmentService(actor: Actor, ledgerId: string, inpu
           const [costTx] = await tx.insert(transactions).values({
             ledgerId, accountId: fromAccount, toAccountId: toAccount, type: TX.transfer,
             categoryId: null, projectId: null, amountCents: cost, txDate,
-            remark: t0("investment.sellCostRemark", { action: actionVerb, name: h.name }), createdBy: actor.id,
+            remark: isBorrow ? t0("investment.borrowRepayRemark", { name: h.name }) : t0("investment.sellCostRemark", { action: actionVerb, name: h.name }), createdBy: actor.id,
+            investmentHoldingId: h.id,
             ...costMoney,
           }).returning({ id: transactions.id });
           await linkTags(tx, ledgerId, d.tagIds, costTx.id);
@@ -441,24 +483,26 @@ export async function sellInvestmentService(actor: Actor, ledgerId: string, inpu
         if (profit > 0) {
           const catId = await ensureCategory(tx, ledgerId, t0("investment.profitCategory"), TX.income);
           const profitMoney = await resolveTransactionMoney(tx, ledgerId, {
-            accountId: toAccount, toAccountId: null, amountCents: profit, type: TX.income, rates,
+            accountId: profitAccount, toAccountId: null, amountCents: profit, type: TX.income, rates,
           });
           const [profitTx] = await tx.insert(transactions).values({
-            ledgerId, accountId: toAccount, toAccountId: null, type: TX.income, categoryId: catId,
+            ledgerId, accountId: profitAccount, toAccountId: null, type: TX.income, categoryId: catId,
             projectId: null, amountCents: profit, txDate,
             remark: t0("investment.sellProfitRemark", { action: actionVerb, name: h.name }), createdBy: actor.id,
+            investmentHoldingId: h.id,
             ...profitMoney,
           }).returning({ id: transactions.id });
           await linkTags(tx, ledgerId, d.tagIds, profitTx.id);
         } else if (profit < 0) {
           const catId = await ensureCategory(tx, ledgerId, t0("investment.lossCategory"), TX.expense);
           const lossMoney = await resolveTransactionMoney(tx, ledgerId, {
-            accountId: toAccount, toAccountId: null, amountCents: Math.abs(profit), type: TX.expense, rates,
+            accountId: profitAccount, toAccountId: null, amountCents: Math.abs(profit), type: TX.expense, rates,
           });
           const [lossTx] = await tx.insert(transactions).values({
-            ledgerId, accountId: toAccount, toAccountId: null, type: TX.expense, categoryId: catId,
+            ledgerId, accountId: profitAccount, toAccountId: null, type: TX.expense, categoryId: catId,
             projectId: null, amountCents: Math.abs(profit), txDate,
-            remark: t0("investment.sellLossRemark", { action: actionVerb, name: h.name }), createdBy: actor.id,
+            remark: isBorrow ? t0("investment.borrowInterestRemark", { name: h.name }) : t0("investment.sellLossRemark", { action: actionVerb, name: h.name }), createdBy: actor.id,
+            investmentHoldingId: h.id,
             ...lossMoney,
           }).returning({ id: transactions.id });
           await linkTags(tx, ledgerId, d.tagIds, lossTx.id);
@@ -526,6 +570,7 @@ export async function dividendInvestmentService(actor: Actor, ledgerId: string, 
         const [divTx] = await tx.insert(transactions).values({
           ledgerId, accountId: toAccount, toAccountId: null, type: TX.income, categoryId: catId,
           projectId: null, amountCents, txDate, remark: t0("investment.dividendRemark", { name: h.name }), createdBy: actor.id,
+          investmentHoldingId: h.id,
           ...divMoney,
         }).returning({ id: transactions.id });
         await linkTags(tx, ledgerId, d.tagIds, divTx.id);
@@ -561,6 +606,22 @@ export async function deleteInvestmentService(actor: Actor, ledgerId: string, id
       requestBody: JSON.stringify({ id }), responseBody: '{"result":"deleted"}',
     },
     async (tx) => {
+      // 级联硬删持仓关联流水（买入/分红/到期/还款）+ 其标签，保证删除后账户余额回滚
+      // Cascade hard-delete the holding's transactions (buy/dividend/mature/repay) + their tags,
+      // so balances revert after deleting the holding.
+      const [h] = await tx
+        .select({ buyTransactionId: investmentHoldings.buyTransactionId })
+        .from(investmentHoldings)
+        .where(and(eq(investmentHoldings.id, id), eq(investmentHoldings.ledgerId, ledgerId)));
+      const conds = [eq(transactions.investmentHoldingId, id)];
+      if (h?.buyTransactionId) conds.push(eq(transactions.id, h.buyTransactionId));
+      const linkedWhere = and(eq(transactions.ledgerId, ledgerId), or(...conds));
+      const linked = await tx.select({ id: transactions.id }).from(transactions).where(linkedWhere);
+      if (linked.length > 0) {
+        const ids = linked.map((r) => r.id);
+        await tx.delete(transactionTags).where(inArray(transactionTags.transactionId, ids));
+        await tx.delete(transactions).where(inArray(transactions.id, ids));
+      }
       await tx.update(investmentHoldings).set({ status: INVESTMENT_STATUS.deleted })
         .where(and(eq(investmentHoldings.id, id), eq(investmentHoldings.ledgerId, ledgerId)));
     },

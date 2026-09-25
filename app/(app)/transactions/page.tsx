@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/scope"
 import { TRANSACTION_TYPES, transactionTypeLabel, TX } from "@/lib/constants"
 import { eq } from "drizzle-orm";
 import { getCurrentLedger } from "@/lib/ledger";
-import { listTransactions, countTransactions } from "@/lib/queries";
+import { listTransactions, countTransactions, sumTransactionAmounts } from "@/lib/queries";
 import { db } from "@/lib/db";
 
 
@@ -51,11 +51,12 @@ export default async function TransactionsPage({
   const maxAmountCents = maxAmount ? Math.round(parseFloat(maxAmount) * 100) : undefined;
 
   const filterOpts = { type: type || undefined, categoryId: categoryId || undefined, q: q || undefined, accountId: accountId || undefined, accountIds, projectId: projectId || undefined, startDate: startDate || undefined, endDate: endDate || undefined, minAmount: minAmountCents, maxAmount: maxAmountCents };
-  const [total, txs, cats, accts] = await Promise.all([
+  const [total, txs, cats, accts, summary] = await Promise.all([
     countTransactions(ledger.id, filterOpts),
     listTransactions(ledger.id, { ...filterOpts, limit: pageSize, offset: computeOffset(page, pageSize) }),
     db.select().from(categories).where(eq(categories.ledgerId, ledger.id)),
     db.select().from(accounts).where(eq(accounts.ledgerId, ledger.id)).orderBy(accounts.sort, accounts.name),
+    sumTransactionAmounts(ledger.id, filterOpts),
   ]);
   const totalPages = computeTotalPages(total, pageSize);
 
@@ -133,7 +134,7 @@ export default async function TransactionsPage({
         <ImportButton />
       </form>
 
-      <TxList txs={txs} pagination={pagination} />
+      <TxList txs={txs} pagination={pagination} summary={summary} />
     </div>
   );
 }

@@ -60,14 +60,14 @@ export function profitCents(amountCents: number, costCents: number): number {
 }
 
 /**
- * 持仓收益口径（单一真源）：估值 − 成本 − 费用 + 累计派息
+ * 持仓单行收益（含派息）：估值 − 成本 − 费用 + 累计派息
  *  - 派息时市值已同步除权，故「浮盈 + 累计派息」不重复计量
  *  - 定期 / 国债等的「估值」传本息预估；其余传当前市值
- *  - 总览、列表、报表多处共用，避免口径漂移
- * Holding-profit口径 (single source of truth): value − cost − fee + cumulative dividends
+ *  - 仅投资列表（investment-type-table）按行调用；投资总览与报表各自用 SQL/查询聚合（当前不并派息），口径未统一
+ * Per-row holding profit (includes dividends): value − cost − fee + cumulative dividends
  *  - At dividend time the market value is already adjusted ex-dividend, so "unrealized gain + cumulative dividends" is not double-counted
  *  - For deposits / bonds pass the accrued principal+interest estimate as value; otherwise pass current market value
- *  - Shared by overview, list and reports to avoid drift in the definition
+ *  - Called per row only by the investment list table; overview and reports use their own SQL/query aggregation (no dividends yet) — definitions not unified
  */
 export function holdingProfitCents(h: {
   valueCents: number;
@@ -81,10 +81,10 @@ export function holdingProfitCents(h: {
 /**
  * 部分卖出：按卖出数量占比分摊成本 / 费用
  *  - sellQty <= 0 或无数量口径（quantity = 0）→ 视为整仓卖出（ratio = 1）
- *  - 结转成本向上取整到分后，剩余部分 = 原值 − 结转（两侧相加恒等于原值，无漂移）
+ *  - 结转成本四舍五入（Math.round）到分后，剩余部分 = 原值 − 结转（两侧相加恒等于原值，无漂移）
  * Partial sell: allocate cost / fee by sold-quantity ratio
  *  - sellQty <= 0 or no quantity basis (quantity = 0) → treat as full sell-out (ratio = 1)
- *  - After rounding carried cost up to the cent, remainder = original − carried (both sides always sum to the original, no drift)
+ *  - After rounding carried cost (Math.round) to the cent, remainder = original − carried (both sides always sum to the original, no drift)
  */
 export function prorateSell(
   h: { quantity: number; costCents: number; feeCents: number; currentValueCents: number },

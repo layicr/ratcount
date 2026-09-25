@@ -77,6 +77,8 @@ export const SETTINGS_PATH = "/settings";
 
 /** 交易/流水页路径（revalidatePath 等共用的唯一真源）/ Transactions page path (single source for revalidatePath) */
 export const TRANSACTIONS_PATH = "/transactions";
+/** 投资总览页路径（revalidatePath 等共用的唯一真源）/ Investments overview path (single source for revalidatePath) */
+export const INVESTMENTS_PATH = "/investments";
 
 /** 报表页路径（revalidatePath 等共用的唯一真源）/ Reports page path (single source for revalidatePath) */
 export const REPORTS_PATH = "/reports";
@@ -157,20 +159,20 @@ export const MR = Object.fromEntries(memberRoles.map((r) => [r, r])) as { [K in 
 /* ===== 账户类型 / Account types ===== */
 
 /**
- * 账户类型（19 种）：cash 现金 / debit_card 储蓄卡 / credit_card 信用账户 /
+ * 账户类型（20 种）：cash 现金 / debit_card 储蓄卡 / credit_card 信用账户 /
  *  wechat 虚拟账户 / savings 定期 / investment 股票 / fund 基金 /
  *  precious_metal 贵金属 / bond 国债 / foreign_currency 外币账户 /
  *  real_estate 不动产 / insurance 储蓄型保险 / housing_fund 公积金 /
  *  national_pension 国家养老金 / personal_pension 个人养老金 /
- *  loan 民间借贷 /
+ *  loan 民间借贷（借出）/ borrowed 民间借贷（借入，负债）/
  *  digital_asset 数字资产 / collectible 收藏品 / custom 自定义
  *  （custom 恒为兜底项，保持最后）
- * Account types (19): cash / debit_card / credit_card / wechat /
+ * Account types (20): cash / debit_card / credit_card / wechat /
  *  savings (time deposit) / investment (stock) / fund /
  *  precious_metal / bond / foreign_currency /
  *  real_estate / insurance / housing_fund /
  *  national_pension / personal_pension /
- *  loan (private lending) /
+ *  loan (private lending, lent out) / borrowed (private lending, borrowed in, liability) /
  *  digital_asset / collectible / custom (user-defined)
  *  (custom is always the fallback and stays last)
  */
@@ -178,7 +180,7 @@ export const accountTypes = [
   "cash", "debit_card", "credit_card", "wechat", "savings",
   "investment", "fund", "precious_metal", "bond", "foreign_currency",
   "real_estate", "insurance", "housing_fund", "national_pension", "personal_pension",
-  "loan", "digital_asset", "collectible",
+  "loan", "borrowed", "digital_asset", "collectible",
   "custom",
 ] as const;
 export type AccountType = (typeof accountTypes)[number];
@@ -197,13 +199,13 @@ export const PROTECTION_ACCOUNT_TYPES = [
  * 账户类型集中定义（单一数据源，多处复用）
  *  - ACCT：常量式入口（ACCT.cash / ACCT.credit_card / …），satisfies 保证与 db/schema 的 accountTypes 编译期互锁
  *  - ACCOUNT_TYPES：类型选项（value + i18n key），供表单下拉 / 列表分组复用
- *  - TYPE_ICON：类型 → 图标，satisfies 强制 19 项齐全（此前 Record<string,string> 漏删无感知）
+ *  - TYPE_ICON：类型 → 图标，satisfies 强制 20 项齐全（此前 Record<string,string> 漏删无感知）
  *  - ACCOUNT_TYPE_I18N_KEY：类型 → i18n key（由 ACCOUNT_TYPES 派生，避免 snake/camel 映射重复）
  *  - INVESTMENT_ACCOUNT_TYPES：投资类账户（支出时不可选为出账账户）
  * Account type definitions (single data source, reused in many places)
  *  - ACCT: constant entry (ACCT.cash / ACCT.credit_card / …); satisfies locks it to db/schema's accountTypes at compile time
  *  - ACCOUNT_TYPES: type options (value + i18n key) for form dropdowns / list grouping
- *  - TYPE_ICON: type → icon; satisfies forces all 19 present (previously Record<string,string> hid missing ones silently)
+ *  - TYPE_ICON: type → icon; satisfies forces all 20 present (previously Record<string,string> hid missing ones silently)
  *  - ACCOUNT_TYPE_I18N_KEY: type → i18n key (derived from ACCOUNT_TYPES to avoid duplicate snake/camel mapping)
  *  - INVESTMENT_ACCOUNT_TYPES: investment accounts (not selectable as the source account on an expense)
  */
@@ -225,18 +227,19 @@ export const ACCOUNT_TYPES = [
   { v: ACCT.national_pension, key: "acctType.nationalPension" },
   { v: ACCT.personal_pension, key: "acctType.personalPension" },
   { v: ACCT.loan, key: "acctType.loan" },
+  { v: ACCT.borrowed, key: "acctType.borrowed" },
   { v: ACCT.digital_asset, key: "acctType.digitalAsset" },
   { v: ACCT.collectible, key: "acctType.collectible" },
   { v: ACCT.custom, key: "acctType.custom" },
 ] as const satisfies readonly { v: AccountType; key: string }[];
 
-/** 账户类型 → 图标；satisfies 强制 19 项齐全，漏图标 TS 立即报错 / Account type → icon; satisfies forces all 19 present, a missing icon fails TS immediately */
+/** 账户类型 → 图标；satisfies 强制 20 项齐全，漏图标 TS 立即报错 / Account type → icon; satisfies forces all 20 present, a missing icon fails TS immediately */
 export const TYPE_ICON = {
   cash: "💵", debit_card: "💳", credit_card: "💳", wechat: "💬",
   savings: "🏦", investment: "📈", fund: "📊", precious_metal: "🥇",
   bond: "📜", foreign_currency: "💱", real_estate: "🏠",
   insurance: "☂️", housing_fund: "🏘️", national_pension: "💰", personal_pension: "💼",
-  loan: "🤝", digital_asset: "₿", collectible: "🖼️",
+  loan: "🤝", borrowed: "📥", digital_asset: "₿", collectible: "🖼️",
   custom: "📦",
 } as const satisfies Record<AccountType, string>;
 
@@ -452,6 +455,11 @@ export type InvestmentStatus = (typeof investmentStatuses)[number];
 export const INVESTMENT_STATUS = Object.fromEntries(
   investmentStatuses.map((s) => [s, s]),
 ) as { [K in InvestmentStatus]: K };
+
+/** 借贷方向：lend 借出（你是债主，资产）/ borrow 借入（你是债务人，负债）/ Loan direction: lend (you're the creditor, asset) / borrow (you're the debtor, liability) */
+export const investmentDirections = ["lend", "borrow"] as const;
+export type InvestmentDirection = (typeof investmentDirections)[number];
+export const DIRECTION = Object.fromEntries(investmentDirections.map((d) => [d, d])) as { [K in InvestmentDirection]: K };
 
 /* ===== 菜单设备类型 / Menu device types ===== */
 

@@ -19,7 +19,7 @@ const TABS = [
   { v: "project", k: "project" }, { v: "tag", k: "tag" }, { v: "asset", k: "asset" },
 ];
 
-/** 报表：7 维页签（i18n） */
+/** 报表：6 维页签（i18n） */
 export default async function ReportsPage({
   searchParams,
 }: {

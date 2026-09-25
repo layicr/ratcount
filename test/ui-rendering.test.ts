@@ -75,7 +75,9 @@ test("入参: yuanToCents 严格拒绝非两位小数/空白/符号混入", () =
   assert.strictEqual(yuanToCents(".5"), null);
   assert.strictEqual(yuanToCents("1."), null);
   assert.strictEqual(yuanToCents("1.2.3"), null);
-  assert.strictEqual(yuanToCents("12,345"), null);
+  // 千分位容错：从余额/报表复制进来的 "12,345" 应解析为 1234500（而非拒绝）
+  // Thousands-separator tolerance: pasted "12,345" from balances/reports parses to 1234500 (not rejected)
+  assert.strictEqual(yuanToCents("12,345"), 1234500);
   assert.strictEqual(yuanToCents("1e3"), null);
   assert.strictEqual(yuanToCents(0), 0);
 });

@@ -274,6 +274,7 @@ async function main() {
       if (h.subType) def.subType = h.subType;
       if (h.location) def.location = h.location;
       if (h.areaSqm) def.areaSqm = h.areaSqm;
+      if (h.direction) def.direction = h.direction;
       return def;
     }),
   ).returning({ id: investmentHoldings.id, name: investmentHoldings.name });
@@ -297,6 +298,7 @@ async function main() {
       txDate: h.purchaseDate,
       remark: `买入 ${h.name}`,
       createdBy: admin.id,
+      investmentHoldingId: hid,
       ...txCurrencyFields(h.paymentAccountId, h.accountId, TX.transfer, buyCents),
     }).returning({ id: transactions.id });
     // 写回买入流水指针，使编辑持仓可精确改写 / 删除该流水（与 buyTransactionId 特性一致）

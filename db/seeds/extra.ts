@@ -89,7 +89,7 @@ export type BalanceDef = {
  * 现金快照差 −50 元用于演示「待对账」场景。
  * 09-01 snapshot.
  * The first 8 accounts with history: snapshot = period-end balance (demo data ends 09-01).
- * The last 7 added accounts have no history: snapshot = opening.
+ * The last 7 added accounts: insurance/loan/digital_asset/collectible gain history from holding buy-transfers, others none; snapshots are self-consistent (opening + history = snapshot).
  * The cash snapshot differs by −50 yuan to demonstrate the "needs reconciliation" case.
  */
 export const BALANCE_DEFS: BalanceDef[] = [

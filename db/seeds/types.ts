@@ -16,5 +16,6 @@ export type AcctKey =
   | "personal_pension"
   | "housing_fund"
   | "loan"
+  | "borrowed"
   | "digital_asset"
   | "collectible";

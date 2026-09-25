@@ -14,7 +14,7 @@
  *    逐行解析校验（normalizeDate / typeLabel / yuanToCents 全部直用真实工具）、withAudit 单事务写库、
  *    账户/分类按名称匹配或自动创建、审计汇总一条；export 的 5-sheet workbook 构建与分页分批拉取直用
  *    真实 lib/queries 的 listTransactions / listAccountsWithBalance + 真实 @e965/xlsx。
- *  - 数据库使用真实 schema（14 表 DDL）+ 独立临时 SQLite；i18n 消息直用真实 messages/zh.json。
+ *  - 数据库使用真实 schema（21 表 DDL）+ 独立临时 SQLite；i18n 消息直用真实 messages/zh.json。
  *
  * 运行：npx tsx --test test/import-export-e2e.test.ts
  */

@@ -20,9 +20,9 @@ const loadMsg = (file: string) =>
   JSON.parse(readFileSync(new URL(`../messages/${file}`, import.meta.url), "utf8"));
 
 /* ==================== 1. 账户类型枚举与映射 ==================== */
-test("账户类型: schema 与 lib 均为 19 项且集合一致", () => {
-  assert.strictEqual(accountTypes.length, 19);
-  assert.strictEqual(ACCOUNT_TYPES.length, 19);
+test("账户类型: schema 与 lib 均为 20 项且集合一致", () => {
+  assert.strictEqual(accountTypes.length, 20);
+  assert.strictEqual(ACCOUNT_TYPES.length, 20);
   assert.deepStrictEqual(
     [...ACCOUNT_TYPES.map((t) => t.v)].sort(),
     [...accountTypes].sort(),

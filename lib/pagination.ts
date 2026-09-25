@@ -15,7 +15,8 @@ export const DEFAULT_PAGE_SIZE_FALLBACK = 20;
  * 从全局设置获取分页配置 / Get pagination config from global settings
  * React cache() 包裹：同一请求内多次调用只查一次库；inArray 一次取两行。
  * Wrapped in React cache(): one DB read per request; inArray fetches both rows at once.
- * @returns { allowedPageSizes, defaultPageSize }
+ * 返回 { allowedPageSizes, defaultPageSize }。
+ * Returns { allowedPageSizes, defaultPageSize }.
  */
 export const getPaginationConfig = cache(async (): Promise<{
   allowedPageSizes: number[];

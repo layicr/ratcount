@@ -73,7 +73,7 @@ export default async function InvestmentsPage({
         ))}
       </div>
 
-      {/* 6 类投资分类卡 */}
+      {/* 10 类投资分类卡 */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {INVESTMENT_TYPES.map((t) => {
           const b = ov.byType[t.v];

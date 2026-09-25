@@ -3,7 +3,7 @@
  * 覆盖：非法设置值回退默认 90 天。
  * 说明：resolveRetentionDays 的解析分支为
  *   parseInt(raw ?? "", 10) 非有限或 <= 0 → DEFAULT_AUDIT_RETENTION_DAYS(90)，
- *   缺失 / 非数字 / 0 / 负数 / 小数均命中同一分支；
+ *   缺失 / 非数字 / 0 / 负数命中同一回退分支（小数经 parseInt 截断为整数属有效值，不回退）；
  *   由于 getSetting 使用 React cache 且 settings 表对 (user_id, key) 唯一，
  *   本文件用单一非法值代表该分支，合法值场景见 functional-audit-cleanup.test.ts。
  * 运行：npx tsx --test test/security-retention.test.ts

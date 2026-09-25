@@ -132,6 +132,7 @@ const DDL_TABLES: string[] = [
     base_amount_cents INTEGER,
     tx_date TEXT NOT NULL,
     remark TEXT,
+    investment_holding_id TEXT,
     created_by TEXT NOT NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
@@ -202,6 +203,7 @@ const DDL_TABLES: string[] = [
     code TEXT,
     account_id TEXT,
     payment_account_id TEXT,
+    direction TEXT,
     quantity INTEGER NOT NULL DEFAULT 0,
     cost_cents INTEGER NOT NULL DEFAULT 0,
     fee_cents INTEGER NOT NULL DEFAULT 0,

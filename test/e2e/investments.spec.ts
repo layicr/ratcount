@@ -187,6 +187,10 @@ test.describe("投资模块", () => {
         await fillIfVisible(page, "起息日", "2026-01-01");
         await fillIfVisible(page, "到期日", "2030-01-01");
       }
+      // 收藏品：件数为必填
+      if (t === "collectibles") {
+        await fillIfVisible(page, "件数", "1");
+      }
       await page.getByRole("button", { name: "保存", exact: true }).click();
       await expect(page.getByText("请选择关联账户")).toBeVisible();
     }

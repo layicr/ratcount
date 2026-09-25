@@ -100,6 +100,51 @@ export function isFixedIncome(type: InvestmentType): boolean {
   return type === INV.deposit || type === INV.bond || type === INV.insurance || type === INV.loan;
 }
 
+/**
+ * 投资类型 UI 配置（单一数据源）：把投资表单里散落的 isX 判定与字段显隐 / 必填 / 数量标签集中于此，
+ * 新增类型只改这一处。Investment type UI config (single source): centralizes the scattered isX flags,
+ * field visibility / required flags and quantity label so adding a type touches only this map.
+ */
+export interface InvestmentTypeUiConfig {
+  isStockLike: boolean;
+  isMetal: boolean;
+  isEstate: boolean;
+  isInsurance: boolean;
+  isCollectible: boolean;
+  isFund: boolean;
+  isDeposit: boolean;
+  isFixedIncome: boolean;
+  isLoan: boolean;
+  qtyRequired: boolean;
+  codeRequired: boolean;
+  showCode: boolean;
+  /** 数量字段标签的 i18n key（克数 / 份额 / 件数 / 数量） */
+  qtyLabelKey: string;
+}
+
+export function investmentTypeConfig(type: InvestmentType): InvestmentTypeUiConfig {
+  const stockLike = isStockLike(type);
+  const fixed = isFixedIncome(type);
+  const metal = type === INV.metal;
+  const fund = type === INV.fund;
+  const collectible = type === INV.collectible;
+  return {
+    isStockLike: stockLike,
+    isMetal: metal,
+    isEstate: type === INV.real_estate,
+    isInsurance: type === INV.insurance,
+    isCollectible: collectible,
+    isFund: fund,
+    isDeposit: type === INV.deposit,
+    isFixedIncome: fixed,
+    isLoan: type === INV.loan,
+    qtyRequired: stockLike || fund || metal || collectible,
+    codeRequired: stockLike || fund,
+    showCode: stockLike || fund || collectible,
+    qtyLabelKey: metal ? "investment.grams" : fund ? "investment.shares" : collectible ? "investment.pieces" : "investment.quantity",
+  };
+}
+
 /** 持仓类型 → 关联账户应限定的账户类型；null 表示不限定（展示全部账户）/ Holding type → the account type its linked account must be; null = unrestricted (show all accounts) */
 export function linkedAccountTypeOf(type: InvestmentType): AccountType | null {
   if (type === INV.stock) return "investment";

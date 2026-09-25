@@ -113,3 +113,22 @@ export async function countTransactions(
     .where(and(...conds));
   return Number(row?.count ?? 0);
 }
+
+/** 筛选条件下收入 / 支出合计（按基准币种折算）/ Income & expense totals under current filters (base currency) */
+export async function sumTransactionAmounts(
+  ledgerId: string,
+  opts: Omit<TxListOpts, "limit" | "offset"> = {},
+): Promise<{ incomeCents: number; expenseCents: number }> {
+  const conds = buildTxConds(ledgerId, opts);
+  const [row] = await db
+    .select({
+      incomeCents: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'income' THEN ${transactions.baseAmountCents} ELSE 0 END), 0)`,
+      expenseCents: sql<number>`COALESCE(SUM(CASE WHEN ${transactions.type} = 'expense' THEN ${transactions.baseAmountCents} ELSE 0 END), 0)`,
+    })
+    .from(transactions)
+    .where(and(...conds));
+  return {
+    incomeCents: Number(row?.incomeCents ?? 0),
+    expenseCents: Number(row?.expenseCents ?? 0),
+  };
+}

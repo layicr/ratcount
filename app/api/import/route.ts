@@ -1,4 +1,4 @@
-import { accounts, categories, transactions } from "@/db/schema"
+import { accounts, categories, transactions, transactionTags } from "@/db/schema"
 import { type TransactionType, MR, AUDIT_ACTION, ENTITY, TX, DEFAULT_CURRENCY } from "@/lib/constants"
 import { requireUser, requireLedgerAccess } from "@/lib/scope"
 import { isTransfer } from "@/lib/constants"
@@ -12,11 +12,12 @@ import { db } from "@/lib/db";
 
 import { eq, inArray } from "drizzle-orm";
 import { withAudit } from "@/lib/audit";
-import { ensureAccount, ensureCategory } from "@/lib/ledger-refs";
+import { ensureAccount, ensureCategory, ensureProject, ensureTag } from "@/lib/ledger-refs";
 import { yuanToCents } from "@/lib/money";
-import { loadCurrencyRates, rateOf, toBaseCents } from "@/lib/currency";
+import { loadCurrencyRates, rateOf, toBaseCents, convertTo } from "@/lib/currency";
 import * as XLSX from "@e965/xlsx";
 import { readLocale, getMergedDict } from "@/i18n/dict";
+import { randomUUID } from "node:crypto";
 
 /** 导入 Excel（流水）：行级校验，账户/分类按名称匹配或自动创建，返回行级报告 */
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB 文件大小上限
@@ -101,6 +102,10 @@ export async function POST(req: Request) {
   const amountCandidates = [h("amount")];
   const categoryCandidates = [h("category")];
   const remarkCandidates = [h("remark")];
+  // 模板额外列：转账目标账户 / 项目 / 标签（均可空，导入后落库）
+  const toAccountCandidates = [String(d.add.toAccount ?? "").trim()];
+  const projectCandidates = [String(d.common.project ?? "").trim()];
+  const tagCandidates = [String(d.tx.tag ?? "").trim()];
 
   const typeLabelMap: Record<string, TransactionType> = {
     [h("income")]: TX.income,
@@ -124,6 +129,9 @@ export async function POST(req: Request) {
     catName: string;
     cents: number;
     remark: string;
+    toAccountName: string;
+    projectName: string;
+    tagNames: string[];
   };
 
   // 解析阶段：逐行校验，收集可导入行与解析错误（不写库）
@@ -150,7 +158,11 @@ export async function POST(req: Request) {
     if (cents <= 0) { errors.push(d.errors.rowAmountPositive.replace("{line}", String(lineNo))); continue; }
 
     const catName = String(cell(r, categoryCandidates) ?? "").trim();
-    parsed.push({ lineNo, type, date, acctName, catName, cents, remark: String(cell(r, remarkCandidates) ?? "").trim() });
+    const toAccountName = String(cell(r, toAccountCandidates) ?? "").trim();
+    const projectName = String(cell(r, projectCandidates) ?? "").trim();
+    const tagRaw = String(cell(r, tagCandidates) ?? "").trim();
+    const tagNames = tagRaw ? tagRaw.split(/[,，、]/).map((s) => s.trim()).filter(Boolean) : [];
+    parsed.push({ lineNo, type, date, acctName, catName, cents, remark: String(cell(r, remarkCandidates) ?? "").trim(), toAccountName, projectName, tagNames });
   }
 
   // 写入阶段：单事务批量插入（审计与业务同事务，仅一条汇总审计，避免逐行事务开销）
@@ -165,8 +177,10 @@ export async function POST(req: Request) {
           responseBody: '{"result":"created"}',
         },
         async (tx) => {
-          // 自动创建缺失账户（cash/储蓄卡）——统一走公共 ensureAccount
-          const missingAccts = [...new Set(parsed.map((p) => p.acctName).filter((n) => !acctIdByName.has(n)))];
+          // 缺失账户统一自动创建（来源账户 + 转账目标账户共用一份缓存：同名即同一账户，避免重复建户）
+          const missingAccts = [...new Set(
+            parsed.flatMap((p) => [p.acctName, ...(p.type === TX.transfer && p.toAccountName ? [p.toAccountName] : [])]),
+          )].filter((n) => !acctIdByName.has(n));
           for (const name of missingAccts) {
             await ensureAccount(tx, ledger.id, name, { createdBy: user.id, cache: acctIdByName });
           }
@@ -182,29 +196,67 @@ export async function POST(req: Request) {
             seenCat.add(key);
             await ensureCategory(tx, ledger.id, p.catName, normType, catIdByName);
           }
-          // 批量插入流水（按账户原币存，并快照 baseAmountCents）
+          // 项目：缺失自动创建（按账本 + 名称）
+          const projIdByName = new Map<string, string>();
+          for (const p of parsed) {
+            if (p.projectName && !projIdByName.has(p.projectName)) {
+              await ensureProject(tx, ledger.id, p.projectName, { createdBy: user.id, cache: projIdByName });
+            }
+          }
+          // 标签：多值（逗号 / 顿号分隔）缺失自动创建（按账本 + 名称）
+          const tagIdByName = new Map<string, string>();
+          for (const p of parsed) {
+            for (const name of p.tagNames) {
+              if (!tagIdByName.has(name)) await ensureTag(tx, ledger.id, name, { createdBy: user.id, cache: tagIdByName });
+            }
+          }
+          // 批量插入流水：按来源账户原币存，并快照 baseAmountCents / toAmountCents（跨币种转账目标额按汇率折算）；项目 / 标签一并写入
           const rates = await loadCurrencyRates();
+          const allAcctIds = [...acctIdByName.values()];
           const acctRows = await tx.select({ id: accounts.id, currencyCode: accounts.currencyCode })
-            .from(accounts).where(inArray(accounts.id, [...acctIdByName.values()]));
+            .from(accounts).where(inArray(accounts.id, allAcctIds));
           const curByAcct = new Map(acctRows.map((a) => [a.id, a.currencyCode]));
-          await tx.insert(transactions).values(
-            parsed.map((p) => {
-              const accId = acctIdByName.get(p.acctName)!;
-              const cur = curByAcct.get(accId) ?? DEFAULT_CURRENCY;
-              return {
-                ledgerId: ledger.id,
-                accountId: accId,
-                type: p.type,
-                categoryId: isTransfer(p.type) ? null : (p.catName ? (catIdByName.get(`${p.type}::${p.catName}`) ?? null) : null),
-                amountCents: p.cents,
-                currencyCode: cur,
-                baseAmountCents: toBaseCents(p.cents, rateOf(rates, cur)),
-                txDate: p.date,
-                remark: p.remark || null,
-                createdBy: user.id,
-              };
-            }),
-          );
+          const txValues = parsed.map((p) => {
+            const accId = acctIdByName.get(p.acctName)!;
+            const fromCur = curByAcct.get(accId) ?? DEFAULT_CURRENCY;
+            const toAccountId = p.type === TX.transfer && p.toAccountName ? (acctIdByName.get(p.toAccountName) ?? null) : null;
+            const toCur = toAccountId ? (curByAcct.get(toAccountId) ?? DEFAULT_CURRENCY) : fromCur;
+            const fromRate = rateOf(rates, fromCur);
+            const toRate = rateOf(rates, toCur);
+            const baseAmountCents = toBaseCents(p.cents, fromRate);
+            const toAmountCents = toAccountId ? convertTo(p.cents, fromRate, toRate) : null;
+            const categoryId = isTransfer(p.type) ? null : (p.catName ? (catIdByName.get(`${p.type}::${p.catName}`) ?? null) : null);
+            const projectId = p.projectName ? (projIdByName.get(p.projectName) ?? null) : null;
+            return {
+              id: randomUUID(),
+              ledgerId: ledger.id,
+              accountId: accId,
+              toAccountId,
+              type: p.type,
+              categoryId,
+              projectId,
+              amountCents: p.cents,
+              currencyCode: fromCur,
+              toCurrencyCode: toAccountId ? toCur : null,
+              usedRateFrom: fromRate,
+              usedRateTo: toAccountId ? toRate : null,
+              toAmountCents,
+              baseAmountCents,
+              txDate: p.date,
+              remark: p.remark || null,
+              createdBy: user.id,
+            };
+          });
+          await tx.insert(transactions).values(txValues);
+          // 标签多对多：按行内解析出的标签名映射 id 后批量写入
+          const tagRows: { transactionId: string; tagId: string }[] = [];
+          for (let i = 0; i < parsed.length; i++) {
+            for (const name of parsed[i].tagNames) {
+              const tagId = tagIdByName.get(name);
+              if (tagId) tagRows.push({ transactionId: txValues[i].id, tagId });
+            }
+          }
+          if (tagRows.length) await tx.insert(transactionTags).values(tagRows);
         },
       );
       success = planned;

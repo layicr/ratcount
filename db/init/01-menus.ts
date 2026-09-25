@@ -33,7 +33,7 @@ export const MENU_GROUP_DEFS: MenuGroupDef[] = [
   { menuGroupId: "manage",   name: JSON.stringify({ "zh-CN": "管理", en: "Manage", "zh-TW": "管理" }),             sort: 4, remark: "账本与系统管理" },
 ];
 
-/** 菜单项（29 项）/ Menu items (29) */
+/** 菜单项（26 项）/ Menu items (26) */
 export const MENU_DEFS: MenuDef[] = [
   /* 记账 group · 7 / Bookkeeping group · 7 */
   { menuId: "nav.add",               name: JSON.stringify({ "zh-CN": "记一笔",    en: "Add",               "zh-TW": "記一筆" }), icon: "⚡", menuGroupId: "book",     sort: 1, statusCode: STATUS.active, deviceType: "mobile",   link: "/add",            remark: "快速记账" },
@@ -54,7 +54,7 @@ export const MENU_DEFS: MenuDef[] = [
   { menuId: "nav.investMetals",      name: JSON.stringify({ "zh-CN": "贵金属管理", en: "Precious Metals",      "zh-TW": "貴金屬管理" }), icon: "🥇", menuGroupId: "invest",   sort: 8, statusCode: STATUS.active, deviceType: "desktop", link: "/investments/metals", remark: "" },
   { menuId: "nav.investRealEstate",  name: JSON.stringify({ "zh-CN": "不动产管理", en: "Real Estate",          "zh-TW": "不動產管理" }), icon: "🏠", menuGroupId: "invest",   sort: 9, statusCode: STATUS.active, deviceType: "desktop", link: "/investments/real-estate", remark: "" },
   { menuId: "nav.investLoans",       name: JSON.stringify({ "zh-CN": "借贷管理",  en: "Loans",                "zh-TW": "借貸管理" }), icon: "🤝", menuGroupId: "invest",   sort: 10, statusCode: STATUS.active, deviceType: "desktop", link: "/investments/loans", remark: "" },
-  /* 保障 group · 3 / Protection group · 3 */
+  /* 保障 group · 2 / Protection group · 2 */
   { menuId: "nav.protectionOverview", name: JSON.stringify({ "zh-CN": "保障总览", en: "Protection Overview", "zh-TW": "保障總覽" }), icon: "🛡️", menuGroupId: "protection", sort: 1, statusCode: STATUS.active, deviceType: "desktop", link: "/protection",   remark: "" },
   { menuId: "nav.investInsurance",   name: JSON.stringify({ "zh-CN": "储蓄型保险", en: "Savings Insurance",   "zh-TW": "儲蓄型保險" }), icon: "☂️", menuGroupId: "protection", sort: 2, statusCode: STATUS.active, deviceType: "desktop", link: "/investments/insurance", remark: "" },
   /* 管理 group · 7 / Manage group · 7 */

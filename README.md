@@ -340,7 +340,7 @@ Edit these 3 spots in order; the language then appears in the UI (enable/set def
 | 流水 Transactions | `/transactions` | 列表 / 筛选 / 编辑 / 删除 / 导入入口 |
 | 账户 Accounts | `/accounts` | 19 种账户类型，余额实时汇总 |
 | 余额表 Balance | `/balance` | 期初 + 流水 = 当前余额，快照对账 |
-| 报表 Reports | `/reports` | 7 维筛选 / 概览 / 分类 / 标签 / 项目 / 资产 |
+| 报表 Reports | `/reports` | 6 维筛选 / 概览 / 分类 / 标签 / 项目 / 资产 |
 | 收支日历 Calendar | `/calendar` | 按日展示收支 |
 | 投资 Investments | `/investments` | 总览 + 10 类持仓子页（股票/基金/定期/国债/贵金属/不动产/数字资产/收藏品/储蓄型保险/借贷） |
 | 保障 Protection | `/protection` | 储蓄型保险 + 公积金 + 养老金汇总 |
@@ -349,7 +349,7 @@ Edit these 3 spots in order; the language then appears in the UI (enable/set def
 | 标签 Tags | `/tags` | 标签管理 |
 | 周期计划 Recurring | `/recurring` | 定时收支模板（日/周/月/年） |
 | 账本 Ledgers | `/ledgers` | 多账本切换 / 成员管理 |
-| 导入导出 Import | `/import` | Excel 导入 / 导出 / 行级报告 |
+| 导入导出 Import | `/import` | Excel 导入（收入/支出/转账，支持项目/标签/目标账户自动建并落库）/ 导出 / 行级报告 |
 | 个人中心 Profile | `/profile` | 资料 / 修改密码 / 我的菜单 |
 | 全局设置 Settings | `/settings` | 通用设置 / 用户 `/settings/users` / 语言 `/settings/languages` / 菜单 `/settings/menus` / 菜单分组 `/settings/menu-groups` / 币种 `/settings/currencies` / 日志 `/settings/logs` |
 | 审计日志 Audit | `/settings/logs` | 操作留痕（C / U / D） |

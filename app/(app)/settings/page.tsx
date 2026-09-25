@@ -10,7 +10,7 @@ import type { AppDict } from "@/i18n/dict";
 import { DEFAULT_TIME_ZONE } from "@/i18n/timezones";
 import { DEFAULT_THEME } from "@/i18n/themes";
 
-/** 全局设置（仅管理员）：系统设置 + 币种/用户/日志/菜单/菜单分组管理入口 */
+/** 全局设置（仅管理员）：系统设置 + 币种/语言/用户/日志/菜单/菜单分组管理入口 */
 export default async function SettingsPage() {
   const user = await requireUser();
   const ledger = await requireCurrentLedger();

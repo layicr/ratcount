@@ -12,7 +12,7 @@ import { InvestmentDeleteButton, InvestmentSellButton, InvestmentDividendButton,
 import { Pagination } from "./pagination";
 import type { HoldingItem } from "./investment-form";
 
-/** 表格变体：可交易（股票/基金）/ 贵金属 / 固收（定期/国债）/ 不动产 */
+/** 表格变体：可交易（股票/基金/数字资产）/ 贵金属 / 固收（定期/国债/借贷/保险）/ 不动产 */
 export type HoldingTableVariant = "tradable" | "metal" | "fixed" | "estate";
 
 /** 收益率：收益 / 实际成本（成本+费用） */
@@ -22,12 +22,25 @@ function rate(profit: number, cost: number, fee: number): string {
   return `${((profit / base) * 100).toFixed(1)}%`;
 }
 
+/** 持仓行收益（分）：借入方向取负（负债），其余沿用 holdingProfitCents（非负计入） */
+function rowProfit(h: HoldingItem, value: number): number {
+  if (h.type === INV.loan && h.direction === "borrow") {
+    return -((value - h.costCents - h.feeCents));
+  }
+  return holdingProfitCents({
+    valueCents: value,
+    costCents: h.costCents,
+    feeCents: h.feeCents,
+    dividendCents: h.dividendCents,
+  });
+}
+
 const th = "py-2 text-xs font-normal text-slate-400";
 const thRight = `${th} text-right`;
 
 /**
  * 投资管理页通用区块：标题 + 汇总 + 搜索框 + 新增按钮 + 表格 + 分页
- * 6 个管理页共用，列定义按 variant 分支，避免 6 份重复表格
+ * 10 个管理页共用（9 个类型页 + 贵金属页），列定义按 variant 分支，避免重复表格
  */
 export function InvestmentTypeTable({
   variant,
@@ -95,17 +108,28 @@ export function InvestmentTypeTable({
           maturityDate: h.maturityDate,
         })
       : h.currentValueCents;
-  const totalValue = holdings.reduce((s, h) => s + valueOf(h), 0);
-  // 总收益口径：估值（定期/国债为本息预估，其余为市值）− 成本 − 费用 + 累计派息
-  const totalProfit = holdings.reduce(
-    (s, h) => s + holdingProfitCents({
-      valueCents: valueOf(h),
-      costCents: h.costCents,
-      feeCents: h.feeCents,
-      dividendCents: h.dividendCents,
-    }),
-    0,
-  );
+  // 跨币种汇总：各持仓存「基准币种快照」base*，直接求和即基准币种总额（不再把各原币分相加后套基准符号，避免汇率失真）
+  // Cross-currency summary: each holding stores a base-currency snapshot (base*); summing yields the correct base total
+  const baseValueOf = (h: HoldingItem) =>
+    isAccrual && h.status === INVESTMENT_STATUS.active
+      ? estimateAccruedCents({
+          principalCents: (h.baseCostCents ?? h.costCents) + (h.baseFeeCents ?? h.feeCents),
+          interestRate: h.interestRate,
+          startDate: h.purchaseDate,
+          maturityDate: h.maturityDate,
+        })
+      : (h.baseValueCents ?? h.currentValueCents);
+  const totalValue = holdings.reduce((s, h) => s + baseValueOf(h), 0);
+  // 总收益（基准币种）：估值 − 成本 − 费用 + 累计派息；借入方向取负（与行内 rowProfit 口径一致）
+  const totalProfit = holdings.reduce((s, h) => {
+    const v = baseValueOf(h);
+    const cost = (h.baseCostCents ?? h.costCents) + (h.baseFeeCents ?? h.feeCents);
+    const div = h.baseDividendCents ?? h.dividendCents;
+    if (h.type === INV.loan && h.direction === "borrow") return s - (v - cost);
+    return s + v - cost + div;
+  }, 0);
+  // 实际成本合计（基准币种）：成本 + 费用 / total actual cost in base: cost + fee
+  const totalCost = holdings.reduce((s, h) => s + (h.baseCostCents ?? h.costCents) + (h.baseFeeCents ?? h.feeCents), 0);
   const curPage = pagination?.page ?? page ?? 1;
   const curPageSize = pagination?.pageSize ?? pageSize ?? 10;
   const totalPages = pagination?.totalPages ?? (total ? Math.max(1, Math.ceil(total / curPageSize)) : 1);
@@ -132,8 +156,10 @@ export function InvestmentTypeTable({
       <div>
         <h1 className="text-lg font-bold text-slate-800">{title}</h1>
         <div className="mt-1 text-xs text-slate-400">
-          {/* 汇总口径与列头一致：定期 / 国债显示「本息预估 / 应计利息」，其余沿用「市值 / 收益」 */}
-          {ti("holdings")} {displayTotal} · {isAccrual ? ti("accruedValue") : ti("marketValue")} {money(totalValue)} ·{" "}
+          {/* 汇总口径（基准币种，已按汇率折算）：持有数量 · 实际成本 · 市值/本息预估 · 收益/应计利息 */}
+          {ti("holdings")} {displayTotal}
+          <> · {ti("actualCost")} {money(totalCost)}</> ·{" "}
+          {isAccrual ? ti("accruedValue") : ti("marketValue")} {money(totalValue)} ·{" "}
           {isAccrual ? ti("accruedInterest") : ti("profit")}{" "}
           <span className={totalProfit >= 0 ? "text-green-600" : "text-red-600"}>
             {totalProfit < 0 ? "-" : ""}{money(Math.abs(totalProfit))}
@@ -208,6 +234,8 @@ export function InvestmentTypeTable({
                       <th className={th}>{ti("maturityDate")}</th>
                     </>
                   )}
+                  {/* 借贷：持有数量（借款笔数无数量口径，固定显示「—」，置于实际成本之前）/ Loan: holding quantity (no quantity unit; fixed "—"), placed before actual cost */}
+                  {type === INV.loan && <th className={thRight}>{ti("holdingQuantity")}</th>}
                   {variant === "estate" && (
                     <>
                       <th className={th}>{ti("location")}</th>
@@ -230,18 +258,22 @@ export function InvestmentTypeTable({
                 {holdings.map((h) => {
                   // 估值：定期 / 国债为本息预估（应计本息），其余为当前市值
                   const value = valueOf(h);
-                  // 收益 = 估值 − 成本 − 费用 + 累计派息（派息时市值已除权，故两者不重复）；定期即应计利息
-                  const profit = holdingProfitCents({
-                    valueCents: value,
-                    costCents: h.costCents,
-                    feeCents: h.feeCents,
-                    dividendCents: h.dividendCents,
-                  });
+                  // 收益 = 估值 − 成本 − 费用 + 累计派息（派息时市值已除权，故两者不重复）；借入方向取负（负债）
+                  const profit = rowProfit(h, value);
+                  const isBorrow = h.type === INV.loan && h.direction === "borrow";
                   return (
-                    <tr key={h.id} className="border-b border-slate-50 hover:bg-slate-50/60">
+                    <tr key={h.id} className="border-b border-slate-50">
                       <td className="py-2 text-slate-700">
                         <span className="mr-1">{investmentIcon(h.type)}</span>
                         {h.name}
+                        {/* 借贷方向徽章：借出（资产）/ 借入（负债） */}
+                        {h.type === INV.loan && h.direction && (
+                          <span
+                            className={`ml-1 rounded-full px-1.5 py-0.5 text-[10px] ${h.direction === "borrow" ? "bg-rose-100 text-rose-600" : "bg-sky-100 text-sky-600"}`}
+                          >
+                            {ti(h.direction === "borrow" ? "borrow" : "lend")}
+                          </span>
+                        )}
                       </td>
                       {variant === "tradable" && <td className="text-slate-500">{h.code ?? "—"}</td>}
                       {variant === "metal" && (
@@ -256,6 +288,10 @@ export function InvestmentTypeTable({
                           <td className="text-slate-500">{h.maturityDate ?? "—"}</td>
                         </>
                       )}
+                      {/* 借贷：持有数量（无数量口径显示「—」）/ Loan: holding quantity ("—" when no quantity) */}
+                      {type === INV.loan && (
+                        <td className="text-right text-slate-500">{h.quantity > 0 ? quantityToDisplay(h.type, h.quantity) : "—"}</td>
+                      )}
                       {variant === "estate" && (
                         <>
                           <td className="max-w-[180px] truncate text-slate-500">{h.location ?? "—"}</td>
@@ -266,8 +302,8 @@ export function InvestmentTypeTable({
                         <td className="text-right text-slate-500">{quantityToDisplay(h.type, h.quantity)}</td>
                       )}
 
-                      <td className="text-right text-slate-700">{hx(h, h.costCents + h.feeCents)}{isStockLike && <><br /><span className="text-xs text-slate-400">（{hx(h, h.costCents)} + {hx(h, h.feeCents)}）</span></>}</td>
-                      <td className="text-right text-slate-700">{hx(h, value)}</td>
+                      <td className={`text-right ${isBorrow ? "text-rose-600" : "text-slate-700"}`}>{isBorrow ? "−" : ""}{hx(h, h.costCents + h.feeCents)}{isStockLike && <><br /><span className="text-xs text-slate-400">（{hx(h, h.costCents)} + {hx(h, h.feeCents)}）</span></>}</td>
+                      <td className={`text-right ${isBorrow ? "text-rose-600" : "text-slate-700"}`}>{isBorrow ? "−" : ""}{hx(h, value)}</td>
                       <td className={`text-right font-medium ${profit >= 0 ? "text-green-600" : "text-red-600"}`}>
                         {profit < 0 ? "-" : ""}{hx(h, Math.abs(profit))}
                         {h.dividendCents > 0 ? (

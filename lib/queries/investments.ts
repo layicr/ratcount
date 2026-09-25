@@ -10,8 +10,8 @@ import { db } from "@/lib/db";
 import { investmentHoldings, holdingTags, tags } from "@/db/schema"
 import { listProjects } from "./basics"
 import { type InvestmentType } from "@/lib/constants"
+import { isFixedIncome } from "@/lib/investment-types"
 
-import { holdingProfitCents } from "@/lib/investment-flow";
 import { resolvePeriodRange, type StatsPeriod } from "@/lib/period";
 import { DEFAULT_TIME_ZONE } from "@/i18n/timezones";
 
@@ -40,6 +40,21 @@ export function unrealizedProfitCents(r: { v: number; cost: number; fee: number 
 }
 
 /**
+ * 持仓未实现盈亏（含借贷方向）：借出（资产）同 unrealizedProfitCents（非负计入）；
+ * 借入（负债）取负（市值增量即新增负债，净资产相应扣减）。
+ * Holding unrealized P&L with loan direction: lend (asset) behaves like unrealizedProfitCents (floored at 0);
+ * borrow (liability) is negated (market-value increase = new liability, net worth decreases accordingly).
+ */
+export function holdingUnrealizedCents(
+  r: { v: number; cost: number; fee: number },
+  direction?: string | null,
+): number {
+  const raw = (r.v ?? 0) - (r.cost ?? 0) - (r.fee ?? 0);
+  if (direction === "borrow") return -raw;
+  return Math.max(0, raw);
+}
+
+/**
  * 按买入/起息日期过滤（无买入日期时用创建日期兜底，避免漏数据）
  * 写成 OR 分支而非 COALESCE(...) BETWEEN：COALESCE 会把列包住导致
  * inv_purchase_date_idx 完全失效；改写后 purchase_date 有值的行可命中索引，
@@ -53,17 +68,18 @@ function purchaseDateInRange(start: string, end: string): SQL {
     OR (${investmentHoldings.purchaseDate} IS NULL AND substr(${investmentHoldings.createdAt}, 1, 10) BETWEEN ${start} AND ${end}))`;
 }
 
-/** 投资未实现盈亏合计（分）：活跃持仓 市值 − 成本 − 费用，用于净资产统计 / Total unrealized P&L (cents): active holdings' market − cost − fee; for net worth */
+/** 投资未实现盈亏合计（分）：活跃持仓 市值 − 成本 − 费用，借入方向取负，用于净资产统计 / Total unrealized P&L (cents): active holdings' market − cost − fee; borrow flips sign for net worth */
 export async function investmentNetWorthValue(ledgerId: string): Promise<number> {
   const rows = await db
     .select({
       v: investmentHoldings.baseValueCents,
       cost: investmentHoldings.baseCostCents,
       fee: investmentHoldings.baseFeeCents,
+      direction: investmentHoldings.direction,
     })
     .from(investmentHoldings)
     .where(investNetWorthFilter(ledgerId));
-  return rows.reduce((s, r) => s + unrealizedProfitCents(r), 0);
+  return rows.reduce((s, r) => s + holdingUnrealizedCents(r, r.direction), 0);
 }
 
 /**
@@ -80,7 +96,10 @@ export async function investmentOverview(ledgerId: string, period?: StatsPeriod,
     purchaseDateInRange(start, end),
   );
 
-  // 统计口径下推 SQL：按类型 GROUP BY 出「数量 / 成本 / 费用 / 市值 / 派息」/ Push stats to SQL: GROUP BY type for count/cost/fee/value/dividend
+  // 统计口径下推 SQL：按类型 GROUP BY 出「数量 / 成本 / 费用 / 市值 / 派息 / 收益」
+  // 收益按借贷方向翻转：借入取负（负债），借出非负计入（与 holdingUnrealizedCents 一致）
+  // Push stats to SQL: GROUP BY type for count/cost/fee/value/dividend/profit; profit flips sign for borrow (liability)
+  const rawDiff = sql<number>`(${investmentHoldings.baseValueCents} - ${investmentHoldings.baseCostCents} - ${investmentHoldings.baseFeeCents})`;
   const aggRows = await db
     .select({
       type: investmentHoldings.type,
@@ -89,6 +108,9 @@ export async function investmentOverview(ledgerId: string, period?: StatsPeriod,
       fee: sql<number>`coalesce(sum(${investmentHoldings.baseFeeCents}), 0)`,
       value: sql<number>`coalesce(sum(${investmentHoldings.baseValueCents}), 0)`,
       dividend: sql<number>`coalesce(sum(${investmentHoldings.baseDividendCents}), 0)`,
+      profit: sql<number>`coalesce(sum(case when ${investmentHoldings.direction} = 'borrow'
+        then -${rawDiff}
+        else case when ${rawDiff} < 0 then 0 else ${rawDiff} end end), 0)`,
     })
     .from(investmentHoldings)
     .where(inRange)
@@ -101,8 +123,9 @@ export async function investmentOverview(ledgerId: string, period?: StatsPeriod,
     byType[r.type] = {
       count: Number(r.cnt),
       cost, fee, value, dividend,
-      // 收益口径：浮盈（市值 − 成本 − 费用）+ 累计派息（派息时市值已除权，故不重复计）/ Profit: floating gain (value−cost−fee) + cumulative dividends (ex-div already priced in, not double-counted)
-      profit: holdingProfitCents({ valueCents: value, costCents: cost, feeCents: fee, dividendCents: dividend }),
+      // 收益口径：仅浮盈 = 市值 − 成本 − 费用（借入方向取负、非负封底）；累计派息在 dividend 字段单独列示，不并入收益
+      // Profit definition: floating gain only = value − cost − fee (borrow flips sign, floored at 0); cumulative dividends are reported separately in `dividend`, not merged into profit
+      profit: Number(r.profit),
     };
     totalCost += cost;
     totalFee += fee;
@@ -124,19 +147,14 @@ export async function investmentOverview(ledgerId: string, period?: StatsPeriod,
     totalCost,
     totalFee,
     totalDividend,
-    totalProfit: holdingProfitCents({
-      valueCents: totalValue,
-      costCents: totalCost,
-      feeCents: totalFee,
-      dividendCents: totalDividend,
-    }),
+    totalProfit: Object.values(byType).reduce((s, t) => s + t.profit, 0),
     totalCount,
     byType,
     holdings,
   };
 }
 
-/** 按投资类型查询持仓（可按细分 / 期间 / 关键词过滤，分页，按市值降序）/ List holdings by type (filter by subType/period/keyword; paginated; sorted by value desc) */
+/** 按投资类型查询持仓（可按细分 / 期间 / 关键词过滤，分页；固收类按起息日降序，其余按市值降序）/ List holdings by type (filter by subType/period/keyword; paginated; fixed-income by accrual date desc, others by value desc) */
 export async function listInvestmentsByType(
   ledgerId: string,
   type: InvestmentType,
@@ -168,11 +186,18 @@ export async function listInvestmentsByType(
     .where(where);
   const page = Math.max(1, opts?.page ?? 1);
   const pageSize = Math.max(1, opts?.pageSize ?? 20);
+  // 排序：固收类（定期 / 国债 / 借贷 / 保险）按「起息日」降序（最近起息在前，便于按到期顺序跟进）；
+  // 起息日缺失时以创建时间兜底；其余类型（股票 / 基金等）沿用市值降序
+  // Order: fixed-income types (deposit / bond / loan / insurance) by accrual date desc (newest first, easier to track maturities);
+  // created-at falls back when accrual date is missing; other types keep value desc.
+  const orderBy = isFixedIncome(type)
+    ? [desc(investmentHoldings.purchaseDate), desc(investmentHoldings.createdAt)]
+    : [desc(investmentHoldings.currentValueCents)];
   const rows = await db
     .select()
     .from(investmentHoldings)
     .where(where)
-    .orderBy(desc(investmentHoldings.currentValueCents))
+    .orderBy(...orderBy)
     .limit(pageSize)
     .offset((page - 1) * pageSize);
   return { rows, total };

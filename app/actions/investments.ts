@@ -1,12 +1,11 @@
 "use server";
 
 // 薄封装：守卫 + 取账本 + 调 lib/services/investments + 重新校验缓存（Next 专属，不进服务层）
-import { revalidatePath } from "next/cache";
 import { getTranslations } from "next-intl/server";
 import { getCurrentLedgerId } from "@/lib/ledger";
 import { requireLedgerAccess } from "@/lib/scope";
-import { investmentListHref } from "@/lib/investment-types";
-import { MR, DASHBOARD_PATH, TRANSACTIONS_PATH } from "@/lib/constants";
+import { MR, type InvestmentType } from "@/lib/constants";
+import { revalidateInvestmentRelated } from "@/lib/revalidate";
 import {
   createInvestmentService, updateInvestmentService, sellInvestmentService,
   dividendInvestmentService, deleteInvestmentService, copyInvestmentService,
@@ -22,10 +21,7 @@ export async function createInvestment(input: InvestmentInput) {
   const { user } = await requireLedgerAccess(ledgerId, MR.editor);
   const res = await createInvestmentService({ id: user.id }, ledgerId, input);
   if (res.ok) {
-    revalidatePath("/investments");
-    revalidatePath(investmentListHref(input.type as never));
-    revalidatePath(DASHBOARD_PATH);
-    revalidatePath(TRANSACTIONS_PATH);
+    revalidateInvestmentRelated(input.type);
   }
   return res;
 }
@@ -37,10 +33,7 @@ export async function updateInvestment(id: string, input: InvestmentInput) {
   const { user } = await requireLedgerAccess(ledgerId, MR.editor);
   const res = await updateInvestmentService({ id: user.id }, ledgerId, id, input);
   if (res.ok) {
-    revalidatePath("/investments");
-    revalidatePath(investmentListHref(input.type as never));
-    revalidatePath(DASHBOARD_PATH);
-    revalidatePath(TRANSACTIONS_PATH);
+    revalidateInvestmentRelated(input.type);
   }
   return res;
 }
@@ -52,9 +45,7 @@ export async function sellInvestment(input: InvestActionInput) {
   const { user } = await requireLedgerAccess(ledgerId, MR.editor);
   const res = await sellInvestmentService({ id: user.id }, ledgerId, input);
   if (res.ok) {
-    revalidatePath("/investments");
-    revalidatePath(DASHBOARD_PATH);
-    revalidatePath(TRANSACTIONS_PATH);
+    revalidateInvestmentRelated();
   }
   return res;
 }
@@ -66,9 +57,7 @@ export async function dividendInvestment(input: InvestActionInput) {
   const { user } = await requireLedgerAccess(ledgerId, MR.editor);
   const res = await dividendInvestmentService({ id: user.id }, ledgerId, input);
   if (res.ok) {
-    revalidatePath("/investments");
-    revalidatePath(DASHBOARD_PATH);
-    revalidatePath(TRANSACTIONS_PATH);
+    revalidateInvestmentRelated();
   }
   return res;
 }
@@ -80,10 +69,7 @@ export async function deleteInvestment(id: string, type: string) {
   const { user } = await requireLedgerAccess(ledgerId, MR.editor);
   const res = await deleteInvestmentService({ id: user.id }, ledgerId, id, type);
   if (res.ok) {
-    revalidatePath("/investments");
-    revalidatePath(investmentListHref(type as never));
-    revalidatePath(DASHBOARD_PATH);
-    revalidatePath(TRANSACTIONS_PATH);
+    revalidateInvestmentRelated(type as InvestmentType);
   }
   return res;
 }
@@ -96,10 +82,7 @@ export async function copyInvestment(id: string, type: string) {
   const t = await getTranslations("investment");
   const res = await copyInvestmentService({ id: user.id }, ledgerId, id, t("copied"));
   if (res.ok) {
-    revalidatePath("/investments");
-    revalidatePath(investmentListHref(type as never));
-    revalidatePath(DASHBOARD_PATH);
-    revalidatePath(TRANSACTIONS_PATH);
+    revalidateInvestmentRelated(type as InvestmentType);
   }
   return res;
 }

@@ -86,6 +86,7 @@ export async function ensureSchema(): Promise<void> {
   await ensureColumn("transactions", "used_rate_to", "TEXT");
   await ensureColumn("transactions", "to_amount_cents", "INTEGER");
   await ensureColumn("transactions", "base_amount_cents", "INTEGER NOT NULL DEFAULT 0");
+  await ensureColumn("transactions", "investment_holding_id", "TEXT");
   await ensureColumn("balances", "currency_code", "TEXT NOT NULL DEFAULT 'CNY'");
   await ensureColumn("balances", "used_rate", "TEXT");
   await ensureColumn("balances", "base_balance_amount_cents", "INTEGER NOT NULL DEFAULT 0");

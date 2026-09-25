@@ -17,7 +17,7 @@
  */
 import { sqliteTable, text, integer, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 import {
-  TRUE, FALSE, DEFAULT_CURRENCY, DEFAULT_LEDGER_ICON, GLOBAL_USER_ID, ROLE, MR, ACCT, USER_STATUS, MENU_STATUS, PROJECT_STATUS, FREQ, RECURRING_STATUS, INVESTMENT_STATUS, DEVICE, RecurringFrequency, UserRole, UserStatus, MemberRole, AccountType, CategoryType, TransactionType, AuditAction, ProjectStatus, RecurringStatus, InvestmentStatus, InvestmentType, MenuStatusCode, MenuDeviceType } from "@/lib/constants";
+  TRUE, FALSE, DEFAULT_CURRENCY, DEFAULT_LEDGER_ICON, GLOBAL_USER_ID, ROLE, MR, ACCT, USER_STATUS, MENU_STATUS, PROJECT_STATUS, FREQ, RECURRING_STATUS, INVESTMENT_STATUS, DEVICE, RecurringFrequency, UserRole, UserStatus, MemberRole, AccountType, CategoryType, TransactionType, AuditAction, ProjectStatus, RecurringStatus, InvestmentStatus, InvestmentType, InvestmentDirection, MenuStatusCode, MenuDeviceType } from "@/lib/constants";
 
 /* ===== 通用字段构造器 / Common column builders ===== */
 
@@ -244,6 +244,7 @@ export const transactions = sqliteTable(
     baseAmountCents: integer("base_amount_cents").notNull().default(0), // 折算到基准币种的金额（分，写入时快照，历史不可变）/ amount in base currency (snapshot at write, immutable)
     txDate: text("tx_date").notNull(), // 发生日期 YYYY-MM-DD / occurred date YYYY-MM-DD
     remark: text("remark"), // 备注（原 note 更名）/ remark (renamed from note)
+    investmentHoldingId: text("investment_holding_id"), // 关联投资持仓（买入/分红/到期/还款流水回指源持仓，便于删除持仓时级联清理其流水）/ source investment holding (buy/dividend/mature/repay tx; cascade-delete with holding)
     createdBy: text("created_by").notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -255,6 +256,7 @@ export const transactions = sqliteTable(
     index("tx_ledger_cat_idx").on(t.ledgerId, t.categoryId),
     index("tx_ledger_proj_idx").on(t.ledgerId, t.projectId),
     index("tx_ledger_type_idx").on(t.ledgerId, t.type),
+    index("tx_ledger_holding_idx").on(t.ledgerId, t.investmentHoldingId),
     // 报表「账本 + 类型 + 日期区间」高频组合（分类占比 / 项目盈亏 / 标签统计）/ Report hot combo "ledger + type + date range" (category breakdown / project P&L / tag stats)
     index("tx_ledger_type_date_idx").on(t.ledgerId, t.type, t.txDate),
   ],
@@ -396,18 +398,19 @@ export const recurringPlans = sqliteTable(
 );
 
 /* ====================================================================
- * 16. investment_holdings 投资持仓表 / investment holdings
+ * 15. investment_holdings 投资持仓表 / investment holdings
  *     type: stock 股票 / fund 基金 / deposit 定期 / bond 国债 /
  *           metal 贵金属 / real_estate 不动产 /
  *           digital_asset 数字资产（同股票） / collectible 收藏品（同基金） /
  *           insurance 储蓄型保险 / loan 民间借贷
  *     sub_type: 贵金属细分 gold 黄金 / silver 白银（其他类型可空）
- *     quantity: 数量（整数存储：股数/份额×10000/克数×100/面积×100）
+ *     quantity: 数量（整数存储：股数/份额×10000/克数×100；不动产数量恒为 0，面积另存 area_sqm）
  *     cost_cents: 买入成本（分，不含交易费用）
  *     fee_cents: 交易费用（分，佣金+印花税+过户费等）
  *     current_value_cents: 当前市值（分，手动更新或价格计算）
- *     account_id: 关联账户（持仓归属的投资账户，如股票账户）
- *     payment_account_id: 扣款账户（买入时实际付出资金的资金账户，如现金/银行卡）
+ *     account_id: 关联账户（持仓归属的投资账户，如股票账户；借贷借入时为负债账户）
+ *     payment_account_id: 扣款账户（买入时实际付出资金的资金账户，如现金/银行卡；借贷借入时为收款账户）
+ *     direction: 仅 loan 语义：lend 借出 / borrow 借入；其它类型恒为 null
  *     实际成本 = cost_cents + fee_cents
  *     收益 = current_value_cents - (cost_cents + fee_cents)
  * ==================================================================== */
@@ -423,8 +426,9 @@ export const investmentHoldings = sqliteTable(
     subType: text("sub_type"), // 子类型（如贵金属 gold/silver；其他类型可空）/ sub-type (e.g. metal gold/silver; nullable for others)
     name: text("name").notNull(),
     code: text("code"), // 股票/基金代码 / stock/fund code
-    accountId: text("account_id").notNull(), // 关联账户（持仓归属的投资账户）/ linked account (the investment account holding it)
-    paymentAccountId: text("payment_account_id").notNull(), // 扣款账户：买入时资金付出的账户 / payment account: the account that paid on buy
+    accountId: text("account_id").notNull(), // 关联账户（持仓归属的投资账户；借入时为负债账户）/ linked account (the investment account holding it; the liability account when borrowing)
+    paymentAccountId: text("payment_account_id").notNull(), // 扣款账户：买入时资金付出的账户；借入时为收款账户 / payment account: the account that paid on buy; the receiving account when borrowing
+    direction: text("direction").$type<InvestmentDirection>(), // 借贷方向：lend 借出 / borrow 借入；仅 type=loan 有意义，其它类型为 null / loan direction: lend out / borrow in; only meaningful for type=loan, null otherwise
     quantity: integer("quantity").notNull().default(0), // 数量（整数存储）/ quantity (integer stored)
     costCents: integer("cost_cents").notNull().default(0), // 买入成本（分）/ purchase cost (cents)
     feeCents: integer("fee_cents").notNull().default(0), // 交易费用（分）/ trading fees (cents)

@@ -41,6 +41,10 @@ a {
 .dark [class~="hover:bg-slate-50"]:hover { background-color: #1e293b; }
 .dark [class~="hover:bg-slate-50\\/50"]:hover { background-color: #1e293b; }
 
+/* 表格数据行 hover 加重（统一更明显的行高亮，湛蓝色）/ Heavier table-row hover highlight (azure) */
+tbody tr:hover { background-color: #bfdbfe; }            /* blue-200 (light) */
+.dark tbody tr:hover { background-color: rgba(56, 189, 248, 0.18); } /* sky-400 @18% (dark) */
+
 .dark [class~="border-slate-200"] { border-color: #334155; }
 .dark [class~="border-slate-100"] { border-color: #334155; }
 .dark [class~="border-teal-200"] { border-color: #115e59; }

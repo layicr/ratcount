@@ -28,6 +28,7 @@ type Tx = {
 export function TxList({
   txs,
   pagination,
+  summary,
 }: {
   txs: Tx[];
   pagination?: {
@@ -40,14 +41,16 @@ export function TxList({
     nextHref: string;
     pageHrefs: { page: number; href: string }[];
   };
+  summary?: { incomeCents: number; expenseCents: number };
 }) {
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [pending, start] = useTransition();
   const t = useTranslations();
   const baseCur = useBaseCurrency();
   const locale = useLocale();
-  // 原币金额按各自币种符号展示（转账目标额若跨币种则另算）/ native amount uses its own currency symbol
+  // 原币金额按各自币种符号展示 / native amount uses its own currency symbol
   const txMoney = (tx: Tx) => formatCurrency(tx.amountCents, tx.currencyCode ?? baseCur, locale);
+  const balanceCents = summary ? summary.incomeCents - summary.expenseCents : 0;
 
   function toggle(id: string) {
     setSel((prev) => {
@@ -85,6 +88,23 @@ export function TxList({
         </ConfirmButton>
       </div>
 
+      {summary && (
+        <div className="flex flex-wrap gap-4 border-b border-slate-100 bg-slate-50 px-4 py-2 text-xs text-slate-500">
+          <span>
+            {t("reports.balance")}：
+            <span className={balanceCents >= 0 ? "font-medium text-slate-700" : "font-medium text-red-600"}>
+              {formatCurrency(balanceCents, baseCur, locale)}
+            </span>
+          </span>
+          <span>
+            {t("common.income")}：<span className="font-medium text-green-600">{formatCurrency(summary.incomeCents, baseCur, locale)}</span>
+          </span>
+          <span>
+            {t("common.expense")}：<span className="font-medium text-red-600">{formatCurrency(summary.expenseCents, baseCur, locale)}</span>
+          </span>
+        </div>
+      )}
+
       {txs.length === 0 ? (
         <p className="py-12 text-center text-sm text-slate-400">{t("common.empty")}</p>
       ) : (
@@ -99,7 +119,7 @@ export function TxList({
             </thead>
             <tbody>
               {txs.map((tx) => (
-                <tr key={tx.id} className="border-b border-slate-50 hover:bg-slate-50/50">
+                <tr key={tx.id} className="border-b border-slate-50">
                   <td className="px-4 py-2">
                     <input type="checkbox" checked={sel.has(tx.id)} onChange={() => toggle(tx.id)} className="accent-teal-600" />
                   </td>

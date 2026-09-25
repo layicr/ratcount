@@ -19,6 +19,7 @@ const BASE_OPENING: Record<AcctKey, number> = {
   personal_pension: 2500000, // ¥25,000.00 个人养老金（无历史流水）/ ¥25,000.00 personal pension (no history)
   housing_fund:  8000000,   // ¥80,000.00 公积金（无历史流水）/ ¥80,000.00 housing fund (no history)
   loan:          10000000,  // ¥100,000.00 民间借贷（无历史流水）/ ¥100,000.00 private loan (no history)
+  borrowed:      0,          // ¥0.00 民间借贷（借入，负债，无历史流水）/ ¥0.00 private loan borrowed in (liability, no history)
   digital_asset: 3000000,  // ¥30,000.00 数字资产（无历史流水）/ ¥30,000.00 digital assets (no history)
   collectible:   2000000,   // ¥20,000.00 收藏品（无历史流水）/ ¥20,000.00 collectibles (no history)
   // 以下三个账户仅作「关联账户」演示（无历史流水、期初为 0）：
@@ -84,6 +85,7 @@ export const acctDefs: AcctDef[] = (() => {
     { key: "personal_pension", name: "个人养老金账户", type: ACCT.personal_pension, icon: "💼", openingBalanceCents: BASE_OPENING.personal_pension - (effDelta.get("personal_pension") ?? 0), isAsset: true },
     { key: "housing_fund",    name: "公积金账户",       type: ACCT.housing_fund, icon: "🏘️", openingBalanceCents: BASE_OPENING.housing_fund    - (effDelta.get("housing_fund") ?? 0),   isAsset: true  },
     { key: "loan",            name: "民间借贷（借出）", type: ACCT.loan,         icon: "🤝", openingBalanceCents: BASE_OPENING.loan            - (effDelta.get("loan") ?? 0),           isAsset: true  },
+    { key: "borrowed",        name: "民间借贷（借入）", type: ACCT.borrowed,     icon: "📥", openingBalanceCents: BASE_OPENING.borrowed        - (effDelta.get("borrowed") ?? 0),       isAsset: false },
     { key: "digital_asset",   name: "数字资产账户",     type: ACCT.digital_asset, icon: "₿",  openingBalanceCents: BASE_OPENING.digital_asset  - (effDelta.get("digital_asset") ?? 0),  isAsset: true  },
     { key: "collectible",     name: "收藏品账户",       type: ACCT.collectible,  icon: "🖼️", openingBalanceCents: BASE_OPENING.collectible    - (effDelta.get("collectible") ?? 0),    isAsset: true  },
     // 对齐持仓类型的关联账户候选（基金 / 定期 / 不动产）：期初 = base − 买入净额 / Linked-account candidates (fund / deposit / real_estate): opening = base − buy net

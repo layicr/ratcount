@@ -15,7 +15,7 @@ import { db } from "@/lib/db";
 
 import { listAccountsWithBalance } from "@/lib/queries/accounts";
 import { listTransactions } from "@/lib/queries/transactions";
-import { investNetWorthFilter, unrealizedProfitCents } from "@/lib/queries/investments";
+import { investNetWorthFilter, holdingUnrealizedCents } from "@/lib/queries/investments";
 import { resolvePeriodRange, type StatsPeriod } from "@/lib/period";
 import { investDistKey } from "@/lib/investment-types";
 import { localParts } from "@/lib/datetime";
@@ -104,6 +104,7 @@ export async function dashboardStats(
         v: investmentHoldings.baseValueCents,
         cost: investmentHoldings.baseCostCents,
         fee: investmentHoldings.baseFeeCents,
+        direction: investmentHoldings.direction,
       })
       .from(investmentHoldings)
       .where(investNetWorthFilter(ledgerId)),
@@ -115,7 +116,7 @@ export async function dashboardStats(
   let investmentValue = 0;
   const investByType = new Map<string, number>();
   for (const r of investRows) {
-    const v = unrealizedProfitCents(r);
+    const v = holdingUnrealizedCents(r, r.direction);
     investmentValue += v;
     if (v > 0) investByType.set(r.type, (investByType.get(r.type) ?? 0) + v);
   }
