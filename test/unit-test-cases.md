@@ -5,7 +5,7 @@
 
 ## 一、概述
 
-单元测试聚焦**不含数据库与网络 IO 的纯逻辑**，保证金额换算、验证码、限流、余额计算、周期日期推进等基础正确性。当前自动化覆盖：`test/money.test.ts`（4 条）+ `test/unit.test.ts`（18 条）= **22/22 通过**。
+单元测试聚焦**不含数据库与网络 IO 的纯逻辑**，保证金额换算、验证码、限流、余额计算、周期日期推进等基础正确性。当前自动化覆盖：`test/money.test.ts`（4 条）+ `test/unit.test.ts`（18 条）+ `test/consistency-guard.test.ts`（31 条）= **53/53 通过**。
 
 ## 二、被测模块清单
 
@@ -103,15 +103,24 @@
 | UT-M7-02 | 枚举校验 | 插入非法 `type` | 抛约束错误 | P1 |
 | UT-M7-03 | 金额非负/整数 | 插入负金额 | 业务层拒绝（zod/校验） | P1 |
 
+### M8 账户类型常量一致性（test/consistency-guard.test.ts）— 已自动化 ✅
+
+| 用例ID | 模块 | 操作 | 预期结果 | 优先级 |
+|---|---|---|---|---|
+| UT-M8-01 | 账户类型枚举 | accountTypes 共 22 种且 ACCT / ACCOUNT_TYPES / TYPE_ICON 集合一致 | 全部相等，漏项 TS 即报错 | P0 |
+| UT-M8-02 | 保障分组 | PROTECTION_ACCOUNT_TYPES 为 5 类（insurance/housing_fund/national_pension/personal_pension/social_security，不含 consumption_insurance）且为账户类型子集 | 断言通过 | P0 |
+| UT-M8-03 | 图标完整性 | TYPE_ICON 覆盖全部 22 类 | 缺图标编译失败、运行期不漂移 | P0 |
+| UT-M8-04 | i18n 文案 | messages 含 acctType.socialSecurity / consumptionInsurance / personalPension 等三语键 | 键齐全 | P0 |
+
 ## 四、执行状态汇总
 
 | 优先级 | 已执行 | 待执行 |
 |---|---|---|
-| P0 | 15 | 4 |
+| P0 | 19 | 4 |
 | P1 | 6 | 2 |
 | P2 | 1 | 0 |
-| **合计** | **22** | **6** |
+| **合计** | **26** | **6** |
 
-> 已执行项见 `test/money.test.ts`（4 条）+ `test/unit.test.ts`（18 条），运行命令：
-> `npx tsx --test test/money.test.ts test/unit.test.ts`（22/22 通过）
+> 已执行项见 `test/money.test.ts`（4 条）+ `test/unit.test.ts`（18 条）+ `test/consistency-guard.test.ts`（31 条），运行命令：
+> `npx tsx --test test/money.test.ts test/unit.test.ts test/consistency-guard.test.ts`（53/53 通过）
 > 待执行项：M5 审计事务（需 SQLite 内存库）、M6 i18n 键一致性、M7 Schema 约束、M2-07 验证码一次性消费（浏览器实测）等。

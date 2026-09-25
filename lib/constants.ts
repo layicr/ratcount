@@ -159,7 +159,7 @@ export const MR = Object.fromEntries(memberRoles.map((r) => [r, r])) as { [K in 
 /* ===== 账户类型 / Account types ===== */
 
 /**
- * 账户类型（21 种）：cash 现金 / debit_card 储蓄卡 / credit_card 信用账户 /
+ * 账户类型（22 种）：cash 现金 / debit_card 储蓄卡 / credit_card 信用账户 /
  *  wechat 虚拟账户 / savings 定期 / investment 股票 / fund 基金 /
  *  precious_metal 贵金属 / bond 国债 / foreign_currency 外币账户 /
  *  real_estate 不动产 / insurance 储蓄型保险 / housing_fund 公积金 /
@@ -167,7 +167,7 @@ export const MR = Object.fromEntries(memberRoles.map((r) => [r, r])) as { [K in 
  *  social_security 社保 / loan 民间借贷（借出）/ borrowed 民间借贷（借入，负债）/
  *  digital_asset 数字资产 / collectible 收藏品 / custom 自定义
  *  （custom 恒为兜底项，保持最后）
- * Account types (21): cash / debit_card / credit_card / wechat /
+ * Account types (22): cash / debit_card / credit_card / wechat /
  *  savings (time deposit) / investment (stock) / fund /
  *  precious_metal / bond / foreign_currency /
  *  real_estate / insurance / housing_fund /
@@ -179,7 +179,7 @@ export const MR = Object.fromEntries(memberRoles.map((r) => [r, r])) as { [K in 
 export const accountTypes = [
   "cash", "debit_card", "credit_card", "wechat", "savings",
   "investment", "fund", "precious_metal", "bond", "foreign_currency",
-  "real_estate", "insurance", "housing_fund", "national_pension", "personal_pension", "social_security",
+  "real_estate", "insurance", "consumption_insurance", "housing_fund", "national_pension", "personal_pension", "social_security",
   "loan", "borrowed", "digital_asset", "collectible",
   "custom",
 ] as const;
@@ -199,13 +199,13 @@ export const PROTECTION_ACCOUNT_TYPES = [
  * 账户类型集中定义（单一数据源，多处复用）
  *  - ACCT：常量式入口（ACCT.cash / ACCT.credit_card / …），satisfies 保证与 db/schema 的 accountTypes 编译期互锁
  *  - ACCOUNT_TYPES：类型选项（value + i18n key），供表单下拉 / 列表分组复用
- *  - TYPE_ICON：类型 → 图标，satisfies 强制 21 项齐全（此前 Record<string,string> 漏删无感知）
+ *  - TYPE_ICON：类型 → 图标，satisfies 强制 22 项齐全（此前 Record<string,string> 漏删无感知）
  *  - ACCOUNT_TYPE_I18N_KEY：类型 → i18n key（由 ACCOUNT_TYPES 派生，避免 snake/camel 映射重复）
  *  - INVESTMENT_ACCOUNT_TYPES：投资类账户（支出时不可选为出账账户）
  * Account type definitions (single data source, reused in many places)
  *  - ACCT: constant entry (ACCT.cash / ACCT.credit_card / …); satisfies locks it to db/schema's accountTypes at compile time
  *  - ACCOUNT_TYPES: type options (value + i18n key) for form dropdowns / list grouping
- *  - TYPE_ICON: type → icon; satisfies forces all 20 present (previously Record<string,string> hid missing ones silently)
+ *  - TYPE_ICON: type → icon; satisfies forces all 22 present (previously Record<string,string> hid missing ones silently)
  *  - ACCOUNT_TYPE_I18N_KEY: type → i18n key (derived from ACCOUNT_TYPES to avoid duplicate snake/camel mapping)
  *  - INVESTMENT_ACCOUNT_TYPES: investment accounts (not selectable as the source account on an expense)
  */
@@ -223,6 +223,7 @@ export const ACCOUNT_TYPES = [
   { v: ACCT.foreign_currency, key: "acctType.foreignCurrency" },
   { v: ACCT.real_estate, key: "acctType.realEstate" },
   { v: ACCT.insurance, key: "acctType.insurance" },
+  { v: ACCT.consumption_insurance, key: "acctType.consumptionInsurance" },
   { v: ACCT.housing_fund, key: "acctType.housingFund" },
   { v: ACCT.national_pension, key: "acctType.nationalPension" },
   { v: ACCT.personal_pension, key: "acctType.personalPension" },
@@ -234,12 +235,12 @@ export const ACCOUNT_TYPES = [
   { v: ACCT.custom, key: "acctType.custom" },
 ] as const satisfies readonly { v: AccountType; key: string }[];
 
-/** 账户类型 → 图标；satisfies 强制 21 项齐全，漏图标 TS 立即报错 / Account type → icon; satisfies forces all 21 present, a missing icon fails TS immediately */
+/** 账户类型 → 图标；satisfies 强制 22 项齐全，漏图标 TS 立即报错 / Account type → icon; satisfies forces all 21 present, a missing icon fails TS immediately */
 export const TYPE_ICON = {
   cash: "💵", debit_card: "💳", credit_card: "💳", wechat: "💬",
   savings: "🏦", investment: "📈", fund: "📊", precious_metal: "🥇",
   bond: "📜", foreign_currency: "💱", real_estate: "🏠",
-  insurance: "☂️", housing_fund: "🏘️", national_pension: "💰", personal_pension: "💼", social_security: "🛡️",
+  insurance: "☂️", consumption_insurance: "🧾", housing_fund: "🏘️", national_pension: "💰", personal_pension: "💼", social_security: "🛡️",
   loan: "🤝", borrowed: "📥", digital_asset: "₿", collectible: "🖼️",
   custom: "📦",
 } as const satisfies Record<AccountType, string>;

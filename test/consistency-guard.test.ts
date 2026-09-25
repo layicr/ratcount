@@ -20,9 +20,9 @@ const loadMsg = (file: string) =>
   JSON.parse(readFileSync(new URL(`../messages/${file}`, import.meta.url), "utf8"));
 
 /* ==================== 1. 账户类型枚举与映射 ==================== */
-test("账户类型: schema 与 lib 均为 21 项且集合一致", () => {
-  assert.strictEqual(accountTypes.length, 21);
-  assert.strictEqual(ACCOUNT_TYPES.length, 21);
+test("账户类型: schema 与 lib 均为 22 项且集合一致", () => {
+  assert.strictEqual(accountTypes.length, 22);
+  assert.strictEqual(ACCOUNT_TYPES.length, 22);
   assert.deepStrictEqual(
     [...ACCOUNT_TYPES.map((t) => t.v)].sort(),
     [...accountTypes].sort(),
@@ -30,14 +30,14 @@ test("账户类型: schema 与 lib 均为 21 项且集合一致", () => {
 });
 
 test("账户类型: 6 个新增类型均已接入图标与 i18n key", () => {
-  const added = ["insurance", "housing_fund", "loan", "digital_asset", "collectible"] as const satisfies readonly AccountType[];
+  const added = ["insurance", "housing_fund", "loan", "digital_asset", "collectible", "social_security", "consumption_insurance", "personal_pension", "national_pension"] as const satisfies readonly AccountType[];
   for (const t of added) {
     assert.ok(TYPE_ICON[t], `缺图标: ${t}`);
     assert.ok(ACCOUNT_TYPES.some((a) => a.v === t), `ACCOUNT_TYPES 缺: ${t}`);
   }
 });
 
-test("账户类型: PROTECTION_ACCOUNT_TYPES 是账户类型的子集（5 类）", () => {
+test("账户类型: PROTECTION_ACCOUNT_TYPES 是账户类型的子集（5 类，不含 consumption_insurance）", () => {
   assert.deepStrictEqual([...PROTECTION_ACCOUNT_TYPES].sort(), ["housing_fund", "insurance", "national_pension", "personal_pension", "social_security"].sort());
   for (const t of PROTECTION_ACCOUNT_TYPES) {
     assert.ok((accountTypes as readonly string[]).includes(t), `保障账户类越界: ${t}`);
@@ -51,7 +51,7 @@ test("账户类型: ACCT 常量与 accountTypes 互锁（键集合一致且键�
   }
 });
 
-test("账户类型: TYPE_ICON 覆盖全部 19 类（漏图标 TS 即报错，这里防运行期漂移）", () => {
+test("账户类型: TYPE_ICON 覆盖全部 22 类（漏图标 TS 即报错，这里防运行期漂移）", () => {
   assert.deepStrictEqual(Object.keys(TYPE_ICON).sort(), [...accountTypes].sort(), "图标键集合与 accountTypes 不一致");
   for (const t of accountTypes) {
     assert.ok(TYPE_ICON[t] && TYPE_ICON[t].trim().length > 0, `缺图标: ${t}`);
@@ -69,7 +69,7 @@ test("账户类型: INVESTMENT_ACCOUNT_TYPES 是账户类型子集且 isInvestme
   }
 });
 
-test("账户类型: ACCOUNT_TYPES 覆盖全部 19 类且 i18n key 合法（单一真源）", () => {
+test("账户类型: ACCOUNT_TYPES 覆盖全部 22 类且 i18n key 合法（单一真源）", () => {
   assert.strictEqual(ACCOUNT_TYPES.length, accountTypes.length);
   const keys = new Set(ACCOUNT_TYPES.map((t) => t.key));
   for (const t of accountTypes) {
@@ -155,7 +155,7 @@ test("投资类型: investmentListHref 为每类返回有效管理页路径", ()
 test("文案: 中英文均含新增账户类型 / 投资类型 / 导航 / 标签 键", () => {
   const zh = loadMsg("zh-CN.json");
   const en = loadMsg("en.json");
-  const newAcct = ["insurance", "housingFund", "loan", "digitalAsset", "collectible"];
+  const newAcct = ["insurance", "housingFund", "loan", "digitalAsset", "collectible", "socialSecurity", "consumptionInsurance", "personalPension", "nationalPension"];
   const newInvest = ["digitalAssets", "collectibles", "insurance", "loans"];
   const newNav = ["protectionOverview", "investInsurance", "investLoans"];
   for (const lang of [zh, en]) {
