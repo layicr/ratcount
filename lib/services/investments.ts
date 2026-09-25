@@ -441,6 +441,10 @@ const investActionSchema = z.object({
   id: z.string().min(1),
   amountYuan: z.string().min(1),
   feeYuan: z.string().optional(),
+  // 借入还款：本金 / 利息分栏（弹窗 splitAmount 模式传入）；缺省时本金取 amountYuan、利息为 0
+  // Borrow repay: principal / interest columns (passed by splitAmount dialog); default principal = amountYuan, interest = 0
+  principalYuan: z.string().optional(),
+  interestYuan: z.string().optional(),
   quantity: z.number().int().min(1).optional(),
   txDate: dateStr,
   tagIds: z.array(z.string()).optional(),
@@ -468,11 +472,165 @@ export async function sellInvestmentService(actor: Actor, ledgerId: string, inpu
   if (h.status !== INVESTMENT_STATUS.active) return { ok: false as const, error: "investment.notActive" };
 
   const isBorrow = h.type === INV.loan && h.direction === "borrow";
-  // 借入还款：现金账户 → 借入负债账户（负债减少）；借出收款：借出资产账户 → 现金账户
-  // Borrow repay: cash → borrowed liability (liability decreases); lend collect: loan asset → cash
-  const fromAccount = isBorrow ? (d.accountId ?? h.paymentAccountId) : h.accountId;
-  const toAccount = isBorrow ? h.accountId : (d.accountId ?? h.paymentAccountId);
-  const profitAccount = isBorrow ? (d.accountId ?? h.paymentAccountId) : toAccount;
+
+  // ===== 借入还款：独立路径（本金转账降低负债 + 利息/手续费记支出 + 支持部分还款）=====
+  // 旧实现把「还款额 − 本金」当盈亏，导致利息被误记为收入、且借贷 quantity=0 始终整仓结清。
+  // 此处按「本金 / 利息」分栏记：本金转账冲减负债；利息 + 手续费作为现金支出（不增加负债）。
+  // Borrow repay (separate path): principal transfer reduces liability; interest + fee are cash expenses (no liability increase).
+  if (isBorrow) {
+    const pCents = d.principalYuan ? toCents(d.principalYuan) : toCents(d.amountYuan);
+    const iCents = d.interestYuan ? toCents(d.interestYuan) : 0;
+    const feeCentsR = d.feeYuan ? toCents(d.feeYuan) : 0;
+    if (pCents === null || pCents <= 0) return { ok: false as const, error: "errors.invalidInput" };
+    if (iCents === null || iCents < 0) return { ok: false as const, error: "errors.invalidInput" };
+    if (feeCentsR === null || feeCentsR < 0) return { ok: false as const, error: "errors.invalidInput" };
+    // 部分还款：归还本金不得超剩余借入本金 / partial repay: repaid principal can't exceed remaining liability
+    if (pCents > h.costCents) return { ok: false as const, error: "investment.repayPrincipalExceed" };
+    const fromAccount = d.accountId ?? h.paymentAccountId;
+    const toAccount = h.accountId;
+    if (fromAccount === toAccount) return { ok: false as const, error: "investment.accountPairRequired" };
+    const remainingPrincipal = h.costCents - pCents;
+    const isFull = remainingPrincipal <= 0;
+    const t0 = getDefaultTranslator();
+    const txDate = d.txDate ?? todayStr();
+    try {
+      await withAudit(
+        {
+          userId: actor.id, action: AUDIT_ACTION.update, entity: ENTITY.investment, entityId: h.id,
+          summaryKey: "audit.investmentRepaid", summaryParams: { name: h.name },
+          requestBody: JSON.stringify({ id: h.id, principalYuan: d.principalYuan ?? d.amountYuan, interestYuan: d.interestYuan ?? "0", feeYuan: d.feeYuan ?? "0", txDate, fromAccount, toAccount }),
+          responseBody: JSON.stringify({ result: isFull ? "matured" : "partial", remainingPrincipalCents: remainingPrincipal }),
+        },
+        async (tx) => {
+          await assertRefsInLedger(tx, ledgerId, { accountId: fromAccount, toAccountId: toAccount });
+          // 本金转账：还款账户（现金）→ 借入负债账户，负债按归还本金减少
+          if (pCents > 0) {
+            const money = await resolveTransactionMoney(tx, ledgerId, { accountId: fromAccount, toAccountId: toAccount, amountCents: pCents, type: TX.transfer, rates });
+            const [costTx] = await tx.insert(transactions).values({
+              ledgerId, accountId: fromAccount, toAccountId: toAccount, type: TX.transfer,
+              categoryId: null, projectId: null, amountCents: pCents, txDate,
+              remark: t0("investment.borrowRepayRemark", { name: h.name }), createdBy: actor.id,
+              investmentHoldingId: h.id, ...money,
+            }).returning({ id: transactions.id });
+            await linkTags(tx, ledgerId, d.tagIds, costTx.id);
+          }
+          // 利息 + 手续费：还款账户支出（不减少负债，降低净资产）/ interest + fee: cash expense (no liability change)
+          const expCents = iCents + feeCentsR;
+          if (expCents > 0) {
+            const catId = await ensureCategory(tx, ledgerId, t0("investment.lossCategory"), TX.expense);
+            const expMoney = await resolveTransactionMoney(tx, ledgerId, { accountId: fromAccount, toAccountId: null, amountCents: expCents, type: TX.expense, rates });
+            const [expTx] = await tx.insert(transactions).values({
+              ledgerId, accountId: fromAccount, toAccountId: null, type: TX.expense, categoryId: catId,
+              projectId: null, amountCents: expCents, txDate,
+              remark: t0("investment.borrowInterestRemark", { name: h.name }), createdBy: actor.id,
+              investmentHoldingId: h.id, ...expMoney,
+            }).returning({ id: transactions.id });
+            await linkTags(tx, ledgerId, d.tagIds, expTx.id);
+          }
+          const holdingRate = rateOf(rates, h.currencyCode);
+          const upd = await tx.update(investmentHoldings).set(
+            isFull
+              ? { status: INVESTMENT_STATUS.matured, costCents: 0, feeCents: 0, currentValueCents: 0, baseCostCents: 0, baseFeeCents: 0, baseValueCents: 0 }
+              : { costCents: remainingPrincipal, feeCents: h.feeCents, currentValueCents: remainingPrincipal, baseCostCents: toBaseCents(remainingPrincipal, holdingRate), baseFeeCents: toBaseCents(h.feeCents, holdingRate), baseValueCents: toBaseCents(remainingPrincipal, holdingRate) },
+          ).where(and(eq(investmentHoldings.id, h.id), eq(investmentHoldings.ledgerId, ledgerId), eq(investmentHoldings.status, INVESTMENT_STATUS.active)));
+          if ((upd as { rowsAffected: number }).rowsAffected === 0) throw new InvestmentConcurrentError();
+        },
+      );
+    } catch (e) {
+      if (e instanceof InvestmentConcurrentError) return { ok: false as const, error: "investment.notActive" };
+      if (e instanceof RefNotInLedgerError) return { ok: false as const, error: "errors.refNotInLedger" };
+      return { ok: false as const, error: "errors.invalidInput" };
+    }
+    return { ok: true as const, error: null };
+  }
+
+  // ===== 借出收款：独立路径（本金转账回笼资产 + 利息记收入 + 支持部分收款）=====
+  // 旧实现走通用「卖出/到期」路径：借出 quantity=0 始终整仓结清，部分收款会误转全额本金并记成亏损支出。
+  // 此处按「本金 / 利息」分栏记：本金转账回笼借出资产；利息作为现金收入（投资收益）；支持部分收款。
+  // Lend collect (separate path): principal transfer reclaims the loan asset; interest is cash income; supports partial collection.
+  const isLend = h.type === INV.loan && h.direction === "lend";
+  if (isLend) {
+    const pCents = d.principalYuan ? toCents(d.principalYuan) : toCents(d.amountYuan);
+    const iCents = d.interestYuan ? toCents(d.interestYuan) : 0;
+    const feeCentsR = d.feeYuan ? toCents(d.feeYuan) : 0;
+    if (pCents === null || pCents <= 0) return { ok: false as const, error: "errors.invalidInput" };
+    if (iCents === null || iCents < 0) return { ok: false as const, error: "errors.invalidInput" };
+    if (feeCentsR === null || feeCentsR < 0) return { ok: false as const, error: "errors.invalidInput" };
+    // 部分收款：收回本金不得超剩余借出本金 / partial collect: collected principal can't exceed remaining loaned principal
+    if (pCents > h.costCents) return { ok: false as const, error: "investment.collectPrincipalExceed" };
+    const fromAccount = h.accountId;
+    const toAccount = d.accountId ?? h.paymentAccountId;
+    if (fromAccount === toAccount) return { ok: false as const, error: "investment.accountPairRequired" };
+    const remainingPrincipal = h.costCents - pCents;
+    const isFull = remainingPrincipal <= 0;
+    const t0 = getDefaultTranslator();
+    const txDate = d.txDate ?? todayStr();
+    try {
+      await withAudit(
+        {
+          userId: actor.id, action: AUDIT_ACTION.update, entity: ENTITY.investment, entityId: h.id,
+          summaryKey: "audit.investmentCollected", summaryParams: { name: h.name },
+          requestBody: JSON.stringify({ id: h.id, principalYuan: d.principalYuan ?? d.amountYuan, interestYuan: d.interestYuan ?? "0", feeYuan: d.feeYuan ?? "0", txDate, fromAccount, toAccount }),
+          responseBody: JSON.stringify({ result: isFull ? "matured" : "partial", remainingPrincipalCents: remainingPrincipal }),
+        },
+        async (tx) => {
+          await assertRefsInLedger(tx, ledgerId, { accountId: fromAccount, toAccountId: toAccount });
+          // 本金转账：借出资产账户 → 收款现金账户，借出资产按收回本金减少
+          if (pCents > 0) {
+            const money = await resolveTransactionMoney(tx, ledgerId, { accountId: fromAccount, toAccountId: toAccount, amountCents: pCents, type: TX.transfer, rates });
+            const [costTx] = await tx.insert(transactions).values({
+              ledgerId, accountId: fromAccount, toAccountId: toAccount, type: TX.transfer,
+              categoryId: null, projectId: null, amountCents: pCents, txDate,
+              remark: t0("investment.lendCollectRemark", { name: h.name }), createdBy: actor.id,
+              investmentHoldingId: h.id, ...money,
+            }).returning({ id: transactions.id });
+            await linkTags(tx, ledgerId, d.tagIds, costTx.id);
+          }
+          // 利息：收款现金账户收入（投资收益，增加净资产）/ interest: cash income (increases net worth)
+          if (iCents > 0) {
+            const catId = await ensureCategory(tx, ledgerId, t0("investment.profitCategory"), TX.income);
+            const incMoney = await resolveTransactionMoney(tx, ledgerId, { accountId: toAccount, toAccountId: null, amountCents: iCents, type: TX.income, rates });
+            const [incTx] = await tx.insert(transactions).values({
+              ledgerId, accountId: toAccount, toAccountId: null, type: TX.income, categoryId: catId,
+              projectId: null, amountCents: iCents, txDate,
+              remark: t0("investment.lendInterestRemark", { name: h.name }), createdBy: actor.id,
+              investmentHoldingId: h.id, ...incMoney,
+            }).returning({ id: transactions.id });
+            await linkTags(tx, ledgerId, d.tagIds, incTx.id);
+          }
+          // 收款手续费：收款现金账户支出（减少净资产）/ collection fee: cash expense
+          if (feeCentsR > 0) {
+            const catId = await ensureCategory(tx, ledgerId, t0("investment.lossCategory"), TX.expense);
+            const feeMoney = await resolveTransactionMoney(tx, ledgerId, { accountId: toAccount, toAccountId: null, amountCents: feeCentsR, type: TX.expense, rates });
+            const [feeTx] = await tx.insert(transactions).values({
+              ledgerId, accountId: toAccount, toAccountId: null, type: TX.expense, categoryId: catId,
+              projectId: null, amountCents: feeCentsR, txDate,
+              remark: t0("investment.lendFeeRemark", { name: h.name }), createdBy: actor.id,
+              investmentHoldingId: h.id, ...feeMoney,
+            }).returning({ id: transactions.id });
+            await linkTags(tx, ledgerId, d.tagIds, feeTx.id);
+          }
+          const holdingRate = rateOf(rates, h.currencyCode);
+          const upd = await tx.update(investmentHoldings).set(
+            isFull
+              ? { status: INVESTMENT_STATUS.matured, costCents: 0, feeCents: 0, currentValueCents: 0, baseCostCents: 0, baseFeeCents: 0, baseValueCents: 0 }
+              : { costCents: remainingPrincipal, feeCents: h.feeCents, currentValueCents: remainingPrincipal, baseCostCents: toBaseCents(remainingPrincipal, holdingRate), baseFeeCents: toBaseCents(h.feeCents, holdingRate), baseValueCents: toBaseCents(remainingPrincipal, holdingRate) },
+          ).where(and(eq(investmentHoldings.id, h.id), eq(investmentHoldings.ledgerId, ledgerId), eq(investmentHoldings.status, INVESTMENT_STATUS.active)));
+          if ((upd as { rowsAffected: number }).rowsAffected === 0) throw new InvestmentConcurrentError();
+        },
+      );
+    } catch (e) {
+      if (e instanceof InvestmentConcurrentError) return { ok: false as const, error: "investment.notActive" };
+      if (e instanceof RefNotInLedgerError) return { ok: false as const, error: "errors.refNotInLedger" };
+      return { ok: false as const, error: "errors.invalidInput" };
+    }
+    return { ok: true as const, error: null };
+  }
+
+  // ===== 其余（卖出 / 到期兑付）===== / other paths: sell / maturity
+  const fromAccount = h.accountId;
+  const toAccount = d.accountId ?? h.paymentAccountId;
+  const profitAccount = toAccount;
   if (fromAccount === toAccount) return { ok: false as const, error: "investment.accountPairRequired" };
 
   const sellQty = d.quantity ?? 0;

@@ -48,7 +48,7 @@ export function InvestmentCopyButton({ id, type, name }: { id: string; type: str
  *  - 服务端采用拆分记账：成本按比例转回 + 盈亏单独记，收益才能进净资产
  */
 export function InvestmentSellButton({
-  id, type, name, costCents, feeCents, quantity, currentValueCents, interestRate, purchaseDate, maturityDate, isFixed, tags, paymentAccountId, accounts, currencyCode,
+  id, type, name, costCents, feeCents, quantity, currentValueCents, interestRate, purchaseDate, maturityDate, isFixed, direction, tags, paymentAccountId, accounts, currencyCode,
 }: {
   id: string;
   type: InvestmentType;
@@ -62,6 +62,8 @@ export function InvestmentSellButton({
   purchaseDate: string | null;
   maturityDate: string | null;
   isFixed: boolean;
+  /** 借贷方向：lend 借出 / borrow 借入（仅 loan 有意义，用于按钮文案「还款」/「收款」） */
+  direction?: string | null;
   tags?: { id: string; name: string; color: string }[];
   /** 收款账户默认值（持仓的扣款账户） */
   paymentAccountId: string;
@@ -81,7 +83,12 @@ export function InvestmentSellButton({
     : 0;
   // 到期类默认到账金额 = 本金 + 应计利息；其余（卖出）为当前市值
   const defaultCents = isAccrual ? accruedCents : currentValueCents;
-  const label = isFixed ? t("investment.mature") : t("investment.sell");
+  // 借入用「还款」、借出/其它到期类用「到期」、可卖用「卖出」/ borrow → Repay, lend/other fixed → Mature, tradable → Sell
+  const label = isFixed
+    ? type === INV.loan
+      ? direction === "borrow" ? t("investment.repay") : t("investment.collect")
+      : t("investment.mature")
+    : t("investment.sell");
   // 有数量的持仓（卖出）按数量录入：数量上限取展示口径，单位均价由当前市值摊出
   const maxQtyDisplay = quantity > 0 ? quantityToDisplay(type, quantity) : 0;
   const sellQty = !isFixed && maxQtyDisplay > 0
@@ -100,10 +107,18 @@ export function InvestmentSellButton({
           txDate: input.txDate,
           tagIds: input.tagIds,
           accountId: input.accountId,
+          // 借入还款：本金 / 利息分栏透传（splitAmount 模式由弹窗提交）
+          principalYuan: input.principalYuan,
+          interestYuan: input.interestYuan,
         })
       }
-      title={isFixed ? t("investment.matureTitle") : t("investment.sellTitle")}
-      desc={isFixed ? t("investment.matureDesc", { name }) : t("investment.sellDesc", { name })}
+      // 借入还款用「还款」标题/描述；其它到期类用「到期」；可卖用「卖出」
+      title={type === INV.loan
+        ? direction === "borrow" ? t("investment.repayTitle", { name }) : t("investment.collectTitle", { name })
+        : (isFixed ? t("investment.matureTitle") : t("investment.sellTitle"))}
+      desc={type === INV.loan
+        ? direction === "borrow" ? t("investment.repayDesc", { name }) : t("investment.collectDesc", { name })
+        : (isFixed ? t("investment.matureDesc", { name }) : t("investment.sellDesc", { name }))}
       name={name}
       okText={label}
       defaultAmountYuan={toYuan(defaultCents)}

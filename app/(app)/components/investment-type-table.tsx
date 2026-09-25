@@ -365,6 +365,7 @@ export function InvestmentTypeTable({
                                 purchaseDate={h.purchaseDate}
                                 maturityDate={h.maturityDate}
                                 isFixed={variant === "fixed"}
+                                direction={h.direction}
                                 tags={tags}
                                 paymentAccountId={h.paymentAccountId}
                                 accounts={accounts}

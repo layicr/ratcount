@@ -44,6 +44,9 @@ export function InvestmentActionDialog({
     txDate: string;
     tagIds: string[];
     accountId?: string;
+    /** 借入还款：本金 / 利息分栏（splitAmount 模式时传入） */
+    principalYuan?: string;
+    interestYuan?: string;
   }) => Promise<{ ok: boolean; error: string | null }>;
   title: string;
   desc: string;
@@ -203,6 +206,9 @@ export function InvestmentActionDialog({
         txDate: txDate || todayStr(),
         tagIds,
         accountId: accountId || undefined,
+        // 借入还款：本金 / 利息分栏随 splitAmount 模式一起提交（其余情况不上送）
+        principalYuan: splitAmount ? principalYuan.trim() : undefined,
+        interestYuan: splitAmount ? interestYuan.trim() : undefined,
       });
       if (!r.ok) {
         setErr(r.error);

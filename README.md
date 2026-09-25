@@ -48,6 +48,8 @@ Amounts are stored as integer cents; account balances are not persisted (opening
   zh-CN / zh-TW / en, with a DB-driven language catalog managed from the admin UI.
 - **投资与保障 / Investments & protection**：10 类持仓 + 储蓄型保险/公积金/养老金/社保汇总；持仓可关联项目，计入项目汇总。
   10 holding types + protection roll-up (endowment insurance / housing fund / pension / social security); holdings can be linked to a project and roll into its summary.
+- **借贷管理 / Loan management**：借贷（借入 / 借出）作为独立持仓类型，本金与利息分栏记账；借入还款利息记支出、借出收款利息记收入；均支持部分还款 / 部分收款，超额自动拦截。
+  Loans (borrow / lend) as a distinct holding type; principal and interest recorded in separate fields — borrow interest as an expense, lend interest as income; partial repayment / partial collection both supported, with an over-limit guard.
 - **项目聚合投资 / Projects roll up investments**：项目除预算外，还聚合关联 `investment_holdings`（`status=active`）的投入成本 / 当前市值 / 收益（基准币种），含多币种时展示「原币组成」。
   Besides budget, a project rolls up its linked `investment_holdings` (active) — invested cost / current value / profit in base currency, plus a native-currency breakdown when multi-currency.
 
@@ -342,7 +344,7 @@ Edit these 3 spots in order; the language then appears in the UI (enable/set def
 | 余额表 Balance | `/balance` | 期初 + 流水 = 当前余额，快照对账 |
 | 报表 Reports | `/reports` | 6 维筛选 / 概览 / 分类 / 标签 / 项目 / 资产 |
 | 收支日历 Calendar | `/calendar` | 按日展示收支 |
-| 投资 Investments | `/investments` | 总览 + 10 类持仓子页（股票/基金/定期/国债/贵金属/不动产/数字资产/收藏品/储蓄型保险/借贷） |
+| 投资 Investments | `/investments` | 总览 + 10 类持仓子页（股票/基金/定期/国债/贵金属/不动产/数字资产/收藏品/储蓄型保险/借贷）；借贷支持借入/借出，本金/利息分栏记账、部分还款/收款、超额拦截 |
 | 保障 Protection | `/protection` | 储蓄型保险 + 公积金 + 养老金 + 社保汇总 |
 | 项目 Projects | `/projects` | 项目（装修、旅行等）与预算；聚合关联投资持仓（投入成本 / 当前市值 / 收益，基准币种），含多币种时展示「原币组成」 |
 | 分类 Categories | `/categories` | 收支分类管理 |
