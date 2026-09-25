@@ -15,9 +15,11 @@ export async function register() {
   const runtime = process.env.NEXT_RUNTIME;
   if (runtime && runtime !== "nodejs") return;
 
-  // 桌面模式：本地 .db 无迁移文件，服务启动时幂等建全部 21 张表（见 lib/db/bootstrap.ts）
-  const { isDesktopMode } = await import("@/lib/runtime");
-  if (isDesktopMode) {
+  // 本地 file: SQLite（桌面 Electron 与本地 web dev 同口径）：无迁移文件，服务启动时幂等建全部表（见 lib/db/bootstrap.ts）。
+  // 云端 libsql 走 drizzle-kit 迁移，此处不建表。/ Local file: SQLite (desktop & local web dev): no migration files;
+  // idempotently CREATE TABLE IF NOT EXISTS at startup. Cloud libsql relies on drizzle-kit migrations.
+  const { env } = await import("@/lib/env");
+  if (env.DATABASE_MODE === "file") {
     const { ensureSchema } = await import("@/lib/db/bootstrap");
     await ensureSchema();
   }

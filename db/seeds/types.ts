@@ -8,6 +8,7 @@ export type AcctKey =
   | "fund"
   | "savings"
   | "real_estate"
+  | "social_security"
   | "usd"
   | "bond"
   | "gold"

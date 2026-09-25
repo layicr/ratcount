@@ -85,7 +85,7 @@ export type BalanceDef = {
 /**
  * 09-01 快照。
  * 前 8 个有历史流水的账户快照值 = 期末余额（演示数据截至 09-01）；
- * 后 7 个新增账户无历史流水，快照 = 期初。
+ * 后 8 个新增账户无历史流水，快照 = 期初。
  * 现金快照差 −50 元用于演示「待对账」场景。
  * 09-01 snapshot.
  * The first 8 accounts with history: snapshot = period-end balance (demo data ends 09-01).
@@ -107,6 +107,7 @@ export const BALANCE_DEFS: BalanceDef[] = [
   { accountId: "national_pension", balanceAmountCents: 6000000, snapshotDate: "2026-09-01" },
   { accountId: "personal_pension", balanceAmountCents: 2500000, snapshotDate: "2026-09-01" },
   { accountId: "housing_fund", balanceAmountCents: 8000000, snapshotDate: "2026-09-01" },
+  { accountId: "social_security", balanceAmountCents: 3000000, snapshotDate: "2026-09-01" },
   { accountId: "loan",         balanceAmountCents: 10000000, snapshotDate: "2026-09-01" },
   { accountId: "digital_asset", balanceAmountCents: 3000000, snapshotDate: "2026-09-01" },
   { accountId: "collectible",  balanceAmountCents: 2000000, snapshotDate: "2026-09-01" },

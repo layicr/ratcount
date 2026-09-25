@@ -46,8 +46,8 @@ Amounts are stored as integer cents; account balances are not persisted (opening
   Accounts / transactions / balances / holdings each carry a currency + base-currency figures; rates stored as text DECIMAL; reports aggregate in base currency, native amounts only as a footnote.
 - **多语言 / i18n**：中文（简/繁）与英文，语言清单数据库化、后台可运营。
   zh-CN / zh-TW / en, with a DB-driven language catalog managed from the admin UI.
-- **投资与保障 / Investments & protection**：10 类持仓 + 储蓄型保险/公积金/养老金汇总；持仓可关联项目，计入项目汇总。
-  10 holding types + protection roll-up (endowment insurance / housing fund / pension); holdings can be linked to a project and roll into its summary.
+- **投资与保障 / Investments & protection**：10 类持仓 + 储蓄型保险/公积金/养老金/社保汇总；持仓可关联项目，计入项目汇总。
+  10 holding types + protection roll-up (endowment insurance / housing fund / pension / social security); holdings can be linked to a project and roll into its summary.
 - **项目聚合投资 / Projects roll up investments**：项目除预算外，还聚合关联 `investment_holdings`（`status=active`）的投入成本 / 当前市值 / 收益（基准币种），含多币种时展示「原币组成」。
   Besides budget, a project rolls up its linked `investment_holdings` (active) — invested cost / current value / profit in base currency, plus a native-currency breakdown when multi-currency.
 
@@ -230,10 +230,10 @@ menu_groups / menus / user_menu_config / languages / user_profiles
 - **语言可运营 / Manageable languages**：`languages` 表管理启用/默认/排序/显示名；`user_profiles` 存个人偏好。
   `languages` governs enabled/default/sort/display; `user_profiles` holds personal prefs.
 
-**自动建库 / Auto-create**：本地 `file:` 模式下，`instrumentation.ts` 在桌面态启动时调用 `lib/db/bootstrap.ts` 的 `ensureSchema()`，
+**自动建库 / Auto-create**：本地 `file:` 模式下（桌面 Electron 与本地 web dev 同口径），`instrumentation.ts` 在服务启动时调用 `lib/db/bootstrap.ts` 的 `ensureSchema()`，
 先 `mkdirSync` 确保数据库父目录存在，再将本地库设为 WAL 模式（`PRAGMA journal_mode=WAL`，满足 Turso CLI / 嵌入式副本上传的 WAL 要求，并提升读写并发），
 最后用 `CREATE TABLE IF NOT EXISTS` 幂等建全部 21 张表与索引；数据库文件在首个写操作时由 libsql 惰性创建。
-Local `file:` mode auto-creates the dir + tables via `ensureSchema()` (idempotent) and switches the DB to WAL (`PRAGMA journal_mode=WAL`); the DB file is lazily created by libsql on first write.
+Local `file:` mode (desktop Electron & local web dev alike) auto-creates the dir + tables via `ensureSchema()` (idempotent) and switches the DB to WAL (`PRAGMA journal_mode=WAL`); the DB file is lazily created by libsql on first write.
 
 ---
 
@@ -258,7 +258,7 @@ db/
   schema.ts                 21 张表定义（Drizzle）/ 21 tables (Drizzle)
   seed.ts                   种子主流程 / seed entry
   seeds/                    种子数据（accounts/categories/tags/projects/investments/
-                            transactions/settings/menus/extra/types）
+                            transactions/extra/types）
   init/                     初始化（语言 / 分类 / 默认数据）/ init (languages / categories / defaults)
   bootstrap.ts              ensureSchema（桌面态启动建库建表）/ schema bootstrap
 electron/
@@ -338,12 +338,12 @@ Edit these 3 spots in order; the language then appears in the UI (enable/set def
 | 仪表盘 Dashboard | `/dashboard` | 资产总览 / 月度趋势 / 分类占比 / 近期流水 |
 | 记一笔 Add | `/add` | 收入 / 支出 / 转账，支持多币种、标签、项目 |
 | 流水 Transactions | `/transactions` | 列表 / 筛选 / 编辑 / 删除 / 导入入口 |
-| 账户 Accounts | `/accounts` | 19 种账户类型，余额实时汇总 |
+| 账户 Accounts | `/accounts` | 21 种账户类型（含「自定义」兜底），余额实时汇总 |
 | 余额表 Balance | `/balance` | 期初 + 流水 = 当前余额，快照对账 |
 | 报表 Reports | `/reports` | 6 维筛选 / 概览 / 分类 / 标签 / 项目 / 资产 |
 | 收支日历 Calendar | `/calendar` | 按日展示收支 |
 | 投资 Investments | `/investments` | 总览 + 10 类持仓子页（股票/基金/定期/国债/贵金属/不动产/数字资产/收藏品/储蓄型保险/借贷） |
-| 保障 Protection | `/protection` | 储蓄型保险 + 公积金 + 养老金汇总 |
+| 保障 Protection | `/protection` | 储蓄型保险 + 公积金 + 养老金 + 社保汇总 |
 | 项目 Projects | `/projects` | 项目（装修、旅行等）与预算；聚合关联投资持仓（投入成本 / 当前市值 / 收益，基准币种），含多币种时展示「原币组成」 |
 | 分类 Categories | `/categories` | 收支分类管理 |
 | 标签 Tags | `/tags` | 标签管理 |

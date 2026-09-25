@@ -96,6 +96,32 @@ export async function ensureSchema(): Promise<void> {
   await ensureColumn("investment_holdings", "base_fee_cents", "INTEGER NOT NULL DEFAULT 0");
   await ensureColumn("investment_holdings", "base_value_cents", "INTEGER NOT NULL DEFAULT 0");
   await ensureColumn("investment_holdings", "base_dividend_cents", "INTEGER NOT NULL DEFAULT 0");
+  // 后续版本新增列（老库 ALTER 补列；新库已存在则跳过）：投资持仓 / columns added in later revisions
+  await ensureColumn("investment_holdings", "direction", "TEXT");
+  await ensureColumn("investment_holdings", "project_id", "TEXT");
+  await ensureColumn("investment_holdings", "sub_type", "TEXT");
+  await ensureColumn("investment_holdings", "area_sqm", "INTEGER");
+  await ensureColumn("investment_holdings", "code", "TEXT");
+  await ensureColumn("investment_holdings", "location", "TEXT");
+  await ensureColumn("investment_holdings", "remark", "TEXT");
+  await ensureColumn("investment_holdings", "buy_transaction_id", "TEXT");
+  await ensureColumn("investment_holdings", "used_rate", "TEXT");
+  await ensureColumn("investment_holdings", "currency_code", "TEXT NOT NULL DEFAULT 'CNY'");
+  // 流水 / transactions
+  await ensureColumn("transactions", "to_account_id", "TEXT");
+  await ensureColumn("transactions", "project_id", "TEXT");
+  await ensureColumn("transactions", "currency_code", "TEXT NOT NULL DEFAULT 'CNY'");
+  await ensureColumn("transactions", "to_currency_code", "TEXT");
+  await ensureColumn("transactions", "used_rate_from", "TEXT");
+  await ensureColumn("transactions", "used_rate_to", "TEXT");
+  await ensureColumn("transactions", "to_amount_cents", "INTEGER");
+  await ensureColumn("transactions", "base_amount_cents", "INTEGER NOT NULL DEFAULT 0");
+  await ensureColumn("transactions", "investment_holding_id", "TEXT");
+  await ensureColumn("transactions", "remark", "TEXT");
+  // 账户 / accounts
+  await ensureColumn("accounts", "currency_code", "TEXT NOT NULL DEFAULT 'CNY'");
+  await ensureColumn("accounts", "base_opening_balance_cents", "INTEGER NOT NULL DEFAULT 0");
+  await ensureColumn("accounts", "remark", "TEXT");
 
   // 存量数据回填（仅 file 模式、仅未迁移过的旧行）：把历史「基准币种分」口径补到 base* 列，
   // 币种按账户币种对齐；USD 等演示数据由重新生成的种子纠正（见 db/init）。

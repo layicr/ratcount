@@ -251,6 +251,7 @@ export function InvestmentTypeTable({
                   {/* 项目列 / 标签列左内边距：与上一列（右对齐的收益率）拉开间距 */}
                   <th className={`${th} pl-4`}>{t("common.project")}</th>
                   <th className={`${th} pl-4`}>{t("investment.tag")}</th>
+                  <th className={`${th} pl-4`}>{t("common.remark")}</th>
                   <th className={thRight}>{t("common.actions")}</th>
                 </tr>
               </thead>
@@ -339,6 +340,8 @@ export function InvestmentTypeTable({
                           )}
                         </div>
                       </td>
+                      {/* 持仓备注（编辑页可填）*/}
+                      <td className="max-w-[14rem] truncate py-2 pl-4 text-slate-500">{h.remark ?? "—"}</td>
                       <td className="text-right">
                         <div className="flex justify-end gap-2">
                           {/* 仅活跃持仓可修改：已卖出 / 已到期为已结算记录，只读 */}

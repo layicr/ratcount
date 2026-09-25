@@ -211,8 +211,8 @@ test.describe("投资模块", () => {
     await fillIfVisible(page, "关联账户", "", "select");
     await fillIfVisible(page, "扣款账户", "", "select", 2);
     await page.getByRole("button", { name: "保存", exact: true }).click();
-    // 弹确认框（标题「保存持仓」）后点确认提交
-    await expect(modal(page).getByRole("heading", { name: "保存持仓" })).toBeVisible();
+    // 弹确认框（标题「保存信息」）后点确认提交
+    await expect(modal(page).getByRole("heading", { name: "保存信息" })).toBeVisible();
     await clickModalOk(page, "保存");
     await expect(page.locator("h1", { hasText: "基金管理" })).toBeVisible();
     await expect(page.locator("tr", { hasText: fundName })).toHaveCount(1);
@@ -226,8 +226,8 @@ test.describe("投资模块", () => {
     await expect(page.locator("h1", { hasText: "修改" })).toBeVisible();
     await fillIfVisible(page, "名称", fundEdited);
     await page.getByRole("button", { name: "保存", exact: true }).click();
-    // 弹确认框后点确认提交（编辑标题仍为「保存持仓」）
-    await expect(modal(page).getByRole("heading", { name: "保存持仓" })).toBeVisible();
+    // 弹确认框后点确认提交（编辑标题仍为「保存信息」）
+    await expect(modal(page).getByRole("heading", { name: "保存信息" })).toBeVisible();
     await clickModalOk(page, "保存");
     await expect(page.locator("h1", { hasText: "基金管理" })).toBeVisible();
     await expect(page.locator("tr", { hasText: fundEdited })).toHaveCount(1);
@@ -296,7 +296,7 @@ test.describe("投资模块", () => {
     await fillIfVisible(page, "扣款账户", "", "select", 2);
     await page.getByRole("button", { name: "保存", exact: true }).click();
     // 弹确认框后点确认提交
-    await expect(modal(page).getByRole("heading", { name: "保存持仓" })).toBeVisible();
+    await expect(modal(page).getByRole("heading", { name: "保存信息" })).toBeVisible();
     await clickModalOk(page, "保存");
     await expect(page.locator("h1", { hasText: "定期管理" })).toBeVisible();
     await expect(page.locator("tr", { hasText: name })).toHaveCount(1);
@@ -338,7 +338,7 @@ test.describe("投资模块", () => {
     await fillIfVisible(page, "扣款账户", "", "select", 2);
     await page.getByRole("button", { name: "保存", exact: true }).click();
     // 弹确认框后点确认提交
-    await expect(modal(page).getByRole("heading", { name: "保存持仓" })).toBeVisible();
+    await expect(modal(page).getByRole("heading", { name: "保存信息" })).toBeVisible();
     await clickModalOk(page, "保存");
     await expect(page.locator("h1", { hasText: "国债管理" })).toBeVisible();
     await expect(page.locator("tr", { hasText: name })).toHaveCount(1);
@@ -365,7 +365,7 @@ test.describe("投资模块", () => {
     await fillIfVisible(page, "扣款账户", "", "select", 2);
     await page.getByRole("button", { name: "保存", exact: true }).click();
     // 弹确认框后点确认提交
-    await expect(modal(page).getByRole("heading", { name: "保存持仓" })).toBeVisible();
+    await expect(modal(page).getByRole("heading", { name: "保存信息" })).toBeVisible();
     await clickModalOk(page, "保存");
     await expect(page.locator("h1", { hasText: "贵金属管理" })).toBeVisible();
     await expect(page.locator("tr", { hasText: name })).toHaveCount(1);
@@ -399,7 +399,7 @@ test.describe("投资模块", () => {
     await fillIfVisible(page, "扣款账户", "", "select", 2);
     await page.getByRole("button", { name: "保存", exact: true }).click();
     // 弹确认框后点确认提交
-    await expect(modal(page).getByRole("heading", { name: "保存持仓" })).toBeVisible();
+    await expect(modal(page).getByRole("heading", { name: "保存信息" })).toBeVisible();
     await clickModalOk(page, "保存");
     await expect(page.locator("h1", { hasText: "不动产管理" })).toBeVisible();
     await expect(page.locator("tr", { hasText: name })).toHaveCount(1);
@@ -425,7 +425,7 @@ test.describe("投资模块", () => {
     await fillIfVisible(page, "关联账户", "", "select");
     await fillIfVisible(page, "扣款账户", "", "select", 2);
     await page.getByRole("button", { name: "保存", exact: true }).click();
-    await expect(modal(page).getByRole("heading", { name: "保存持仓" })).toBeVisible();
+    await expect(modal(page).getByRole("heading", { name: "保存信息" })).toBeVisible();
     await clickModalOk(page, "保存");
     await expect(page.locator("tr", { hasText: name })).toHaveCount(1);
 

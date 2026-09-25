@@ -29,6 +29,7 @@ const BASE_OPENING: Record<AcctKey, number> = {
   fund:          0,
   savings:       0,
   real_estate:   0,
+  social_security: 3000000, // ¥30,000.00 社保账户（无历史流水）/ ¥30,000.00 social security account (no history)
 };
 
 export type AcctDef = {
@@ -84,6 +85,7 @@ export const acctDefs: AcctDef[] = (() => {
     { key: "national_pension", name: "国家养老金账户", type: ACCT.national_pension, icon: "💰", openingBalanceCents: BASE_OPENING.national_pension - (effDelta.get("national_pension") ?? 0), isAsset: true },
     { key: "personal_pension", name: "个人养老金账户", type: ACCT.personal_pension, icon: "💼", openingBalanceCents: BASE_OPENING.personal_pension - (effDelta.get("personal_pension") ?? 0), isAsset: true },
     { key: "housing_fund",    name: "公积金账户",       type: ACCT.housing_fund, icon: "🏘️", openingBalanceCents: BASE_OPENING.housing_fund    - (effDelta.get("housing_fund") ?? 0),   isAsset: true  },
+    { key: "social_security", name: "社保账户",         type: ACCT.social_security, icon: "🛡️", openingBalanceCents: BASE_OPENING.social_security - (effDelta.get("social_security") ?? 0), isAsset: true },
     { key: "loan",            name: "民间借贷（借出）", type: ACCT.loan,         icon: "🤝", openingBalanceCents: BASE_OPENING.loan            - (effDelta.get("loan") ?? 0),           isAsset: true  },
     { key: "borrowed",        name: "民间借贷（借入）", type: ACCT.borrowed,     icon: "📥", openingBalanceCents: BASE_OPENING.borrowed        - (effDelta.get("borrowed") ?? 0),       isAsset: false },
     { key: "digital_asset",   name: "数字资产账户",     type: ACCT.digital_asset, icon: "₿",  openingBalanceCents: BASE_OPENING.digital_asset  - (effDelta.get("digital_asset") ?? 0),  isAsset: true  },

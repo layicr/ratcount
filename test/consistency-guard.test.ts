@@ -20,9 +20,9 @@ const loadMsg = (file: string) =>
   JSON.parse(readFileSync(new URL(`../messages/${file}`, import.meta.url), "utf8"));
 
 /* ==================== 1. 账户类型枚举与映射 ==================== */
-test("账户类型: schema 与 lib 均为 20 项且集合一致", () => {
-  assert.strictEqual(accountTypes.length, 20);
-  assert.strictEqual(ACCOUNT_TYPES.length, 20);
+test("账户类型: schema 与 lib 均为 21 项且集合一致", () => {
+  assert.strictEqual(accountTypes.length, 21);
+  assert.strictEqual(ACCOUNT_TYPES.length, 21);
   assert.deepStrictEqual(
     [...ACCOUNT_TYPES.map((t) => t.v)].sort(),
     [...accountTypes].sort(),
@@ -37,8 +37,8 @@ test("账户类型: 6 个新增类型均已接入图标与 i18n key", () => {
   }
 });
 
-test("账户类型: PROTECTION_ACCOUNT_TYPES 是账户类型的子集（4 类）", () => {
-  assert.deepStrictEqual([...PROTECTION_ACCOUNT_TYPES].sort(), ["housing_fund", "insurance", "national_pension", "personal_pension"].sort());
+test("账户类型: PROTECTION_ACCOUNT_TYPES 是账户类型的子集（5 类）", () => {
+  assert.deepStrictEqual([...PROTECTION_ACCOUNT_TYPES].sort(), ["housing_fund", "insurance", "national_pension", "personal_pension", "social_security"].sort());
   for (const t of PROTECTION_ACCOUNT_TYPES) {
     assert.ok((accountTypes as readonly string[]).includes(t), `保障账户类越界: ${t}`);
   }

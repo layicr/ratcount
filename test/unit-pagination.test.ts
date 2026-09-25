@@ -114,7 +114,7 @@ test("枚举: 各领域枚举非空且角色/类型/动作/频率取值正确", 
   assert.deepStrictEqual([...transactionTypes], ["income", "expense", "transfer"]);
   assert.deepStrictEqual([...auditActions], ["C", "R", "U", "D"]);
   assert.deepStrictEqual([...recurringFrequencies], ["daily", "weekly", "monthly", "yearly"]);
-  assert.strictEqual(accountTypes.length, 20); // 含 borrowed（民间借贷·借入，负债）/ includes borrowed (loan borrowed, liability)
+  assert.strictEqual(accountTypes.length, 21); // 含 borrowed（民间借贷·借入，负债）+ social_security（社保·保障）/ includes borrowed (loan borrowed, liability) + social_security (social security, protection)
 });
 
 test("枚举: ACCOUNT_TYPES 覆盖全部账户类型（单一真源不漂移）", () => {
