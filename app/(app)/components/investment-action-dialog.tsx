@@ -6,7 +6,7 @@ import { todayStr } from "@/lib/investment-flow";
 import { TagPicker } from "./tag-picker";
 import { ConfirmButton } from "./confirm";
 import { useBaseCurrency } from "@/components/currency-context";
-import { formatCurrency } from "@/lib/money";
+import { formatCurrency, parseYuanAmount } from "@/lib/money";
 
 /**
  * 投资操作弹窗（卖出 / 到期 / 派息共用）
@@ -120,16 +120,16 @@ export function InvestmentActionDialog({
 
   /** 派息：每股派息 × 派息股数 → 自动带出派息金额（仍可手改） */
   function onDividendInput(perShare: string, shares: string) {
-    const p = Number(perShare);
+    const p = parseYuanAmount(perShare) ?? NaN;
     const n = Number(shares);
     if (Number.isFinite(p) && Number.isFinite(n) && p > 0 && n > 0) {
       setAmountYuan((p * n).toFixed(2));
     }
   }
 
-  /** 数值解析：空视为 0，非法返回 null */
+  /** 数值解析：空视为 0，非法返回 null；兼容千分位逗号/空白（与 yuanToCents 口径一致） */
   const num = (v: string): number | null => {
-    const s = v.trim();
+    const s = v.trim().replace(/[,\s]/g, "");
     if (s === "") return 0;
     const n = Number(s);
     return Number.isFinite(n) ? n : null;
@@ -159,7 +159,7 @@ export function InvestmentActionDialog({
       }
     }
     if (dividendQty) {
-      const perShare = Number(perShareYuan.trim());
+      const perShare = parseYuanAmount(perShareYuan) ?? NaN;
       if (!Number.isFinite(perShare) || perShare <= 0) {
         setErr("errors.amountInvalid");
         return false;

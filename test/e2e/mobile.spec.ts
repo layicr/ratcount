@@ -70,6 +70,30 @@ test.describe("移动端：底部 tab 导航", () => {
     await page.waitForURL("**/add");
     await expect(page.getByPlaceholder("0.00")).toBeVisible();
   });
+
+  test("底部 tab 完整：仪表盘/记一笔/流水/报表/我的（DB 驱动）", async ({ page }) => {
+    await page.goto("/dashboard");
+    const nav = mobileNav(page);
+    await expect(nav.getByRole("link", { name: /仪\s*表\s*盘/ })).toBeVisible();
+    await expect(nav.getByRole("link", { name: /记\s*一\s*笔/ })).toBeVisible();
+    await expect(nav.getByRole("link", { name: /流\s*水/ })).toBeVisible();
+    await expect(nav.getByRole("link", { name: /报\s*表/ })).toBeVisible();
+    await expect(nav.getByRole("link", { name: /我\s*的/ })).toBeVisible();
+    await expect(nav.locator("a")).toHaveCount(5);
+  });
+
+  test("底部 tab 激活态随路由切换", async ({ page }) => {
+    await page.goto("/dashboard");
+    const nav = mobileNav(page);
+    // 初始：仪表盘 tab 激活
+    await expect(nav.getByRole("link", { name: /仪\s*表\s*盘/ })).toHaveClass(/text-teal-600/);
+    await expect(nav.getByRole("link", { name: /流\s*水/ })).toHaveClass(/text-slate-500/);
+    // 跳到流水：激活态转移
+    await nav.getByRole("link", { name: /流\s*水/ }).click();
+    await page.waitForURL("**/transactions");
+    await expect(nav.getByRole("link", { name: /流\s*水/ })).toHaveClass(/text-teal-600/);
+    await expect(nav.getByRole("link", { name: /仪\s*表\s*盘/ })).toHaveClass(/text-slate-500/);
+  });
 });
 
 test.describe("移动端：触控交互", () => {

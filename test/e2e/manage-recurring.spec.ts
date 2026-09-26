@@ -28,6 +28,13 @@ test.describe("周期计划管理页按钮", () => {
     // 左侧表单 input 顺序：name / amount / date / remark
     await formBox.locator("input").nth(0).fill(name);
     await formBox.locator("input").nth(1).fill("66.00");
+    // 账户默认 accounts[0]（按名称排序可能为现金，余额为负），「执行本期」会被余额守卫拒绝；
+    // 显式选择工资卡（期初余额 1000 万元），保证执行本期能通过余额守卫生成流水
+    const acctSel = formBox.locator("select").filter({
+      has: page.locator("option", { hasText: "工资卡" }),
+    });
+    const salaryVal = await acctSel.locator("option", { hasText: "工资卡" }).getAttribute("value");
+    await acctSel.selectOption(salaryVal!);
     // 支出/收入类型保存前必须选择分类（校验链：name → amount → account → category）
     const catSel = formBox.locator("select").filter({
       has: page.locator("option", { hasText: "选择分类" }),

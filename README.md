@@ -50,6 +50,8 @@ Amounts are stored as integer cents; account balances are not persisted (opening
   10 holding types + protection roll-up (endowment insurance / housing fund / pension / social security); holdings can be linked to a project and roll into its summary.
 - **借贷管理 / Loan management**：借贷（借入 / 借出）作为独立持仓类型，本金与利息分栏记账；借入还款利息记支出、借出收款利息记收入；均支持部分还款 / 部分收款，超额自动拦截。
   Loans (borrow / lend) as a distinct holding type; principal and interest recorded in separate fields — borrow interest as an expense, lend interest as income; partial repayment / partial collection both supported, with an over-limit guard.
+- **金额输入兼容千分位 / Thousands-separated amount input**：所有金额输入框（记一笔、期初余额、对账、投资建仓/卖出/到期/派息、借贷还款/收款、项目预算、周期计划等）均接受 `1,002.00` 这类千分位格式；前后端统一剥离逗号/空白/货币符号后解析，口径一致。
+  Every amount input (add / opening balance / reconciliation / investment buy-sell-maturity-dividend / loan repay-collect / project budget / recurring) accepts thousands-separated values like `1,002.00`; commas/spaces/symbols are stripped consistently on both client and server.
 - **项目聚合投资 / Projects roll up investments**：项目除预算外，还聚合关联 `investment_holdings`（`status=active`）的投入成本 / 当前市值 / 收益（基准币种），含多币种时展示「原币组成」。
   Besides budget, a project rolls up its linked `investment_holdings` (active) — invested cost / current value / profit in base currency, plus a native-currency breakdown when multi-currency.
 
@@ -361,11 +363,15 @@ Edit these 3 spots in order; the language then appears in the UI (enable/set def
 ## 测试 / Testing
 
 ```bash
-npm test          # 单元测试（test/*.test.ts）：金额/校验/环境/分页/审计/账本/UI 渲染/项目汇总等
+npm test          # 单元测试（test/*.test.ts）：金额/校验/环境/分页/审计/账本/UI 渲染/项目汇总/借贷（借入还款·借出收款）等
 npm run test:e2e  # Playwright 端到端（e2e/*.spec.ts）
 ```
 
 > 测试与端到端目录已在 `.vercelignore` 中排除，不会随部署上传。
+> Tests and E2E are excluded in `.vercelignore` and are not uploaded with the deployment.
+
+借贷（借入还款 / 借出收款）路径有对称单元用例：`test/investment-borrow-repay.test.ts`、`test/investment-lend-collect.test.ts`（覆盖全额结清、部分还款/收款、利息方向、超额拦截）；行为验收见 `test/functional-test-cases.md`（借贷相关 F15）、`test/ui-test-cases.md`（UI21），变更记录见 `test/report-20260925-lend.md`。
+Loan (borrow-repay / lend-collect) paths have symmetric unit tests `test/investment-borrow-repay.test.ts` and `test/investment-lend-collect.test.ts` (full settle, partial repay/collect, interest direction, over-limit guard); behavioral acceptance in `test/functional-test-cases.md` (F15) and `test/ui-test-cases.md` (UI21), change log in `test/report-20260925-lend.md`.
 > Tests and E2E are excluded in `.vercelignore` and are not uploaded with the deployment.
 
 ---
@@ -441,7 +447,3 @@ npm run dev:desktop   # next dev(:3000) + 子进程 electron，主进程经 DESK
 > Dev mode connects to a running `next dev` for instant hot reload; requires `npm install` (incl. electron) first.
 
 ---
-
-## 许可证 / License
-
-本项目以 MIT 许可证开源 / Released under the MIT License.

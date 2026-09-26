@@ -6,6 +6,7 @@ import { useTranslations, useFormatter } from "next-intl";
 import { createInvestment, updateInvestment } from "@/app/actions/investments";
 import { type InvestmentType, INV, ACCT, type MetalSubType, DEFAULT_CURRENCY } from "@/lib/constants";
 import { METAL_SUB_TYPES, displayToQuantity, quantityToDisplay, areaToDisplay, displayToArea, linkedAccountTypeOf, investmentTypeConfig } from "@/lib/investment-types";
+import { parseYuanAmount } from "@/lib/money";
 import { TagPicker } from "./tag-picker";
 import { ConfirmButton, useToast } from "./confirm";
 
@@ -144,7 +145,7 @@ export function InvestmentForm({
   /** 保存前校验（替代原生 required，支持 i18n）：声明式校验列表，按类型组装，返回首个失败的错误 key */
   function validateBeforeSave(): boolean {
     setErr(null);
-    const num = (s: string) => Number(s);
+    const num = (s: string) => parseYuanAmount(s) ?? NaN;
     if (!form.name.trim()) { setErr("common.nameRequired"); return false; }
     const checks: { ok: boolean; err: string }[] = [];
     if (cfg.isStockLike) {
@@ -181,7 +182,7 @@ export function InvestmentForm({
     if (cfg.isLoan) checks.push({ ok: !!form.direction, err: "investment.directionRequired" });
     // 扣款账户余额不足提示（与定期 / 服务端口径一致）：非借入、跨账户买入时校验
     if (!(cfg.isLoan && form.direction === "borrow") && form.paymentAccountId && form.paymentAccountId !== form.accountId) {
-      const buyCents = Math.round(Number(form.costYuan || 0) * 100) + Math.round(Number(form.feeYuan || 0) * 100);
+      const buyCents = Math.round((parseYuanAmount(form.costYuan || "0") ?? 0) * 100) + Math.round((parseYuanAmount(form.feeYuan || "0") ?? 0) * 100);
       if (buyCents > 0) {
         const payer = accounts.find((a) => a.id === form.paymentAccountId);
         if (payer) {

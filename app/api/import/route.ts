@@ -53,7 +53,16 @@ export async function POST(req: Request) {
   }
 
   const buf = Buffer.from(await file.arrayBuffer());
-  const wb = XLSX.read(buf, { type: "buffer" });
+  // UTF-8 CSV 兼容：XLSX 对无 BOM 的 UTF-8 CSV 会按 latin1 解析导致中文乱码、表头匹配失败，
+  // 先转 UTF-8 字符串（并去除 BOM）再解析，保证中文表头/内容正确识别。
+  let wb: XLSX.WorkBook;
+  if (isCsv && !isExcel) {
+    let text = buf.toString("utf8");
+    if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+    wb = XLSX.read(text, { type: "string" });
+  } else {
+    wb = XLSX.read(buf, { type: "buffer" });
+  }
   const txSheetNames = [String(d.nav.transactions).trim()];
   const sheetName = wb.SheetNames.find((n) => txSheetNames.includes(n.trim())) ?? wb.SheetNames.find((n) => n.includes("流水")) ?? wb.SheetNames[0];
   const ws = wb.Sheets[sheetName];

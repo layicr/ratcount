@@ -4,7 +4,7 @@ import { useState } from "react";
 import { createProject, updateProject, deleteProject } from "@/app/actions/common";
 import { useTranslations, useLocale } from "next-intl";
 import { useMoney } from "@/components/currency-context";
-import { formatCurrency } from "@/lib/money";
+import { formatCurrency, parseYuanAmount } from "@/lib/money";
 import { ConfirmButton, DeleteButton } from "../components/confirm";
 import { IconPicker } from "../components/icon-picker";
 import { PROJECT_STATUS, type ProjectStatus } from "@/lib/constants";
@@ -57,8 +57,8 @@ export function ProjectsManager({ projects }: { projects: Proj[] }) {
   /** 预算数字校验：空值放行，否则必须为非负数字 */
   function budgetError(v: string): string | null {
     if (!v.trim()) return null;
-    const n = Number(v);
-    if (!isFinite(n) || n < 0) return "projects.budgetInvalid";
+    const n = parseYuanAmount(v);
+    if (n === null || n < 0) return "projects.budgetInvalid";
     return null;
   }
 

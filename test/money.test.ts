@@ -1,7 +1,7 @@
 /** 金额纯函数单测 / Money pure-function unit tests */
 import { test } from "node:test";
 import assert from "node:assert";
-import { formatCents, yuanToCents, convertCents } from "../lib/money";
+import { formatCents, yuanToCents, convertCents, parseYuanAmount } from "../lib/money";
 
 test("formatCents: 分 → 元字符串（千分位）", () => {
   assert.strictEqual(formatCents(123456), "1,234.56");
@@ -44,4 +44,17 @@ test("convertCents: 汇率折算", () => {
   assert.strictEqual(convertCents(10000, "7.2", "1"), 72000);
   // 10000 人民币分 → 美元（1 CNY = 1/7.2 USD）
   assert.strictEqual(convertCents(72000, "1", "7.2"), 10000);
+});
+
+test("parseYuanAmount: 客户端金额解析（兼容千分位/货币符号/空白）", () => {
+  assert.strictEqual(parseYuanAmount("1,002.00"), 1002);
+  assert.strictEqual(parseYuanAmount("1,233.52"), 1233.52);
+  assert.strictEqual(parseYuanAmount("1 233.52"), 1233.52);
+  assert.strictEqual(parseYuanAmount("¥1,002.00"), 1002);
+  assert.strictEqual(parseYuanAmount("+1,002"), 1002);
+  assert.strictEqual(parseYuanAmount("-1,002.00"), -1002);
+  assert.strictEqual(parseYuanAmount("  1002.00  "), 1002);
+  assert.strictEqual(parseYuanAmount(""), 0);
+  assert.strictEqual(parseYuanAmount("abc"), null);
+  assert.strictEqual(parseYuanAmount("1.234"), null);
 });

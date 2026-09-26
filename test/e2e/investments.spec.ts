@@ -24,7 +24,9 @@ async function ensureAccount(page: Page, acctName: string, typeNth: number) {
   await form.locator("input").nth(0).fill(acctName);
   await form.locator("button").nth(1).click();
   await page.locator("div.absolute.z-50 button").nth(typeNth).click();
-  await form.locator("input").nth(1).fill("1000");
+  // 期初余额填 1000 万元：投资表单扣款账户下拉按账户名排序，select 索引 2 可能指向其他余额不足账户，
+  // 余额守卫（lib/services/investments.ts:111）要求扣款账户余额 >= 成本+费用，余额充足可避免误拦
+  await form.locator("input").nth(1).fill("10000000");
   await form.getByRole("button", { name: "保存", exact: true }).click();
   await expect(modal(page).getByRole("heading", { name: "新增账户" })).toBeVisible();
   await clickModalOk(page, "保存");
@@ -293,7 +295,22 @@ test.describe("投资模块", () => {
     await fillIfVisible(page, "起息日", "2026-01-01");
     await fillIfVisible(page, "到期日", "2027-01-01");
     await fillIfVisible(page, "关联账户", "", "select");
-    await fillIfVisible(page, "扣款账户", "", "select", 2);
+    // 扣款账户：账户下拉按名称排序，select 索引 2 可能指向余额不足账户（如基金账户余额 0）被余额守卫拦截；
+    // 先选第 1 个真实账户（新建 savings 自身，同账户跳过守卫）保底，再显式改为工资卡（期初余额 1000 万元）
+    await fillIfVisible(page, "扣款账户", "", "select", 1);
+    const paySel = await fieldByLabel(page, "扣款账户");
+    await paySel.waitFor({ state: "visible" });
+    const salaryVal = await paySel.locator("option", { hasText: "工资卡" }).getAttribute("value");
+    if (salaryVal) {
+      await paySel.selectOption(salaryVal);
+      await page.waitForTimeout(150);
+      const v = await paySel.inputValue().catch(() => "");
+      if (v !== salaryVal) {
+        // 受控 select 偶发未同步，重试一次
+        await paySel.selectOption(salaryVal);
+        await page.waitForTimeout(150);
+      }
+    }
     await page.getByRole("button", { name: "保存", exact: true }).click();
     // 弹确认框后点确认提交
     await expect(modal(page).getByRole("heading", { name: "保存信息" })).toBeVisible();
@@ -437,12 +454,13 @@ test.describe("投资模块", () => {
     await expect(modal(page)).toHaveCount(0);
     await expect(page.locator("tr", { hasText: `${name}（副本）` })).toHaveCount(1);
 
-    // 清理：删除原持仓与复制持仓
-    for (const n of [name, `${name}（副本）`]) {
+    // 清理：先删副本行（仅副本行含「（副本）」，子串唯一），再删原行（副本已删后唯一）；每轮等待行消失避免 DOM 未刷新
+    for (const n of [`${name}（副本）`, name]) {
       const r = page.locator("tr", { hasText: n });
       await r.getByRole("button", { name: "删除" }).click();
       await expect(modal(page).getByRole("heading", { name: "删除投资" })).toBeVisible();
       await clickModalOk(page, "删除");
+      await expect(page.locator("tr", { hasText: n })).toHaveCount(0);
     }
     await expect(page.locator("tr", { hasText: name })).toHaveCount(0);
   });

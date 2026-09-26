@@ -78,6 +78,21 @@ export function yuanToCents(input: string | number): Cents | null {
 }
 
 /**
+ * 客户端金额字符串 → 数字（元）；空视为 0，非法返回 null。
+ * 与 `yuanToCents` 口径一致：剥离千分位逗号、空白、前导正号/常见货币符号（保留负号）。
+ * 用于前端校验/实时预览，使所有金额输入框兼容 `1,002.00` 这类千分位格式。
+ * Client-side yuan-string → number; empty = 0, invalid = null. Mirrors `yuanToCents` (strips commas/spaces/+symbols, keeps minus). For front-end validation/preview so every amount input accepts `1,002.00`.
+ */
+export function parseYuanAmount(input: string): number | null {
+  const s = input.trim().replace(/[,\s]/g, "").replace(/^[+¥￥$€£]/, "");
+  if (s === "") return 0;
+  // 与服务端 yuanToCents 口径一致：最多两位小数、位数上限 / Same 2-decimal cap as yuanToCents
+  if (!/^-?\d{1,15}(\.\d{1,2})?$/.test(s)) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
  * 汇率折算：amountCents（源币种）→ 目标币种分值（保留分）
  *  rate 语义：1 单位该币种 = rate 单位基准币种（如 USD=7.2 表示 1 USD = 7.2 CNY）
  * FX conversion: amountCents (source currency) → target-currency cents (kept in cents)
