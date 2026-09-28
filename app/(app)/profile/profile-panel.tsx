@@ -9,10 +9,11 @@ import { ConfirmButton } from "../components/confirm";
 import { logLogout } from "@/app/actions/auth";
 import { updateUserName } from "@/app/actions/profile";
 import { updateUserPreferences } from "@/app/actions/user-preferences";
+import { setThemeCookie } from "@/app/actions/cookies";
 import { COMMON_TIME_ZONES, tzLabel, DEFAULT_TIME_ZONE } from "@/i18n/timezones";
 import { TIME_ZONE_COOKIE } from "@/lib/constants";
 import { THEME_ITEMS, DEFAULT_THEME, applyThemeToDocument } from "@/i18n/themes";
-import { LOGIN_PATH, LOCALE_COOKIE_NAME, THEME_COOKIE } from "@/lib/constants";
+import { LOGIN_PATH, LOCALE_COOKIE_NAME } from "@/lib/constants";
 
 /** 个人设置：风格 / 语言 / 数据管理 + 用户名编辑 + 修改密码入口 */
 export function ProfilePanel({
@@ -86,7 +87,7 @@ export function ProfilePanel({
 
   /** 语言切换：写 cookie + 持久化到 user_profiles + 整页刷新 */
   async function applyLang(v: string) {
-    document.cookie = `${LOCALE_COOKIE_NAME}=${v}; path=/; max-age=31536000`;
+    document.cookie = `${LOCALE_COOKIE_NAME}=${v}; path=/; max-age=31536000${window.location.protocol === "https:" ? "; secure" : ""}; samesite=lax`;
     try { await updateUserPreferences({ localeCode: v }); } catch { /* 持久化失败不影响界面 */ }
     window.location.reload();
   }
@@ -96,7 +97,7 @@ export function ProfilePanel({
 
   /** 时区切换：写 cookie money_timezone + 持久化到 user_profiles + 整页刷新 */
   async function applyTimezone(v: string) {
-    document.cookie = `${TIME_ZONE_COOKIE}=${v}; path=/; max-age=31536000`;
+    document.cookie = `${TIME_ZONE_COOKIE}=${v}; path=/; max-age=31536000${window.location.protocol === "https:" ? "; secure" : ""}; samesite=lax`;
     try { await updateUserPreferences({ timezoneCode: v }); } catch { /* 持久化失败不影响界面 */ }
     window.location.reload();
   }
@@ -104,7 +105,7 @@ export function ProfilePanel({
   /** 主题列表来自 i18n/themes.ts（与全局设置「默认风格」同源），显示名取 theme.* */
   async function applyTheme(v: string) {
     // 本机偏好写入 cookie：根布局服务端据此直接渲染 <html class>（刷新后同样生效，不再依赖内联脚本）
-    document.cookie = `${THEME_COOKIE}=${v}; path=/; max-age=31536000; samesite=lax`;
+    try { await setThemeCookie(v); } catch { /* 服务端写 cookie 失败不影响界面与持久化 */ }
     setTheme(v);
     applyThemeToDocument(v); // 清旧 class 并按新主题添加 / Swap theme classes
     try { await updateUserPreferences({ themeCode: v }); } catch { /* 持久化失败不影响界面 */ }

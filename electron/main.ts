@@ -6,6 +6,7 @@
 //  - 建表（ensureSchema）与审计清理定时器由 Next 侧 instrumentation.ts 在服务进程内执行。
 import { app, BrowserWindow, dialog } from "electron";
 import { spawn, type ChildProcess } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { createServer } from "node:net";
 import { mkdirSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -27,6 +28,17 @@ function ignoreEpipe(stream: NodeJS.WritableStream) {
 }
 ignoreEpipe(process.stdout);
 ignoreEpipe(process.stderr);
+
+// 桌面模式 AUTH_SECRET：绝不回退公开硬编码字面量（可借以自签 admin 会话 JWT 伪造任意用户）。
+// 未显式设置时改用进程级随机密钥，与 lib/env.ts 的 ephemeralAuthSecret 思路一致；
+// 如需重启后免登录，应通过环境变量持久化强随机密钥。
+const desktopAuthSecret = process.env.AUTH_SECRET ?? randomBytes(32).toString("hex");
+if (!process.env.AUTH_SECRET) {
+  console.warn(
+    "[desktop] 未设置 AUTH_SECRET：使用本次启动的随机密钥（重启后需重新登录）。" +
+      "分发/生产桌面应用应通过环境变量持久化强随机密钥。",
+  );
+}
 
 /** 本地数据文件 URL（方案 C）。
  *  优先放在 RatCount.exe 同目录/data/ratcount.db（便于随程序带走、U 盘便携）；
@@ -97,7 +109,7 @@ async function startLocalServer(port: number): Promise<void> {
       // Run electron.exe as a plain Node runtime for the Next standalone server.
       ELECTRON_RUN_AS_NODE: "1",
       DATABASE_URL: process.env.DATABASE_URL ?? dataFileUrl(),
-      AUTH_SECRET: process.env.AUTH_SECRET ?? "change-me-in-production-desktop-secret",
+      AUTH_SECRET: desktopAuthSecret,
       NEXT_PUBLIC_DEPLOY_MODE: DEPLOY_MODE_DESKTOP,
       NODE_ENV: NODE_ENV.production,
       PORT: String(port),

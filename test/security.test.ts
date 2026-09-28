@@ -126,25 +126,25 @@ test("验证码: 正常 token 校验通过、错误答案拒绝", async () => {
   assert.strictEqual(await verifyCaptchaToken(token, ""), false);
 });
 
-test("登录限流: 注册限流 5 次/15 分钟、验证码限流 10 次/分钟 互相独立", () => {
+test("登录限流: 注册限流 5 次/15 分钟、验证码限流 10 次/分钟 互相独立", async () => {
   const ip = "203.0.113.9";
-  resetAttempts(`register:${ip}`);
-  resetAttempts(`captcha:${ip}`);
-  for (let i = 0; i < 5; i++) assert.strictEqual(allowAttempt(`register:${ip}`), true);
-  assert.strictEqual(allowAttempt(`register:${ip}`), false, "注册第 6 次被拒");
-  for (let i = 0; i < 10; i++) assert.strictEqual(allowAttempt(`captcha:${ip}`, CAPTCHA_LIMIT), true);
-  assert.strictEqual(allowAttempt(`captcha:${ip}`, CAPTCHA_LIMIT), false, "验证码第 11 次被拒");
+  await resetAttempts(`register:${ip}`);
+  await resetAttempts(`captcha:${ip}`);
+  for (let i = 0; i < 5; i++) assert.strictEqual(await allowAttempt(`register:${ip}`), true);
+  assert.strictEqual(await allowAttempt(`register:${ip}`), false, "注册第 6 次被拒");
+  for (let i = 0; i < 10; i++) assert.strictEqual(await allowAttempt(`captcha:${ip}`, CAPTCHA_LIMIT), true);
+  assert.strictEqual(await allowAttempt(`captcha:${ip}`, CAPTCHA_LIMIT), false, "验证码第 11 次被拒");
   // 不同命名空间互不影响
-  assert.strictEqual(allowAttempt(`register:${ip}`), false, "注册仍被限流");
+  assert.strictEqual(await allowAttempt(`register:${ip}`), false, "注册仍被限流");
 });
 
-test("登录限流: 重置后恢复尝试", () => {
+test("登录限流: 重置后恢复尝试", async () => {
   const key = "login:reset-ip";
-  resetAttempts(key);
-  for (let i = 0; i < 5; i++) allowAttempt(key);
-  assert.strictEqual(allowAttempt(key), false);
-  resetAttempts(key);
-  assert.strictEqual(allowAttempt(key), true);
+  await resetAttempts(key);
+  for (let i = 0; i < 5; i++) await allowAttempt(key);
+  assert.strictEqual(await allowAttempt(key), false);
+  await resetAttempts(key);
+  assert.strictEqual(await allowAttempt(key), true);
 });
 
 /* ==================== 4. 密码哈希（bcryptjs） ==================== */

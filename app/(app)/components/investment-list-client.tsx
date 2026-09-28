@@ -79,7 +79,7 @@ export function InvestmentSellButton({
   const isAccrual =
     type === INV.deposit || type === INV.bond || type === INV.loan || type === INV.insurance;
   const accruedCents = isAccrual
-    ? estimateAccruedCents({ principalCents, interestRate, startDate: purchaseDate, maturityDate })
+    ? estimateAccruedCents({ principalCents, interestRate, startDate: purchaseDate, maturityDate, basis: type === INV.loan ? "365" : "360" })
     : 0;
   // 到期类默认到账金额 = 本金 + 应计利息；其余（卖出）为当前市值
   const defaultCents = isAccrual ? accruedCents : currentValueCents;
@@ -139,7 +139,7 @@ export function InvestmentSellButton({
 
 /** 派息 / 分红按钮：收款账户记一笔收入（投资收益），可多次派息 */
 export function InvestmentDividendButton({
-  id, type, name, quantity, tags, paymentAccountId, accounts, currencyCode,
+  id, type, name, quantity, tags, paymentAccountId, accounts, currencyCode, interestRate, purchaseDate, costCents,
 }: {
   id: string;
   type: InvestmentType;
@@ -153,11 +153,23 @@ export function InvestmentDividendButton({
   accounts?: { id: string; name: string; icon: string }[];
   /** 持仓币种（原币）：弹窗金额按此币种符号展示 */
   currencyCode?: string;
+  /** 固收按 30/360 预填派息金额用：年利率（字符串，如 2.60%）/ 起息日 / 本金（分） */
+  interestRate?: string | null;
+  purchaseDate?: string | null;
+  costCents?: number;
 }) {
   const t = useTranslations();
   // 仅有数量口径的持仓（股票/基金/数字资产/收藏品/贵金属）按「每股派息 × 派息股数」录入；
   // 固收 / 储蓄型保险的数量无业务含义（历史数据里可能存成 1）→ 直接填派息金额
   const maxQtyDisplay = !isFixedIncome(type) && quantity > 0 ? quantityToDisplay(type, quantity) : 0;
+  // 固收（非借贷）按 30/360（起息日→今天）自动带出派息金额（可手改）；股票类（每股派息）保持空
+  // Fixed income (non-loan): pre-fill dividend at 30/360 (start→today); stock-like (per-share) stays empty
+  const isFixedNonLoan = isFixedIncome(type) && type !== INV.loan;
+  const dividendDefaultCents =
+    isFixedNonLoan && interestRate && costCents
+      ? Math.max(0, estimateAccruedCents({ principalCents: costCents, interestRate, startDate: purchaseDate, maturityDate: undefined, basis: "360" }) - costCents)
+      : 0;
+  const defaultAmountYuan = isFixedNonLoan && dividendDefaultCents > 0 ? toYuan(dividendDefaultCents) : "";
   return (
     <InvestmentActionDialog
       action={(input) =>
@@ -173,7 +185,7 @@ export function InvestmentDividendButton({
       desc={t("investment.dividendDesc", { name })}
       name={name}
       okText={t("investment.dividend")}
-      defaultAmountYuan=""
+      defaultAmountYuan={defaultAmountYuan}
       label={t("investment.dividend")}
       tags={tags}
       accounts={accounts}

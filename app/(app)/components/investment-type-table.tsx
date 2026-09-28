@@ -106,6 +106,7 @@ export function InvestmentTypeTable({
           interestRate: h.interestRate,
           startDate: h.purchaseDate,
           maturityDate: h.maturityDate,
+          basis: "360",
         })
       : h.currentValueCents;
   // 跨币种汇总：各持仓存「基准币种快照」base*，直接求和即基准币种总额（不再把各原币分相加后套基准符号，避免汇率失真）
@@ -117,6 +118,7 @@ export function InvestmentTypeTable({
           interestRate: h.interestRate,
           startDate: h.purchaseDate,
           maturityDate: h.maturityDate,
+          basis: "360",
         })
       : (h.baseValueCents ?? h.currentValueCents);
   const totalValue = holdings.reduce((s, h) => s + baseValueOf(h), 0);
@@ -381,6 +383,9 @@ export function InvestmentTypeTable({
                                   paymentAccountId={h.paymentAccountId}
                                   accounts={accounts}
                                   currencyCode={h.currencyCode}
+                                  interestRate={h.interestRate}
+                                  purchaseDate={h.purchaseDate}
+                                  costCents={h.costCents}
                                 />
                               )}
                               {/* 仅活跃持仓可复制：生成同源新持仓（含买入流水、标签、审计） */}

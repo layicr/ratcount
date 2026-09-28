@@ -23,28 +23,13 @@ const securityHeaders = [
   { key: "X-Frame-Options", value: "SAMEORIGIN" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
-  {
-    key: "Content-Security-Policy",
-    value: [
-      "default-src 'self'",
-      isProd
-        ? "script-src 'self' 'unsafe-inline'"
-        : "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob:",
-      "font-src 'self' data:",
-      "connect-src 'self'",
-      "object-src 'none'",
-      "worker-src 'self' blob:",
-      "frame-ancestors 'self'",
-      "base-uri 'self'",
-      "form-action 'self'",
-      "frame-src 'self'",
-    ].join("; "),
-  },
+  // 注：Content-Security-Policy 已下放到 middleware.ts，按请求生成 nonce；
+  // 这里仅保留其余安全头（CSP 在页面路由由中间件注入，API/静态资源无需 CSP）。
 ];
 
 const nextConfig: NextConfig = {
+  // 关闭 X-Powered-By: Next.js 版本指纹（P1-1）
+  poweredByHeader: false,
   // 桌面模式：standalone 输出（Electron 主进程内以子进程启动本地 Node 服务）
   ...(isDesktopMode ? { output: "standalone", images: { unoptimized: true } } : {}),
   // 桌面同样运行真实 Node 服务，安全响应头两种模式一致

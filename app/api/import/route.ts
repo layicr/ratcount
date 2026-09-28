@@ -22,6 +22,7 @@ import { randomUUID } from "node:crypto";
 /** 导入 Excel（流水）：行级校验，账户/分类按名称匹配或自动创建，返回行级报告 */
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB 文件大小上限
 const MAX_ROWS = 1000; // 单次导入行数上限
+const MAX_CELLS = 1_000_000; // 单元格总量上限（防解压炸弹：小体积压缩包展开后可远超内存）
 const ALLOWED_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const CSV_MIMES = ["text/csv", "application/csv", "text/plain"];
 
@@ -65,8 +66,30 @@ export async function POST(req: Request) {
   }
   const txSheetNames = [String(d.nav.transactions).trim()];
   const sheetName = wb.SheetNames.find((n) => txSheetNames.includes(n.trim())) ?? wb.SheetNames.find((n) => n.includes("流水")) ?? wb.SheetNames[0];
-  const ws = wb.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" }) as Record<string, unknown>[];
+  const ws = sheetName ? wb.Sheets[sheetName] : undefined;
+  if (!ws) {
+    return Response.json({ ok: false, message: d.errors.emptySheet }, { status: 400 });
+  }
+
+  // 防解压炸弹：限制单元格总量（小体积压缩包展开后可远超内存）/ Mitigate decompression bombs
+  const ref = ws["!ref"];
+  if (ref) {
+    const range = XLSX.utils.decode_range(ref);
+    const totalCells = (range.e.r - range.s.r + 1) * (range.e.c - range.s.c + 1);
+    if (totalCells > MAX_CELLS) {
+      return Response.json(
+        { ok: false, message: d.errors.sheetTooLarge.replace("{max}", String(MAX_CELLS / 1_000_000)) },
+        { status: 400 },
+      );
+    }
+  }
+
+  let rows: Record<string, unknown>[];
+  try {
+    rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" }) as Record<string, unknown>[];
+  } catch {
+    return Response.json({ ok: false, message: d.errors.importFailed }, { status: 400 });
+  }
 
   // 行数上限校验 / Row count limit
   if (rows.length > MAX_ROWS) {

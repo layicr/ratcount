@@ -26,7 +26,7 @@ export function LocaleSwitcher({
       : allLocales.map((c) => ({ code: c, label: localeLabels[c] }));
 
   function set(l: string) {
-    document.cookie = `${LOCALE_COOKIE_NAME}=${l}; path=/; max-age=31536000`;
+    document.cookie = `${LOCALE_COOKIE_NAME}=${l}; path=/; max-age=31536000; samesite=lax`;
     window.location.reload();
   }
 

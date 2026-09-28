@@ -109,7 +109,7 @@ export function AppShell({
 
   function confirmLedgerSwitch() {
     if (!pendingLedger) return;
-    document.cookie = `${LEDGER_COOKIE}=${pendingLedger.id}; path=/; max-age=31536000`;
+    document.cookie = `${LEDGER_COOKIE}=${pendingLedger.id}; path=/; max-age=31536000${window.location.protocol === "https:" ? "; secure" : ""}; samesite=lax`;
     window.location.href = DASHBOARD_PATH;
   }
 

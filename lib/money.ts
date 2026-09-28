@@ -64,8 +64,7 @@ export function centsToYuan(cents: Cents): string {
 }
 
 /** 元字符串/数字 → 分（最多两位小数）；非法或超上限返回 null / Yuan string/number → cents (max 2 decimals); invalid or over cap → null */
-export function yuanToCents(input: string | number): Cents | null {
-  const raw = typeof input === "number" ? String(input) : input.trim();
+export function yuanToCents(input: string | number): Cents | null {  const raw = typeof input === "number" ? String(input) : input.trim();
   // 兼容从余额/报表复制进来的格式：去掉千分位逗号、空白、前导正号/常见货币符号；负号保留 / Support pasted values: strip thousands separators, spaces, leading plus/currency symbols; keep minus
   const n = raw.replace(/[,\s]/g, "").replace(/^[+¥￥$€£]/, "");
   // 允许负号：期初余额（如信用卡）可为负；位数上限防超长数字串（另有 MAX_ABS_CENTS 兜底）/ Allow sign: opening balances (e.g. credit cards) may be negative; digit cap blocks over-long strings (MAX_ABS_CENTS is the final guard)

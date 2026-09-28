@@ -88,35 +88,35 @@ test("验证码: 位图画布确实绘制了字符（前景像素适中、非纯
 
 /* ==================== 2. 登录限流 ==================== */
 
-test("限流: 15 分钟内最多 5 次失败，第 6 次被拒", () => {
+test("限流: 15 分钟内最多 5 次失败，第 6 次被拒", async () => {
   const key = "login:test-ip-1";
-  resetAttempts(key);
+  await resetAttempts(key);
   for (let i = 1; i <= 5; i++) {
-    assert.strictEqual(allowAttempt(key), true, `第 ${i} 次应放行`);
+    assert.strictEqual(await allowAttempt(key), true, `第 ${i} 次应放行`);
   }
-  assert.strictEqual(allowAttempt(key), false, "第 6 次应被拒");
-  assert.strictEqual(remainingAttempts(key), 0, "剩余次数为 0");
+  assert.strictEqual(await allowAttempt(key), false, "第 6 次应被拒");
+  assert.strictEqual(await remainingAttempts(key), 0, "剩余次数为 0");
 });
 
-test("限流: remainingAttempts 随失败递减，成功后重置", () => {
+test("限流: remainingAttempts 随失败递减，成功后重置", async () => {
   const key = "login:test-ip-2";
-  resetAttempts(key);
-  assert.strictEqual(remainingAttempts(key), 5);
-  allowAttempt(key); // 1 次失败
-  assert.strictEqual(remainingAttempts(key), 4);
-  resetAttempts(key); // 登录成功
-  assert.strictEqual(remainingAttempts(key), 5);
-  assert.strictEqual(allowAttempt(key), true);
+  await resetAttempts(key);
+  assert.strictEqual(await remainingAttempts(key), 5);
+  await allowAttempt(key); // 1 次失败
+  assert.strictEqual(await remainingAttempts(key), 4);
+  await resetAttempts(key); // 登录成功
+  assert.strictEqual(await remainingAttempts(key), 5);
+  assert.strictEqual(await allowAttempt(key), true);
 });
 
-test("限流: 不同 IP 相互独立", () => {
+test("限流: 不同 IP 相互独立", async () => {
   const k1 = "login:ip-a";
   const k2 = "login:ip-b";
-  resetAttempts(k1);
-  resetAttempts(k2);
-  for (let i = 0; i < 5; i++) allowAttempt(k1);
-  assert.strictEqual(allowAttempt(k1), false, "ip-a 被限流");
-  assert.strictEqual(allowAttempt(k2), true, "ip-b 不受影响");
+  await resetAttempts(k1);
+  await resetAttempts(k2);
+  for (let i = 0; i < 5; i++) await allowAttempt(k1);
+  assert.strictEqual(await allowAttempt(k1), false, "ip-a 被限流");
+  assert.strictEqual(await allowAttempt(k2), true, "ip-b 不受影响");
 });
 
 /* ==================== 3. 余额计算 ==================== */

@@ -4,12 +4,14 @@ import assert from "node:assert";
 import {
   parseAnnualRate,
   daysBetween,
+  days360,
   actualCostCents,
   calcMaturityCents,
   profitCents,
   prorateSell,
   defaultMaturityCents,
   estimateAccruedCents,
+  estimateMaturityPreview,
   isDateStr,
   todayStr,
 } from "../lib/investment-flow";
@@ -220,4 +222,49 @@ test("部分卖出账目推演：到账净额 − 结转成本 = 盈亏", () => 
   // 剩余持仓留在账户上：300 股 + 成本费用合计 6030 元
   assert.strictEqual(s.remainingQuantity, 300);
   assert.strictEqual(s.remainingCostCents + s.remainingFeeCents, 603_000);
+});
+
+/* ==================== 计息基准：30/360 vs ACT/365 ==================== */
+
+test("days360: 30/360 计息天数（日端取 min(day,30)）", () => {
+  assert.strictEqual(days360("2026-01-01", "2027-01-01"), 360); // 整年 12×30
+  assert.strictEqual(days360("2026-01-01", "2026-07-01"), 180); // 半年 6×30
+  assert.strictEqual(days360("2026-01-31", "2026-02-28"), 28); // D1=31→30，D2=28
+  assert.strictEqual(days360("2026-01-31", "2026-04-30"), 90); // D1=31→30，D2=30
+  assert.strictEqual(days360("2024-02-28", "2024-03-01"), 3);
+  assert.strictEqual(days360("2026-1-1", "2026-01-02"), null); // 非法
+  assert.strictEqual(days360(null as unknown as string, "2026-01-02"), null);
+});
+
+test("calcMaturityCents: basis 默认 365（借贷）；固收传 360 差异", () => {
+  // 本金 1000 元，年利率 5%，360 天
+  assert.strictEqual(calcMaturityCents(100000, 0.05, 360, "360"), 105000); // 5% × 360/360
+  // 默认（不传 basis）等同于 365
+  assert.strictEqual(calcMaturityCents(100000, 0.05, 360), 104932); // 5% × 360/365
+  assert.strictEqual(calcMaturityCents(100000, 0.05, 360, "365"), 104932);
+});
+
+test("estimateAccruedCents: basis 参数影响应计利息（固收 360 / 借贷 365）", () => {
+  // 10 万本金 / 2.6% / 2026-01-01 起息，今天 2026-07-01（实际 181 天；30/360 为 180 天）
+  const base = { principalCents: 100000, interestRate: "2.60%", startDate: "2026-01-01", maturityDate: "2027-01-01", today: "2026-07-01" };
+  assert.strictEqual(estimateAccruedCents({ ...base, basis: "360" }), 101300); // 0.026 × 180/360
+  assert.strictEqual(estimateAccruedCents({ ...base, basis: "365" }), 101289); // 0.026 × 181/365
+  // 默认不传 = 365（借贷零回归）
+  assert.strictEqual(estimateAccruedCents(base), 101289);
+});
+
+test("estimateMaturityPreview: 满期投影（30/360），返回利息与总额；缺字段返回 null", () => {
+  const pv = estimateMaturityPreview({
+    principalCents: 100000,
+    interestRate: "2.60%",
+    purchaseDate: "2026-01-01",
+    maturityDate: "2027-01-01",
+    basis: "360",
+  });
+  assert.ok(pv !== null);
+  assert.strictEqual(pv.interestCents, 2600); // 2.6% × 360/360
+  assert.strictEqual(pv.totalCents, 102600);
+  // 缺失利率 / 日期 → null（不渲染预览）
+  assert.strictEqual(estimateMaturityPreview({ principalCents: 100000, interestRate: null, purchaseDate: "2026-01-01", maturityDate: "2027-01-01" }), null);
+  assert.strictEqual(estimateMaturityPreview({ principalCents: 100000, interestRate: "2.60%", purchaseDate: "2026-01-01", maturityDate: null }), null);
 });

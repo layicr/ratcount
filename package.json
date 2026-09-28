@@ -48,7 +48,7 @@
     "concurrently": "^9.1.0",
     "cross-env": "^7.0.3",
     "drizzle-kit": "^0.31.0",
-    "electron": "^37.10.3",
+    "electron": "^44.4.5",
     "electron-builder": "^26.0.0",
     "esbuild": "^0.25.0",
     "eslint": "^9.0.0",

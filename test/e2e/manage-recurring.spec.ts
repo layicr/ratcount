@@ -59,6 +59,23 @@ test.describe("周期计划管理页按钮", () => {
     await expect(page.getByText("已生成流水")).toBeVisible();
   });
 
+  test("编辑周期计划：表单回填 + 保存生效", async ({ page }) => {
+    await page.goto("/recurring");
+    const card = page.locator("div.rounded-2xl", { hasText: name });
+    await expect(card).toHaveCount(1);
+    await card.getByRole("button", { name: "修改" }).click();
+    // 编辑表单回填原备注（新增用例写入「E2E 计划备注」）
+    const editForm = page.locator("div.rounded-2xl").first();
+    await expect(editForm.locator("input").nth(0)).toHaveValue(name);
+    await expect(editForm.locator("input").nth(3)).toHaveValue("E2E 计划备注");
+    // 修改备注并保存
+    await editForm.locator("input").nth(3).fill("E2E 计划备注已编辑");
+    await editForm.getByRole("button", { name: "保存", exact: true }).click();
+    await expect(modal(page).getByRole("heading", { name: "保存计划" })).toBeVisible();
+    await clickModalOk(page, "保存");
+    await expect(page.getByText("E2E 计划备注已编辑")).toBeVisible();
+  });
+
   test("暂停计划：确认框 + 已暂停状态", async ({ page }) => {
     await page.goto("/recurring");
     const card = page.locator("div.rounded-2xl", { hasText: name });

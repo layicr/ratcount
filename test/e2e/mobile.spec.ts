@@ -139,3 +139,31 @@ test.describe("移动端：触控交互", () => {
     await expect(ledgerSelect.locator("option:checked")).toContainText("出差账本");
   });
 });
+
+test.describe("移动端：登录/注册页视图", () => {
+  // 登录/注册页不在 AppShell 内，无底部 tab；用空会话验证移动视口下表单布局
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  test("登录页移动视口渲染正常且无水平溢出", async ({ page }) => {
+    await page.goto("/login");
+    await expect(page.locator('input[name="email"]')).toBeVisible();
+    await expect(page.locator('input[name="password"]')).toBeVisible();
+    await expect(page.getByRole("button", { name: /登\s*录/ })).toBeVisible();
+    const overflow = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth
+    );
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
+
+  test("注册页移动视口渲染正常且可切换到登录", async ({ page }) => {
+    await page.goto("/register");
+    await expect(page.locator('input[name="email"]')).toBeVisible();
+    await expect(page.locator('input[name="password"]')).toBeVisible();
+    // 登录链接可点击返回登录页
+    await page.getByRole("link", { name: /登\s*录/ }).first().click();
+    await page.waitForURL("**/login");
+    await expect(page.locator('input[name="email"]')).toBeVisible();
+  });
+});

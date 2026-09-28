@@ -181,8 +181,22 @@ Vercel reads `.vercelignore` and uploads only what the build needs, skipping tes
 即每天 UTC 16:00 清理审计日志（由 `AUDIT_CLEANUP_MODE=cron` + `CRON_SECRET` 保护）。
 Cleans audit logs daily at 16:00 UTC (guarded by `AUDIT_CLEANUP_MODE=cron` + `CRON_SECRET`).
 
-> 安全响应头（CSP / HSTS / X-Frame-Options 等）在 `next.config.ts` 全站生效，生产环境收紧 `script-src`。
-> Security headers (CSP / HSTS / X-Frame-Options …) are applied site-wide in `next.config.ts`; `script-src` is tightened in production.
+> 安全响应头站点级生效：HSTS / X-Frame-Options / Referrer-Policy / X-Content-Type-Options 在 `next.config.ts` 配置；`X-Powered-By` 已关闭（`poweredByHeader: false`）。
+> 生产 `Content-Security-Policy` 由 `middleware.ts` 按请求生成随机 nonce 注入（`script-src 'self' 'nonce-…'`，无 `unsafe-inline`；开发期保留 `unsafe-inline 'unsafe-eval'` 以支持 HMR）；其余安全头仍在 `next.config.ts`。
+> Security headers: HSTS / X-Frame-Options / Referrer-Policy / X-Content-Type-Options in `next.config.ts`; `X-Powered-By` disabled (`poweredByHeader:false`). The production `Content-Security-Policy` is injected per-request with a random nonce by `middleware.ts` (`script-src 'self' 'nonce-…'`, no `unsafe-inline`; dev keeps `unsafe-inline 'unsafe-eval'` for HMR); other headers stay in `next.config.ts`.
+
+---
+
+## 安全 / Security
+
+- **认证与授权 / Auth & authorization**：Auth.js v5 凭据登录 + 自研 PNG 位图验证码 + IP 限流；服务端守卫 `lib/scope.ts`（`getSessionUser` 强制库内回查无 fail-open、`requireLedgerAccess` 校验账本成员关系、`requireAdmin` 校验角色）在架构层阻断水平/垂直越权。
+  Auth.js v5 credentials login + dependency-free PNG captcha + IP rate-limit; server-side guards in `lib/scope.ts` block horizontal/vertical privilege escalation by design.
+- **会话与偏好 Cookie / Session & preference cookies**：会话 `authjs.session-token` 为 `HttpOnly; SameSite=Lax`（生产 `Secure`）；验证码 cookie `httpOnly; SameSite=lax`；主题 `money_theme` 由服务端 Action 下发 `HttpOnly`；locale/时区/账本 cookie 由客户端写入并显式 `SameSite=lax`（生产 `Secure`）。
+  Session `authjs.session-token` is `HttpOnly; SameSite=Lax` (prod `Secure`); captcha cookie `httpOnly; SameSite=lax`; theme set server-side `HttpOnly`; locale/timezone/ledger cookies carry explicit `SameSite=lax` (prod `Secure`).
+- **安全响应头 / Security headers**：见 [部署到 Vercel](#部署到-vercel--deploy-to-vercel) 节；生产 CSP 由 `middleware.ts` 按请求 nonce 注入，杜绝任意内联脚本执行。
+  See the Vercel section; production CSP is nonce-injected per request by `middleware.ts`.
+- **主动安全测试 / Active pentest**：本地 dev 已用 OWASP ZAP 跑黑盒 + 登录态灰盒渗透（报告 [`PENTEST-REPORT.md`](./PENTEST-REPORT.md)），并附修复清单 [`REMEDIATION-CHECKLIST.md`](./REMEDIATION-CHECKLIST.md)。结论：未发现可远程利用的高危漏洞；注入/路径穿越/SSRF/越权类在架构层被阻断。
+  Local dev was actively pentested with OWASP ZAP (black-box + authenticated); reports `PENTEST-REPORT.md` and `REMEDIATION-CHECKLIST.md`. Result: no remotely exploitable high-severity issues; injection/traversal/SSRF/IDOR blocked by design.
 
 ---
 
@@ -422,8 +436,8 @@ Key `electron-builder.yml` settings:
 npm run build:desktop   # 1) next build(standalone) 2) 补齐 static/public 3) esbuild 打包主进程 4) electron-builder
 ```
 
-> 桌面模式下 `next.config.ts` 自动切换为 `output:'standalone'` + `images.unoptimized`；安全响应头两种模式一致（桌面同样运行真实 Node 服务）。
-> Desktop mode auto-switches `next.config.ts` to `output:'standalone'` + `images.unoptimized`; security headers are identical (desktop also runs a real Node server).
+> 桌面模式下 `next.config.ts` 自动切换为 `output:'standalone'` + `images.unoptimized`；安全响应头两种模式一致——CSP 由 `middleware.ts` 注入、其余头在 `next.config.ts`（桌面同样运行真实 Node 服务，`middleware` 照常生效）。
+> Desktop mode auto-switches `next.config.ts` to `output:'standalone'` + `images.unoptimized`; security headers are identical across modes — CSP injected by `middleware.ts`, the rest in `next.config.ts` (desktop also runs a real Node server, middleware applies as usual).
 
 ### 本地启动（已构建）/ Run locally (built)
 

@@ -92,6 +92,7 @@ export async function issueCaptcha(): Promise<string> {
     sameSite: "lax",
     path: "/",
     maxAge: TTL_SECONDS,
+    secure: process.env.NODE_ENV === "production",
   });
   return code;
 }
@@ -101,7 +102,7 @@ export async function verifyCaptcha(input: string): Promise<boolean> {
   const store = await cookies();
   const token = store.get(CAPTCHA_COOKIE)?.value;
   if (!token) return false;
-  store.set(CAPTCHA_COOKIE, "", { httpOnly: true, path: "/", maxAge: 0 });
+  store.set(CAPTCHA_COOKIE, "", { httpOnly: true, path: "/", maxAge: 0, secure: process.env.NODE_ENV === "production" });
   return verifyCaptchaToken(token, input);
 }
 

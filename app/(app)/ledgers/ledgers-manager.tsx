@@ -65,7 +65,7 @@ export function LedgersManager({
 
   /** 切换当前账本 / Switch current ledger */
   function switchLedger(id: string) {
-    document.cookie = `${LEDGER_COOKIE}=${id}; path=/; max-age=31536000`;
+    document.cookie = `${LEDGER_COOKIE}=${id}; path=/; max-age=31536000${window.location.protocol === "https:" ? "; secure" : ""}; samesite=lax`;
     router.push(DASHBOARD_PATH);
     router.refresh();
   }

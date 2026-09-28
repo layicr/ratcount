@@ -7,6 +7,7 @@ import { createInvestment, updateInvestment } from "@/app/actions/investments";
 import { type InvestmentType, INV, ACCT, type MetalSubType, DEFAULT_CURRENCY } from "@/lib/constants";
 import { METAL_SUB_TYPES, displayToQuantity, quantityToDisplay, areaToDisplay, displayToArea, linkedAccountTypeOf, investmentTypeConfig } from "@/lib/investment-types";
 import { parseYuanAmount } from "@/lib/money";
+import { estimateMaturityPreview } from "@/lib/investment-flow";
 import { TagPicker } from "./tag-picker";
 import { ConfirmButton, useToast } from "./confirm";
 
@@ -131,6 +132,17 @@ export function InvestmentForm({
   // 投资类型 UI 配置（单一数据源）：集中管理类型判定 / 字段显隐 / 必填 / 数量标签，新增类型只改 investmentTypeConfig
   // Investment type UI config (single source): type flags / field visibility / required / qty label
   const cfg = investmentTypeConfig(type);
+  // 建仓「满期预览」：固收（非借贷）按 30/360 实时算预计到期利息 / 到期总额（只读展示，不写库）
+  // Create-form full-term preview: fixed income (non-loan) estimates maturity interest / total at 30/360 (read-only)
+  const maturityPreview = cfg.isFixedIncome && !cfg.isLoan
+    ? estimateMaturityPreview({
+        principalCents: Math.round((parseYuanAmount(form.costYuan || "0") ?? 0) * 100),
+        interestRate: form.interestRate,
+        purchaseDate: form.purchaseDate,
+        maturityDate: form.maturityDate,
+        basis: "360",
+      })
+    : null;
   // 关联账户按持仓类型限定账户类型（基金 → 基金账户；无匹配则不筛选）；
   // 借贷按方向切换关联账户类型：借出 → loan 资产账户，借入 → borrowed 负债账户
   const linkedType = cfg.isLoan
@@ -326,6 +338,19 @@ export function InvestmentForm({
           <div>
             <label className={labelCls}>{t("investment.maturityDate")}{cfg.isInsurance && <span className="text-red-500">*</span>}</label>
             <input type="date" value={form.maturityDate} onChange={(e) => set("maturityDate", e.target.value)} className={inputCls} />
+          </div>
+        )}
+
+        {maturityPreview && (
+          <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+            <div className="flex justify-between">
+              <span>{t("investment.estInterest")}</span>
+              <span className="font-medium text-slate-800">{f.number(maturityPreview.interestCents / 100, { style: "currency", currency: DEFAULT_CURRENCY })}</span>
+            </div>
+            <div className="mt-1 flex justify-between">
+              <span>{t("investment.maturityTotal")}</span>
+              <span className="font-medium text-slate-800">{f.number(maturityPreview.totalCents / 100, { style: "currency", currency: DEFAULT_CURRENCY })}</span>
+            </div>
           </div>
         )}
 

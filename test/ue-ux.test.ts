@@ -75,20 +75,20 @@ test("验证码: 生成字符均属安全字符集（排除 0/O/1/I 便于人眼
 
 /* ==================== 3. 登录失败重试体验 ==================== */
 
-test("登录: 失败后剩余次数递减提示，成功登录后恢复全量尝试", () => {
+test("登录: 失败后剩余次数递减提示，成功登录后恢复全量尝试", async () => {
   const ip = "198.51.100.7";
   const key = `login:${ip}`;
-  resetAttempts(key);
-  assert.strictEqual(remainingAttempts(key), REGISTER_LIMIT.max);
+  await resetAttempts(key);
+  assert.strictEqual(await remainingAttempts(key), REGISTER_LIMIT.max);
   for (let i = 1; i <= REGISTER_LIMIT.max; i++) {
-    assert.strictEqual(allowAttempt(key), true);
-    assert.strictEqual(remainingAttempts(key), REGISTER_LIMIT.max - i, `第 ${i} 次失败后剩余提示`);
+    assert.strictEqual(await allowAttempt(key), true);
+    assert.strictEqual(await remainingAttempts(key), REGISTER_LIMIT.max - i, `第 ${i} 次失败后剩余提示`);
   }
-  assert.strictEqual(remainingAttempts(key), 0);
+  assert.strictEqual(await remainingAttempts(key), 0);
   // 用户输入正确密码登录成功 → 解除限流
-  resetAttempts(key);
-  assert.strictEqual(remainingAttempts(key), REGISTER_LIMIT.max);
-  assert.strictEqual(allowAttempt(key), true);
+  await resetAttempts(key);
+  assert.strictEqual(await remainingAttempts(key), REGISTER_LIMIT.max);
+  assert.strictEqual(await allowAttempt(key), true);
 });
 
 /* ==================== 4. 金额录入校验反馈 ==================== */

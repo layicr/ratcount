@@ -40,8 +40,8 @@ export async function registerAction(_prev: unknown, formData: FormData) {
   const h = await headers();
   const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
   const attemptEmail = parsed.data.email.toLowerCase();
-  if (!allowAttempt(`register:${ip}`)) return { ok: false, error: "register.rateLimited" };
-  if (!allowAttempt(`register:${attemptEmail}`)) return { ok: false, error: "register.rateLimited" };
+  if (!(await allowAttempt(`register:${ip}`))) return { ok: false, error: "register.rateLimited" };
+  if (!(await allowAttempt(`register:${attemptEmail}`))) return { ok: false, error: "register.rateLimited" };
 
   // 全局设置：是否开放注册（默认关闭：空库上线时避免被陌生访客抢注为首个 admin）
   const allow = await getBoolSetting(SETTING_KEY.allowRegistration, false);
@@ -75,8 +75,8 @@ export async function registerAction(_prev: unknown, formData: FormData) {
     .returning();
 
   // 注册成功：重置该 IP 与该邮箱的失败计数
-  resetAttempts(`register:${ip}`);
-  resetAttempts(`register:${attemptEmail}`);
+  await resetAttempts(`register:${ip}`);
+  await resetAttempts(`register:${attemptEmail}`);
 
   // 自动创建默认账本并设 owner（名称按用户语言随机 + 数字后缀，每次唯一）
   const locale = await getResolvedLocale();

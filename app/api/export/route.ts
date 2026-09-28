@@ -14,7 +14,7 @@ export async function GET() {
 
   // 导出是重操作：确认账本成员身份（viewer 亦可）+ 按用户限流 + 限制行数，避免资源耗尽型 DoS
   await requireLedgerAccess(ledger.id, MR.viewer);
-  if (!allowAttempt(`export:${user.id}`, EXPORT_LIMIT)) {
+  if (!(await allowAttempt(`export:${user.id}`, EXPORT_LIMIT))) {
     return Response.json({ error: d.errors.tooManyRequests }, { status: 429 });
   }
 

@@ -43,15 +43,36 @@ export function daysBetween(start: string, end: string): number | null {
   return Math.round((parseDate(end).getTime() - parseDate(start).getTime()) / 86_400_000);
 }
 
+/** 计息基准：365 = ACT/365（借贷沿用），360 = 30/360（固收切此）/ Day-count basis: 365 = ACT/365 (loans), 360 = 30/360 (fixed income) */
+export type DayCountBasis = "365" | "360";
+
+/**
+ * 30/360 计息天数（常规 European 30/360）：月差×30 + 日差，日端取 min(day, 30)
+ *   D1=31→30；D2=31→30。仅用于利息估算，误差业务可接受。非法输入返回 null。
+ * 30/360 day count (standard European): month-diff×30 + day-diff, day capped at 30.
+ * Used for interest estimates only. Invalid input → null.
+ */
+export function days360(start: string, end: string): number | null {
+  if (!isDateStr(start) || !isDateStr(end)) return null;
+  const d1 = parseDate(start);
+  const d2 = parseDate(end);
+  let day1 = d1.getUTCDate();
+  let day2 = d2.getUTCDate();
+  if (day1 === 31) day1 = 30;
+  if (day2 === 31) day2 = 30;
+  return (d2.getUTCFullYear() - d1.getUTCFullYear()) * 360 + (d2.getUTCMonth() - d1.getUTCMonth()) * 30 + (day2 - day1);
+}
+
 /** 实际成本 = 成本金额 + 交易费用 / Actual cost = cost amount + transaction fee */
 export function actualCostCents(costCents: number, feeCents: number): number {
   return costCents + feeCents;
 }
 
-/** 单利按天：到期本息 = 本金 × (1 + 年利率 × 天数 ÷ 365)；天数非正时只还本金 / Simple interest per day: maturity = principal × (1 + annualRate × days ÷ 365); non-positive days → principal only */
-export function calcMaturityCents(principalCents: number, annualRate: number, days: number): number {
+/** 单利按天：到期本息 = 本金 × (1 + 年利率 × 天数 ÷ basis)；天数非正时只还本金；basis 默认 365（借贷），固收传 360 / Simple interest per day: maturity = principal × (1 + annualRate × days ÷ basis); non-positive days → principal only; basis defaults 365 (loans), 360 for fixed income */
+export function calcMaturityCents(principalCents: number, annualRate: number, days: number, basis: DayCountBasis = "365"): number {
   if (days <= 0) return Math.round(principalCents);
-  return Math.round(principalCents * (1 + (annualRate * days) / 365));
+  const divisor = basis === "360" ? 360 : 365;
+  return Math.round(principalCents * (1 + (annualRate * days) / divisor));
 }
 
 /** 盈亏 = 到账金额 − 实际成本（正=赚 / 负=亏）/ Profit = amount received − actual cost (positive = gain, negative = loss) */
@@ -133,13 +154,16 @@ export function defaultMaturityCents(p: {
   startDate: string | null | undefined;
   maturityDate: string | null | undefined;
   fallbackCents: number;
+  basis?: DayCountBasis;
 }): number {
   const rate = parseAnnualRate(p.interestRate);
   if (rate === null || !isDateStr(p.startDate)) return p.fallbackCents;
   const end = isDateStr(p.maturityDate) ? p.maturityDate : todayStr();
-  const days = daysBetween(p.startDate, end);
+  // 天数口径须与基准一致：360 → 30/360 天数，365 → 实际天数（ACT/365）
+  const use360 = (p.basis ?? "365") === "360";
+  const days = use360 ? days360(p.startDate, end) : daysBetween(p.startDate, end);
   if (days === null) return p.fallbackCents;
-  return calcMaturityCents(p.principalCents, rate, days);
+  return calcMaturityCents(p.principalCents, rate, days, p.basis ?? "365");
 }
 
 /**
@@ -161,13 +185,40 @@ export function estimateAccruedCents(p: {
   maturityDate: string | null | undefined;
   /** 便于测试注入「今天」，缺省取实际今天 / Inject "today" for tests; defaults to the real today */
   today?: string;
+  /** 计息基准：默认 365（借贷）；固收传 360（30/360）/ Day-count basis: default 365 (loans); 360 (30/360) for fixed income */
+  basis?: DayCountBasis;
 }): number {
   const rate = parseAnnualRate(p.interestRate);
   if (rate === null || !isDateStr(p.startDate)) return Math.round(p.principalCents);
   const today = p.today ?? todayStr();
   // YYYY-MM-DD 可直接字典序比较：到期日早于今天 → 用到期日（满期），否则算到今天 / YYYY-MM-DD compares lexicographically: if maturity < today use maturity (full term), else accrue to today
   const end = isDateStr(p.maturityDate) && p.maturityDate < today ? p.maturityDate : today;
-  const days = daysBetween(p.startDate, end);
+  // 天数口径须与基准一致：360 → 30/360 天数，365 → 实际天数（ACT/365）
+  // Day count must match the basis: 360 → 30/360 days, 365 → actual days (ACT/365)
+  const use360 = (p.basis ?? "365") === "360";
+  const days = use360 ? days360(p.startDate, end) : daysBetween(p.startDate, end);
   if (days === null) return Math.round(p.principalCents);
-  return calcMaturityCents(p.principalCents, rate, days);
+  return calcMaturityCents(p.principalCents, rate, days, p.basis ?? "365");
+}
+
+/**
+ * 建仓表单「满期预览」：基于本金、年利率、起息日→到期日，按 30/360 算「预计到期利息」与「到期总额」。
+ *  - 利率缺失/非法、起息日或到期日缺失/非法、天数非正 → 返回 null（不渲染预览）
+ *  - basis 默认 365（借贷不改），固收传 "360"
+ * Full-term preview for the create form: principal × (1 + annualRate × days360 ÷ basis).
+ * Returns { interestCents, totalCents } or null when inputs are incomplete/invalid.
+ */
+export function estimateMaturityPreview(p: {
+  principalCents: number;
+  interestRate: string | null | undefined;
+  purchaseDate: string | null | undefined;
+  maturityDate: string | null | undefined;
+  basis?: DayCountBasis;
+}): { interestCents: number; totalCents: number } | null {
+  const rate = parseAnnualRate(p.interestRate);
+  if (rate === null || !isDateStr(p.purchaseDate) || !isDateStr(p.maturityDate)) return null;
+  const days = days360(p.purchaseDate, p.maturityDate);
+  if (days === null || days <= 0) return null;
+  const totalCents = calcMaturityCents(p.principalCents, rate, days, p.basis ?? "365");
+  return { interestCents: Math.max(0, totalCents - p.principalCents), totalCents };
 }

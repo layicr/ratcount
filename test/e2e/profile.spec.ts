@@ -128,4 +128,52 @@ test.describe("个人中心", () => {
     await clickModalOk(page, "确认修改");
     await expect(page.getByText("旧密码错误")).toBeVisible();
   });
+
+  test("修改密码：新密码确认不一致被前端拦截", async ({ page }) => {
+    await page.goto("/profile/password");
+    await expect(page.locator("h1", { hasText: "修改密码" }).first()).toBeVisible();
+    await page.locator("input").nth(0).fill("demo1234");
+    await page.locator("input").nth(1).fill("Newpass123");
+    await page.locator("input").nth(2).fill("Different123");
+    await page.getByRole("button", { name: "确认修改", exact: true }).click();
+    // 前端即时校验：两次密码不一致直接提示，不弹确认框
+    await expect(page.getByText(/两次输入的密码不一致/).first()).toBeVisible();
+  });
+
+  // 成功改密用例放在 serial 末位：成功后登出，用新密码重新登录再改回 demo1234，
+  // 避免污染 auth.setup（全量测试最先用原密码登录封存 storageState）
+  test("修改密码：成功改密 → 新密码登录 → 改回原密码", async ({ page }) => {
+    await page.goto("/profile/password");
+    await expect(page.locator("h1", { hasText: "修改密码" }).first()).toBeVisible();
+    await page.locator("input").nth(0).fill("demo1234");
+    await page.locator("input").nth(1).fill("Newpass123");
+    await page.locator("input").nth(2).fill("Newpass123");
+    await page.getByRole("button", { name: "确认修改", exact: true }).click();
+    await expect(modal(page).getByRole("heading", { name: "确认修改密码" })).toBeVisible();
+    await clickModalOk(page, "确认修改");
+    await expect(page.getByText("密码修改成功")).toBeVisible();
+
+    // 改密成功后应跳转登录页，用新密码登录（goto 确保页面稳定后再填写）
+    await page.waitForURL("**/login");
+    await page.goto("/login");
+    const emailInput = page.locator('input[name="email"]');
+    const pwdInput = page.locator('input[name="password"]');
+    await emailInput.fill("admin@example.com");
+    await pwdInput.fill("Newpass123");
+    await expect(emailInput).toHaveValue("admin@example.com");
+    await expect(pwdInput).toHaveValue("Newpass123");
+    await page.getByRole("button", { name: /登\s*录/ }).click();
+    await page.waitForURL("**/dashboard");
+
+    // 改回原密码，保持后续轮次 auth.setup 可用
+    await page.goto("/profile/password");
+    await page.locator("input").nth(0).fill("Newpass123");
+    await page.locator("input").nth(1).fill("demo1234");
+    await page.locator("input").nth(2).fill("demo1234");
+    await page.getByRole("button", { name: "确认修改", exact: true }).click();
+    await expect(modal(page).getByRole("heading", { name: "确认修改密码" })).toBeVisible();
+    await clickModalOk(page, "确认修改");
+    await expect(page.getByText("密码修改成功")).toBeVisible();
+    await page.waitForURL("**/login");
+  });
 });

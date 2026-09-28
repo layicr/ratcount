@@ -66,11 +66,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           "unknown";
         const attemptEmail = parsed.data.email.toLowerCase();
         // 双层限流：先按 IP（防单机爆破），再按 email 维度（防针对特定账号跨 IP 爆破）
-        if (!allowAttempt(`login:${ip}`)) {
+        if (!(await allowAttempt(`login:${ip}`))) {
           await logFailedLogin(ip, attemptEmail, LOGIN_FAIL_REASON.ipLimit);
           return null;
         }
-        if (!allowAttempt(`login:${attemptEmail}`)) {
+        if (!(await allowAttempt(`login:${attemptEmail}`))) {
           await logFailedLogin(ip, attemptEmail, LOGIN_FAIL_REASON.accountLimit);
           return null;
         }
@@ -104,8 +104,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
         // 登录成功：重置该 IP 与该账号的失败计数 + 写审计日志
-        resetAttempts(`login:${ip}`);
-        resetAttempts(`login:${attemptEmail}`);
+        await resetAttempts(`login:${ip}`);
+        await resetAttempts(`login:${attemptEmail}`);
         await writeAudit({
           userId: user.id,
           action: AUDIT_ACTION.create,

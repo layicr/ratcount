@@ -13,6 +13,15 @@ import type { AppDict } from "@/i18n/dict";
 export const EXPORT_BATCH = 5000; // 流水分批大小（避免一次性全量载入内存）
 export const MAX_EXPORT_ROWS = 50_000; // 单次导出上限（超出直接拒绝，防内存撑爆）
 
+// 防 Excel 公式注入（Formula Injection）：用户可控字符串若以 = + - @ 等字符开头，
+// Excel / WPS / Google Sheets 打开时会将其当作公式执行（数据外泄甚至旧版 RCE）。
+// 前缀单引号强制按文本存储（仅当首字符为触发符时才加，避免污染正常数据）。
+const FORMULA_TRIGGER_CHARS = ["=", "+", "-", "@", "\t", "\r"];
+export function asTextCell(v: string): string {
+  if (v.length > 0 && FORMULA_TRIGGER_CHARS.includes(v[0])) return "'" + v;
+  return v;
+}
+
 /**
  * 构建导出工作簿：流水 / 账户 / 分类 / 标签 / 项目 五张表。
  *  - dict 由调用方提供（服务端用 getMergedDict，桌面主进程加载本地字典）；
@@ -43,15 +52,15 @@ export async function buildExportWorkbook(ledgerId: string, d: AppDict): Promise
     const rows = batch.map((t) => [
       d.common[t.type] ?? t.type,
       t.txDate,
-      t.account?.name ?? "",
-      t.toAccount?.name ?? "",
-      t.category?.name ?? "",
-      t.project?.name ?? "",
+      asTextCell(t.account?.name ?? ""),
+      asTextCell(t.toAccount?.name ?? ""),
+      asTextCell(t.category?.name ?? ""),
+      asTextCell(t.project?.name ?? ""),
       t.amountCents / 100,
       t.currencyCode ?? "",
       t.baseAmountCents / 100,
-      t.remark ?? "",
-      t.tagList.map((x) => x.name).join("、"),
+      asTextCell(t.remark ?? ""),
+      asTextCell(t.tagList.map((x) => x.name).join("、")),
     ]);
     if (!txWs) txWs = XLSX.utils.aoa_to_sheet([txHeader]);
     XLSX.utils.sheet_add_aoa(txWs, rows, { origin: -1 });
@@ -65,14 +74,14 @@ export async function buildExportWorkbook(ledgerId: string, d: AppDict): Promise
     wb,
     XLSX.utils.json_to_sheet(
       accts.map((a) => ({
-        [d.common.name]: a.name,
+        [d.common.name]: asTextCell(a.name),
         类型: d.acctType[acctTypeKey(a.type)] ?? a.type,
-        [d.common.icon]: a.icon,
+        [d.common.icon]: asTextCell(a.icon),
         [d.common.currency]: a.currencyCode,
         [d.accounts.opening]: a.openingBalanceCents / 100,
         "基准期初(元)": a.baseOpeningBalanceCents / 100,
         [d.accounts.isAsset]: a.isAsset ? d.common.yes : d.common.no,
-        [d.common.remark]: a.remark ?? "",
+        [d.common.remark]: asTextCell(a.remark ?? ""),
       })),
     ),
     d.nav.accounts,
@@ -83,14 +92,14 @@ export async function buildExportWorkbook(ledgerId: string, d: AppDict): Promise
     XLSX.utils.json_to_sheet(
       cats.map((c) => {
         const typeLabel = c.type === TX.income ? d.common.income : d.common.expense;
-        return { 类型: typeLabel, [d.common.name]: c.name, [d.common.icon]: c.icon };
+        return { 类型: typeLabel, [d.common.name]: asTextCell(c.name), [d.common.icon]: asTextCell(c.icon) };
       }),
     ),
     d.tx.category,
   );
   XLSX.utils.book_append_sheet(
     wb,
-    XLSX.utils.json_to_sheet(tgs.map((t) => ({ [d.common.name]: t.name, [d.tags.color]: t.color }))),
+    XLSX.utils.json_to_sheet(tgs.map((t) => ({ [d.common.name]: asTextCell(t.name), [d.tags.color]: asTextCell(t.color) }))),
     d.tx.tag,
   );
   XLSX.utils.book_append_sheet(
@@ -98,7 +107,7 @@ export async function buildExportWorkbook(ledgerId: string, d: AppDict): Promise
     XLSX.utils.json_to_sheet(
       projs.map((p) => {
         const statusLabel = p.status === PROJECT_STATUS.active ? d.projects.active : d.projects.completed;
-        return { [d.common.name]: p.name, [d.common.icon]: p.icon, [d.projects.budget]: p.budgetCents / 100, 状态: statusLabel };
+        return { [d.common.name]: asTextCell(p.name), [d.common.icon]: asTextCell(p.icon), [d.projects.budget]: p.budgetCents / 100, 状态: statusLabel };
       }),
     ),
     d.common.project,

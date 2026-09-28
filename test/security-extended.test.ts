@@ -297,6 +297,23 @@ test("S5-2 CSRF: cron 审计清理端点无/错 Bearer 返回 401（未授权跨
   }
 });
 
+test("S5-3 生产环境强制 CRON_SECRET：未设置时直接 401（M3 修复）", async () => {
+  const env = process.env as any; // NODE_ENV 在 @types/node 中只读，运行时可改，故转 any
+  const prevEnv = env.NODE_ENV;
+  const prevSecret = env.CRON_SECRET;
+  env.NODE_ENV = "production";
+  delete env.CRON_SECRET;
+  try {
+    const res = await cleanupRouteGET(new Request("http://localhost/api/cron/cleanup-audit") as any);
+    assert.strictEqual(res.status, 401, "生产未设 CRON_SECRET 必须 401");
+  } finally {
+    if (prevEnv === undefined) delete env.NODE_ENV;
+    else env.NODE_ENV = prevEnv;
+    if (prevSecret === undefined) delete env.CRON_SECRET;
+    else env.CRON_SECRET = prevSecret;
+  }
+});
+
 /* ==================== S7 审计隔离与删除自反 ==================== */
 
 test("S7-1 审计隔离: listAuditLogs({userId}) 仅返回本人记录，互不可见", async () => {

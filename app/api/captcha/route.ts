@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   const ip =
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  if (!allowAttempt(`captcha:${ip}`, CAPTCHA_LIMIT)) {
+  if (!(await allowAttempt(`captcha:${ip}`, CAPTCHA_LIMIT)) ) {
     return new NextResponse("Too Many Requests", {
       status: 429,
       headers: {

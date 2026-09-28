@@ -426,6 +426,59 @@ test.describe("投资模块", () => {
     await expect(page.locator("tr", { hasText: name })).toHaveCount(0);
   });
 
+  test("借贷：借出 + 借入新增、列表展示、删除", async ({ page }) => {
+    const lendName = `E2E借出${stamp}`;
+    const borrowName = `E2E借入${stamp}`;
+    // 前置：创建 loan（借出）与 borrowed（借入）类型账户（ACCOUNT_TYPES index 17 / 18）
+    await ensureAccount(page, `${lendName}账户`, 17);
+    await ensureAccount(page, `${borrowName}账户`, 18);
+    await page.goto("/investments/loans");
+    await expect(page.locator("h1", { hasText: "借贷管理" })).toBeVisible();
+
+    // —— 借出（lend）：扣款账户为工资卡 ——
+    await page.locator('a[href*="/investments/new"]').click();
+    await expect(page.locator("h1", { hasText: "新增" })).toBeVisible();
+    await fillIfVisible(page, "名称", lendName);
+    await fillIfVisible(page, "本金", "10000");
+    await fillIfVisible(page, "当前市值", "10000");
+    await fillIfVisible(page, "利率", "3.2");
+    await fillIfVisible(page, "起息日", "2026-05-01");
+    await fillIfVisible(page, "到期日", "2027-05-01");
+    await page.getByRole("button", { name: "借出", exact: true }).click();
+    await fillIfVisible(page, "关联账户", "", "select");
+    await fillIfVisible(page, "扣款账户", "", "select", 2);
+    await page.getByRole("button", { name: "保存", exact: true }).click();
+    await expect(modal(page).getByRole("heading", { name: "保存信息" })).toBeVisible();
+    await clickModalOk(page, "保存");
+    await expect(page.locator("h1", { hasText: "借贷管理" })).toBeVisible();
+    await expect(page.locator("tr", { hasText: lendName })).toHaveCount(1);
+
+    // —— 借入（borrow）：收款账户为工资卡 ——
+    await page.goto("/investments/loans");
+    await page.locator('a[href*="/investments/new"]').click();
+    await fillIfVisible(page, "名称", borrowName);
+    await fillIfVisible(page, "本金", "8000");
+    await fillIfVisible(page, "当前市值", "8000");
+    await fillIfVisible(page, "利率", "2.9");
+    await fillIfVisible(page, "起息日", "2026-06-01");
+    await fillIfVisible(page, "到期日", "2027-06-01");
+    await page.getByRole("button", { name: "借入", exact: true }).click();
+    await fillIfVisible(page, "关联账户", "", "select");
+    await fillIfVisible(page, "收款账户", "", "select", 2);
+    await page.getByRole("button", { name: "保存", exact: true }).click();
+    await expect(modal(page).getByRole("heading", { name: "保存信息" })).toBeVisible();
+    await clickModalOk(page, "保存");
+    await expect(page.locator("tr", { hasText: borrowName })).toHaveCount(1);
+
+    // —— 清理：删除借出 + 借入 ——
+    for (const n of [lendName, borrowName]) {
+      await page.locator("tr", { hasText: n }).getByRole("button", { name: "删除" }).click();
+      await expect(modal(page).getByRole("heading", { name: "删除投资" })).toBeVisible();
+      await clickModalOk(page, "删除");
+      await expect(page.locator("tr", { hasText: n })).toHaveCount(0);
+    }
+  });
+
   test("基金：复制持仓（确认框 → 生成同源新持仓 + 买入流水）", async ({ page }) => {
     const name = `E2E复制${stamp}`;
     // 新增一条 active 持仓
