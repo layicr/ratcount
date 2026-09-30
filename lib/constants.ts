@@ -33,6 +33,7 @@ export const snakeToCamel = (s: string): string =>
 
 /** 布尔常量（SQLite 以 0/1 存储，Drizzle boolean 模式自动转换）/ Boolean constants (SQLite stores 0/1; Drizzle boolean mode converts automatically) */
 export const TRUE = true;
+// 统一布尔假常量（schema/白名单复用）/ Shared false constant
 export const FALSE = false;
 
 /** 默认基准币种代码（账本基准币种 / 账户币种默认值）/ Default base currency code (ledger base / account default currency) */
@@ -88,7 +89,9 @@ export const BALANCE_PATH = "/balance";
 
 /** 设置子页路径（导航 / revalidatePath / basePath / router.push 等共用的唯一真源）/ Settings sub-page paths (single source for nav / revalidatePath / basePath / router.push) */
 export const SETTINGS_CURRENCIES_PATH = "/settings/currencies";
+// 后台设置页路径（导航高亮/重定向校验复用）/ Admin setting page paths
 export const SETTINGS_LANGUAGES_PATH = "/settings/languages";
+// 同上：后台设置页路径组（续）/ Setting page paths (cont.)
 export const SETTINGS_MENUS_PATH = "/settings/menus";
 export const SETTINGS_MENU_GROUPS_PATH = "/settings/menu-groups";
 export const SETTINGS_LOGS_PATH = "/settings/logs";
@@ -235,7 +238,7 @@ export const ACCOUNT_TYPES = [
   { v: ACCT.custom, key: "acctType.custom" },
 ] as const satisfies readonly { v: AccountType; key: string }[];
 
-/** 账户类型 → 图标；satisfies 强制 22 项齐全，漏图标 TS 立即报错 / Account type → icon; satisfies forces all 21 present, a missing icon fails TS immediately */
+/** 账户类型 → 图标；satisfies 强制 22 项齐全，漏图标 TS 立即报错 / Account type → icon; satisfies forces all 22 present, a missing icon fails TS immediately */
 export const TYPE_ICON = {
   cash: "💵", debit_card: "💳", credit_card: "💳", wechat: "💬",
   savings: "🏦", investment: "📈", fund: "📊", precious_metal: "🥇",
@@ -291,6 +294,7 @@ export type CategoryType = (typeof TX)["income" | "expense"];
 /** 审计动作值常量（对象式访问，运行时可比 `AUDIT_ACTION.create` === log.action）/ Audit action value constants (object-style; at runtime `AUDIT_ACTION.create` === log.action) */
 export const AUDIT_ACTION = { create: "C", read: "R", update: "U", delete: "D" } as const;
 export type AuditAction = (typeof AUDIT_ACTION)[keyof typeof AUDIT_ACTION];
+// 审计动作枚举值列表（白名单/校验用）/ Audit action enum values
 export const auditActions = Object.values(AUDIT_ACTION);
 
 /* ===== 交易类型选项 / 解析 / 展示 / Transaction type options / parsing / display ===== */
@@ -363,16 +367,19 @@ export function isTransfer(type: TransactionType): boolean {
 /** 启用状态：active 启用 / disabled 禁用（用户状态与菜单状态共用同一口径）/ Status: active / disabled (shared by user status and menu status) */
 export const statusCodes = ["active", "disabled"] as const;
 export type StatusCode = (typeof statusCodes)[number];
+// 通用状态字典（启用/停用等复用语义）/ Generic status dict (active/disabled)
 export const STATUS = Object.fromEntries(
   statusCodes.map((s) => [s, s]),
 ) as { [K in StatusCode]: K };
 
 /** 用户状态（复用启用状态口径）/ User status (reuses the enabled-status convention) */
 export type UserStatus = StatusCode;
+// 用户状态（复用通用 STATUS）/ User status (reuses STATUS)
 export const USER_STATUS = STATUS;
 
 /** 菜单状态（与启用状态同口径：active 启用 / disabled 禁用）/ Menu status (same convention: active / disabled) */
 export type MenuStatusCode = StatusCode;
+// 菜单状态（复用通用 STATUS）/ Menu status (reuses STATUS)
 export const MENU_STATUS = STATUS;
 /** 兼容别名（菜单状态代码数组，供 z.enum 等使用）/ Compat alias (menu status code array, for z.enum etc.) */
 export const menuStatusCodes = statusCodes;
@@ -404,6 +411,7 @@ export const SETTING_KEY = Object.fromEntries(
 /** 项目状态：active 进行中 / completed 已完成 / archived 已归档 / Project status: active / completed / archived */
 export const projectStatuses = ["active", "completed", "archived"] as const;
 export type ProjectStatus = (typeof projectStatuses)[number];
+// 项目状态（进行中/完成等）/ Project status
 export const PROJECT_STATUS = Object.fromEntries(
   projectStatuses.map((s) => [s, s]),
 ) as { [K in ProjectStatus]: K };
@@ -434,6 +442,7 @@ export const FREQ = Object.fromEntries(recurringFrequencies.map((r) => [r, r])) 
 /** 周期计划状态：active 启用 / paused 暂停 / Recurring plan status: active / paused */
 export const recurringStatuses = ["active", "paused"] as const;
 export type RecurringStatus = (typeof recurringStatuses)[number];
+// 周期计划状态/ Recurring status
 export const RECURRING_STATUS = Object.fromEntries(
   recurringStatuses.map((s) => [s, s]),
 ) as { [K in RecurringStatus]: K };
@@ -445,6 +454,7 @@ export const investmentTypes = [
   "digital_asset", "collectible", "insurance", "loan",
 ] as const;
 export type InvestmentType = (typeof investmentTypes)[number];
+// 贵金属子类型（金/银）/ Metal sub-types (gold/silver)
 export const metalSubTypes = ["gold", "silver"] as const;
 export type MetalSubType = (typeof metalSubTypes)[number];
 
@@ -454,6 +464,7 @@ export const INV = Object.fromEntries(investmentTypes.map((r) => [r, r])) as { [
 /** 持仓状态：active 持有 / sold 已售 / matured 到期 / deleted 已删 / Holding status: active / sold / matured / deleted */
 export const investmentStatuses = ["active", "sold", "matured", "deleted"] as const;
 export type InvestmentStatus = (typeof investmentStatuses)[number];
+// 投资持仓状态（持有/已清仓等）/ Investment holding status
 export const INVESTMENT_STATUS = Object.fromEntries(
   investmentStatuses.map((s) => [s, s]),
 ) as { [K in InvestmentStatus]: K };
@@ -461,6 +472,7 @@ export const INVESTMENT_STATUS = Object.fromEntries(
 /** 借贷方向：lend 借出（你是债主，资产）/ borrow 借入（你是债务人，负债）/ Loan direction: lend (you're the creditor, asset) / borrow (you're the debtor, liability) */
 export const investmentDirections = ["lend", "borrow"] as const;
 export type InvestmentDirection = (typeof investmentDirections)[number];
+// 借贷方向（借入/借出）/ Loan direction (borrow/lend)
 export const DIRECTION = Object.fromEntries(investmentDirections.map((d) => [d, d])) as { [K in InvestmentDirection]: K };
 
 /* ===== 菜单设备类型 / Menu device types ===== */

@@ -46,6 +46,6 @@ export default async function globalSetup() {
   const authFile = resolve(ROOT, "test/e2e/.auth/user.json");
   if (existsSync(authFile)) rmSync(authFile, { force: true });
 
-  // eslint-disable-next-line no-console
+   
   console.log("[global-setup] E2E 数据库已就绪");
 }

@@ -7,9 +7,9 @@ import type { AppDict } from "@/i18n/dict";
 
 /** 账户：列表 + 新增/编辑/删除 */
 export default async function AccountsPage() {
-  const user = await requireUser();
+  await requireUser();
   const ledger = await requireCurrentLedger();
-  const locale = await getLocale();
+  await getLocale();
   const d = (await getMessages()) as unknown as AppDict;
   const [accts, curs] = await Promise.all([listAccountsWithBalance(ledger.id), listCurrencies()]);
   const currencyList = curs.filter((c) => c.isActive).map((c) => ({

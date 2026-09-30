@@ -9,7 +9,6 @@ import {
   AUDIT_ACTION,
   ENTITY,
   GLOBAL_USER_ID,
-  LOGIN_PATH,
   SETTING_KEY,
   SETTING_KEYS,
   MS_PER_DAY,
@@ -113,6 +112,7 @@ export async function createLanguageService(actor: Actor, input: LanguageInput) 
   return { ok: true as const };
 }
 
+// 更新语言（admin）/ Update a language (admin)
 export async function updateLanguageService(actor: Actor, code: string, input: LanguageUpdateInput) {
   const parsed = languageSchema.omit({ code: true }).safeParse(input);
   if (!parsed.success) return { ok: false as const, error: "errors.invalidInput" };
@@ -139,6 +139,7 @@ export async function updateLanguageService(actor: Actor, code: string, input: L
   return { ok: true as const };
 }
 
+// 启用/停用语言（admin）/ Enable/disable a language (admin)
 export async function toggleLanguageService(actor: Actor, code: string, isEnabled: boolean) {
   await withAudit(
     {
@@ -157,6 +158,7 @@ export async function toggleLanguageService(actor: Actor, code: string, isEnable
   return { ok: true as const, error: null };
 }
 
+// 删除语言（admin）/ Delete a language (admin)
 export async function deleteLanguageService(actor: Actor, code: string) {
   const [lang] = await db.select().from(languagesTable).where(eq(languagesTable.code, code)).limit(1);
   if (!lang) return { ok: false as const, error: "errors.languageNotFound" };

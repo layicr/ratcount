@@ -9,6 +9,7 @@ import * as svc from "@/lib/services/categories";
 import type { CategoryInput } from "@/lib/services/categories";
 import { revalidatePath } from "next/cache";
 
+// 新建分类（需 editor；成功后刷新分类/标签/记一笔/报表缓存）/ Create a category (editor; refresh caches on success)
 export async function createCategory(input: CategoryInput) {
   const ledgerId = await getCurrentLedgerId();
   if (!ledgerId) return { ok: false as const, error: "errors.noLedger" };
@@ -23,6 +24,7 @@ export async function createCategory(input: CategoryInput) {
   return r;
 }
 
+// 更新分类（需 editor）/ Update a category (editor)
 export async function updateCategory(id: string, input: CategoryInput) {
   const ledgerId = await getCurrentLedgerId();
   if (!ledgerId) return { ok: false as const, error: "errors.noLedger" };
@@ -37,6 +39,7 @@ export async function updateCategory(id: string, input: CategoryInput) {
   return r;
 }
 
+// 删除分类（需 editor）/ Delete a category (editor)
 export async function deleteCategory(id: string) {
   const ledgerId = await getCurrentLedgerId();
   if (!ledgerId) return { ok: false as const, error: "errors.noLedger" };

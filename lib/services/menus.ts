@@ -5,7 +5,7 @@ import { menuDeviceTypes, menuStatusCodes, type MenuDeviceType, type MenuStatusC
 import { db } from "@/lib/db";
 import { withAudit } from "@/lib/audit";
 import { localizedName, localizedNameSchema, defaultLocale } from "@/lib/localize";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { type Actor } from "./guard";
 
@@ -73,6 +73,7 @@ export async function createMenuGroupService(actor: Actor, input: MenuGroupInput
   return { ok: true as const, error: null };
 }
 
+// 更新菜单分组（admin）/ Update a menu group (admin)
 export async function updateMenuGroupService(actor: Actor, menuGroupId: string, input: Omit<MenuGroupInput, "menuGroupId">) {
   const parsed = menuGroupSchema.omit({ menuGroupId: true }).safeParse(input);
   if (!parsed.success) return { ok: false as const, error: parsed.error.issues[0]?.message ?? "errors.invalidInput" };
@@ -91,6 +92,7 @@ export async function updateMenuGroupService(actor: Actor, menuGroupId: string, 
   return { ok: true as const, error: null };
 }
 
+// 删除菜单分组（admin；分组仍被菜单引用时拒绝删除）/ Delete a menu group (admin; rejected if still referenced by a menu)
 export async function deleteMenuGroupService(actor: Actor, menuGroupId: string) {
   const [g] = await db.select().from(menuGroups).where(eq(menuGroups.menuGroupId, menuGroupId)).limit(1);
   if (!g) return { ok: false as const, error: "menuMgmt.groupNotFound" };
@@ -143,6 +145,7 @@ export async function createMenuService(actor: Actor, input: MenuInput, syncUser
   return { ok: true as const, error: null };
 }
 
+// 更新菜单项（admin）/ Update a menu item (admin)
 export async function updateMenuService(actor: Actor, menuId: string, input: Omit<MenuInput, "menuId">, syncUsers = false) {
   const parsed = menuSchema.omit({ menuId: true }).safeParse(input);
   if (!parsed.success) return { ok: false as const, error: parsed.error.issues[0]?.message ?? "errors.invalidInput" };
@@ -172,6 +175,7 @@ export async function updateMenuService(actor: Actor, menuId: string, input: Omi
   return { ok: true as const, error: null };
 }
 
+// 删除菜单项（admin）/ Delete a menu item (admin)
 export async function deleteMenuService(actor: Actor, menuId: string) {
   const [menu] = await db.select().from(menus).where(eq(menus.menuId, menuId)).limit(1);
   if (!menu) return { ok: false as const, error: "menuMgmt.menuNotFound" };

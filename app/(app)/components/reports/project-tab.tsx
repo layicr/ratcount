@@ -7,6 +7,7 @@ import { getMessages, getLocale } from "next-intl/server";
 import { makeDictTranslator, type AppDict } from "@/i18n/dict";
 import { PROJECT_STATUS } from "@/lib/constants";
 
+// 项目页签（项目汇总与占比）/ Projects tab (rollup + share)
 export async function ProjectTab({ ledgerId, period, currency }: { ledgerId: string; period: StatsPeriod; currency: string }) {
   const locale = await getLocale();
   const d = (await getMessages()) as unknown as AppDict;

@@ -2,7 +2,7 @@
 //  - 数据拼装依赖 lib/queries（Node 专用），因此本模块仅在服务端路由与主进程调用，不在渲染端使用；
 //  - XLSX 写盘用 @e965/xlsx（Node / 浏览器双用）：Node 走 workbookToBuffer，浏览器走 workbookToArray。
 import { tags, projects, categories } from "@/db/schema";
-import { MR, PROJECT_STATUS, TX } from "@/lib/constants";
+import { PROJECT_STATUS, TX } from "@/lib/constants";
 import { accountTypeCamelKey } from "@/lib/constants";
 import { listTransactions, listAccountsWithBalance } from "@/lib/queries";
 import { db } from "@/lib/db";
@@ -17,6 +17,7 @@ export const MAX_EXPORT_ROWS = 50_000; // 单次导出上限（超出直接拒�
 // Excel / WPS / Google Sheets 打开时会将其当作公式执行（数据外泄甚至旧版 RCE）。
 // 前缀单引号强制按文本存储（仅当首字符为触发符时才加，避免污染正常数据）。
 const FORMULA_TRIGGER_CHARS = ["=", "+", "-", "@", "\t", "\r"];
+// 防 Excel 公式注入：首字符为触发符(= + - @ 等)时前缀单引号强制按文本存储/Formula-injection guard: prefix a quote when the first char is a trigger
 export function asTextCell(v: string): string {
   if (v.length > 0 && FORMULA_TRIGGER_CHARS.includes(v[0])) return "'" + v;
   return v;

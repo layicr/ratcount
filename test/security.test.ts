@@ -26,7 +26,6 @@ let createCaptchaToken: any;
 let CAPTCHA_SECRET: any;
 let allowAttempt: any;
 let resetAttempts: any;
-let REGISTER_LIMIT: any;
 let CAPTCHA_LIMIT: any;
 let txListFilterSchema: any;
 
@@ -36,7 +35,7 @@ before(async () => {
   ({ listAccountsWithBalance, listTransactions, countTransactions, categoryBreakdown, tagSummary, projectSummary, listAuditLogs } =
     await import("../lib/queries"));
   ({ verifyCaptchaToken, createCaptchaToken, CAPTCHA_SECRET } = await import("../lib/auth/captcha"));
-  ({ allowAttempt, resetAttempts, REGISTER_LIMIT: REGISTER_LIMIT, CAPTCHA_LIMIT: CAPTCHA_LIMIT } = await import("../lib/auth/rate-limit"));
+  ({ allowAttempt, resetAttempts, CAPTCHA_LIMIT: CAPTCHA_LIMIT } = await import("../lib/auth/rate-limit"));
   ({ txListFilterSchema } = await import("../lib/validators/transaction"));
   seed = await seedTestData(db);
 });

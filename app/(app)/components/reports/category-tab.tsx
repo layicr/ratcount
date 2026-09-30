@@ -9,6 +9,7 @@ import { getMessages, getLocale } from "next-intl/server";
 import { makeDictTranslator, type AppDict } from "@/i18n/dict";
 import { TX } from "@/lib/constants";
 
+// 分类占比页签（收支按分类饼图）/ Category breakdown tab (pie by category)
 export async function CategoryTab({ ledgerId, catType, period, currency }: { ledgerId: string; catType: string; period: StatsPeriod; currency: string }) {
   const locale = await getLocale();
   const d = (await getMessages()) as unknown as AppDict;

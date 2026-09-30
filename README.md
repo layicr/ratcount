@@ -21,6 +21,7 @@ Amounts are stored as integer cents; account balances are not persisted (opening
 - [双部署 / Dual Deployment](#双部署--dual-deployment)
 - [环境变量 / Environment Variables](#环境变量--environment-variables)
 - [部署到 Vercel / Deploy to Vercel](#部署到-vercel--deploy-to-vercel)
+- [安全 / Security](#安全--security)
 - [技术栈 / Tech Stack](#技术栈--tech-stack)
 - [数据库设计 / Database](#数据库设计--database21-张表--21-tables)
 - [架构与代码组织 / Architecture](#架构与代码组织--architecture)
@@ -50,6 +51,8 @@ Amounts are stored as integer cents; account balances are not persisted (opening
   10 holding types + protection roll-up (endowment insurance / housing fund / pension / social security); holdings can be linked to a project and roll into its summary.
 - **借贷管理 / Loan management**：借贷（借入 / 借出）作为独立持仓类型，本金与利息分栏记账；借入还款利息记支出、借出收款利息记收入；均支持部分还款 / 部分收款，超额自动拦截。
   Loans (borrow / lend) as a distinct holding type; principal and interest recorded in separate fields — borrow interest as an expense, lend interest as income; partial repayment / partial collection both supported, with an over-limit guard.
+- **利率与计息 / Interest rate & accrual**：定期 / 国债 / 储蓄型保险 / 借贷持仓可填年利率，存文本（如 `2.60%`），录入时自动补 `%`；建仓表单实时预览预计到期利息与到期总额（借贷按 ACT/365，其余固收按 30/360），列表与收/还款弹窗按相同口径计算应计利息。
+  Deposits / bonds / savings insurance / loans accept an annual interest rate stored as text (e.g. `2.60%`, `%` auto-appended on input); the create form live-previews estimated maturity interest & total (loan ACT/365, other fixed income 30/360), and the list & collect/repay dialog compute accrued interest with the same basis.
 - **金额输入兼容千分位 / Thousands-separated amount input**：所有金额输入框（记一笔、期初余额、对账、投资建仓/卖出/到期/派息、借贷还款/收款、项目预算、周期计划等）均接受 `1,002.00` 这类千分位格式；前后端统一剥离逗号/空白/货币符号后解析，口径一致。
   Every amount input (add / opening balance / reconciliation / investment buy-sell-maturity-dividend / loan repay-collect / project budget / recurring) accepts thousands-separated values like `1,002.00`; commas/spaces/symbols are stripped consistently on both client and server.
 - **项目聚合投资 / Projects roll up investments**：项目除预算外，还聚合关联 `investment_holdings`（`status=active`）的投入成本 / 当前市值 / 收益（基准币种），含多币种时展示「原币组成」。
@@ -152,6 +155,7 @@ Variables fall into two groups:
 | `AUDIT_CLEANUP_MODE` | 自动判定 | 审计日志清理：空=自动 / `cron`=Vercel Cron / `local`=进程内定时器（见 `instrumentation.ts`）/ audit cleanup mode (see `instrumentation.ts`) |
 | `CRON_SECRET` | — | 部署到 Vercel 时必填（保护 `/api/cron/*` 端点）/ required on Vercel (protects `/api/cron/*`) |
 | `NEXT_PUBLIC_DEPLOY_MODE` | `server` | 部署模式：`desktop` 由 Electron 主进程启动子进程时强制注入；网页/自托管留空或设 `server`（代码仅识别 `server`/`desktop` 两值，`web` 不被识别）/ deploy mode: `desktop` injected by Electron main; leave empty or set `server` (code only recognizes `server`/`desktop`; `web` is not valid) |
+| `DESKTOP_DEV_URL` | — | 桌面开发模式（`dev:desktop`）连接已运行的 `next dev` 地址，由 Electron 主进程读取 / dev mode URL for the running `next dev`, read by Electron main |
 
 > 全部变量以 `.env.example` / `.env` 为准。生产环境务必配置强随机 `AUTH_SECRET`。
 > All vars follow `.env.example` / `.env`. Always set a strong random `AUTH_SECRET` in production.
@@ -169,7 +173,7 @@ Variables fall into two groups:
 部署时会读取 `.vercelignore`，仅上传构建所需文件，跳过测试与本地调试产物，减小上传体积：
 Vercel reads `.vercelignore` and uploads only what the build needs, skipping tests and local debug artifacts:
 
-- 忽略 / Ignored：`test/`、`e2e/`、`playwright-report/`、`test-results/`、`temp/`、`doc/`、本地 `.env`、调试文件。
+- 忽略 / Ignored：`test/`（含 e2e 端到端）、`playwright-report/`、`test-results/`、`temp/`、`doc/`、本地 `.env`、调试文件。
 - 保留 / Kept：`app/`、`lib/`、`db/`、`i18n/`、`messages/`、`public/`、配置与 `package*.json`。
 
 `vercel.json` 已声明定时任务 / `vercel.json` declares the cron job：
@@ -195,8 +199,10 @@ Cleans audit logs daily at 16:00 UTC (guarded by `AUDIT_CLEANUP_MODE=cron` + `CR
   Session `authjs.session-token` is `HttpOnly; SameSite=Lax` (prod `Secure`); captcha cookie `httpOnly; SameSite=lax`; theme set server-side `HttpOnly`; locale/timezone/ledger cookies carry explicit `SameSite=lax` (prod `Secure`).
 - **安全响应头 / Security headers**：见 [部署到 Vercel](#部署到-vercel--deploy-to-vercel) 节；生产 CSP 由 `middleware.ts` 按请求 nonce 注入，杜绝任意内联脚本执行。
   See the Vercel section; production CSP is nonce-injected per request by `middleware.ts`.
-- **主动安全测试 / Active pentest**：本地 dev 已用 OWASP ZAP 跑黑盒 + 登录态灰盒渗透（报告 [`PENTEST-REPORT.md`](./PENTEST-REPORT.md)），并附修复清单 [`REMEDIATION-CHECKLIST.md`](./REMEDIATION-CHECKLIST.md)。结论：未发现可远程利用的高危漏洞；注入/路径穿越/SSRF/越权类在架构层被阻断。
-  Local dev was actively pentested with OWASP ZAP (black-box + authenticated); reports `PENTEST-REPORT.md` and `REMEDIATION-CHECKLIST.md`. Result: no remotely exploitable high-severity issues; injection/traversal/SSRF/IDOR blocked by design.
+  > 注：nonce 版 CSP 仅在 `NODE_ENV=production` 启用；部署前请在预发以生产变量实跑一次，确认 SSR/HMR 正常、无内联脚本被拦截（开发态仍含 `unsafe-inline 'unsafe-eval'`）。
+  > Note: the nonce CSP only applies under `NODE_ENV=production`; verify in a staging environment before going live to ensure no inline scripts are blocked (dev mode keeps `unsafe-inline 'unsafe-eval'`).
+- **主动安全测试 / Active pentest**：本地 dev 已用 OWASP ZAP 跑黑盒 + 登录态灰盒渗透（报告 [`PENTEST-REPORT-20260928.md`](./test/PENTEST-REPORT-20260928.md)），并附安全扫描清单 [`SECURITY-SCAN-REPORT-20260928.md`](./test/SECURITY-SCAN-REPORT-20260928.md)。结论：未发现可远程利用的高危漏洞；注入/路径穿越/SSRF/越权类在架构层被阻断。
+  Local dev was actively pentested with OWASP ZAP (black-box + authenticated); reports `PENTEST-REPORT-20260928.md` and `SECURITY-SCAN-REPORT-20260928.md`. Result: no remotely exploitable high-severity issues; injection/traversal/SSRF/IDOR blocked by design.
 
 ---
 
@@ -212,7 +218,7 @@ Cleans audit logs daily at 16:00 UTC (guarded by `AUDIT_CLEANUP_MODE=cron` + `CR
 | 图表 Charts | ECharts 6（趋势折线 / 分类占比环形，客户端动态导入，SSR 安全） |
 | Excel | `@e965/xlsx`（SheetJS，Apache 2.0） |
 | 校验 Validation | Zod 3（环境变量启动校验 + 表单与列表筛选白名单/格式预校验） |
-| 桌面 Desktop | Electron 37 + electron-builder 26（asar 打包 + asarUnpack 解压 standalone） |
+| 桌面 Desktop | Electron 44 + electron-builder 26（asar 打包 + asarUnpack 解压 standalone） |
 | 测试 Testing | Node 内置 `tsx --test`（单元）+ Playwright（端到端） |
 
 ---
@@ -278,7 +284,6 @@ db/
   seeds/                    种子数据（accounts/categories/tags/projects/investments/
                             transactions/extra/types）
   init/                     初始化（语言 / 分类 / 默认数据）/ init (languages / categories / defaults)
-  bootstrap.ts              ensureSchema（桌面态启动建库建表）/ schema bootstrap
 electron/
   main.ts                   Electron 主进程：启动 standalone 子进程 + 窗口 + 数据路径 + 错误兜底 / Electron main
   build.mjs                 esbuild 打包主进程 / bundle main with esbuild
@@ -293,7 +298,7 @@ lib/                        核心工具（按领域分包）/ core utils by dom
   *.ts                      纯逻辑：money / env / settings / ledger / pagination / period / recurring / audit …
 messages/                   语言包（zh-CN.json / en.json / zh-TW.json）
 test/                       单元测试 + 测试用例文档 / unit tests + docs
-e2e/                        Playwright 端到端 / Playwright E2E
+test/e2e/                  Playwright 端到端 / Playwright E2E
 types/                      类型扩展 / type extensions
 build/                     桌面图标资源（icon.png / icon.ico，被 electron-builder 自动检测）/ desktop icon assets
 public/                    静态资源（logo.png 等）/ static assets
@@ -378,7 +383,7 @@ Edit these 3 spots in order; the language then appears in the UI (enable/set def
 
 ```bash
 npm test          # 单元测试（test/*.test.ts）：金额/校验/环境/分页/审计/账本/UI 渲染/项目汇总/借贷（借入还款·借出收款）等
-npm run test:e2e  # Playwright 端到端（e2e/*.spec.ts）
+npm run test:e2e  # Playwright 端到端（test/e2e/*.spec.ts）
 ```
 
 > 测试与端到端目录已在 `.vercelignore` 中排除，不会随部署上传。

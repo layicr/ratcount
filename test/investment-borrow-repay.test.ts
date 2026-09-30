@@ -8,7 +8,7 @@
  */
 import { test, before } from "node:test";
 import assert from "node:assert/strict";
-import { eq, count, and } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 import { setupTestDb, seedTestData } from "./helpers/db-fixture";
 import { accounts, investmentHoldings, transactions } from "../db/schema";

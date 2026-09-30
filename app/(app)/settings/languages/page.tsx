@@ -10,7 +10,7 @@ import type { AppDict } from "@/i18n/dict";
 /** 语言管理界面（独立页面 /settings/languages，仅管理员） */
 export default async function LanguagesPage() {
   const user = await requireUser();
-  const ledger = await requireCurrentLedger();
+  await requireCurrentLedger();
   const d = (await getMessages()) as unknown as AppDict;
   if (user.role !== ROLE.admin) {
     return (

@@ -7,6 +7,7 @@ import { requireAdmin } from "@/lib/scope";
 import * as svc from "@/lib/services/settings";
 import { revalidatePath } from "next/cache";
 
+// 更新全局设置项（仅 admin）/ Update a global setting (admin only)
 export async function updateSetting(key: string, value: string) {
   const user = await requireAdmin();
   const r = await svc.updateSettingService({ id: user.id, role: user.role }, key, value);

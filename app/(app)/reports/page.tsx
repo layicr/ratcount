@@ -25,7 +25,7 @@ export default async function ReportsPage({
 }: {
   searchParams: Promise<{ tab?: string; catType?: string; year?: string; period?: string }>;
 }) {
-  const user = await requireUser();
+  await requireUser();
   const ledger = await requireCurrentLedger();
   const d = (await getMessages()) as unknown as AppDict;
   const sp = await searchParams;

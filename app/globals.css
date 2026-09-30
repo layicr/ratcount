@@ -39,7 +39,6 @@ a {
 .dark [class~="bg-slate-50"] { background-color: #1e293b; }
 .dark [class~="bg-white"] { background-color: #1e293b; }
 .dark [class~="hover:bg-slate-50"]:hover { background-color: #1e293b; }
-.dark [class~="hover:bg-slate-50\\/50"]:hover { background-color: #1e293b; }
 
 /* 表格数据行 hover 加重（统一更明显的行高亮，湛蓝色）/ Heavier table-row hover highlight (azure) */
 tbody tr:hover { background-color: #bfdbfe; }            /* blue-200 (light) */
@@ -48,7 +47,6 @@ tbody tr:hover { background-color: #bfdbfe; }            /* blue-200 (light) */
 .dark [class~="border-slate-200"] { border-color: #334155; }
 .dark [class~="border-slate-100"] { border-color: #334155; }
 .dark [class~="border-teal-200"] { border-color: #115e59; }
-.dark [class~="border-red-200"] { border-color: #7f1d1d; }
 
 .dark [class~="text-slate-900"] { color: #f8fafc; }
 .dark [class~="text-slate-800"] { color: #f1f5f9; }

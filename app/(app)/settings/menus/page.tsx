@@ -16,7 +16,7 @@ export default async function MenusPage({
   searchParams: Promise<{ page?: string; q?: string; device?: string; status?: string; pageSize?: string }>;
 }) {
   const user = await requireUser();
-  const ledger = await requireCurrentLedger();
+  await requireCurrentLedger();
   const d = (await getMessages()) as unknown as AppDict;
 
   if (user.role !== ROLE.admin) {

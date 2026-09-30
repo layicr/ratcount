@@ -1,11 +1,11 @@
 // ratcount · 流水 业务服务 / Transaction business services
 //  - 从 app/actions/transactions.ts 抽出的「校验 + 审计 + 写库」纯逻辑（不依赖 'use server' / cookie）。
-import { transactionTags, auditLogs, transactions, accounts } from "@/db/schema";
+import { transactionTags, auditLogs, transactions } from "@/db/schema";
 import { AUDIT_ACTION, ENTITY, TX } from "@/lib/constants";
 import { db } from "@/lib/db";
 import { withAudit, resolveSummary } from "@/lib/audit";
 import { transactionSchema, type TransactionInput } from "@/lib/validators";
-import { assertRefsInLedger, RefNotInLedgerError, type Tx } from "@/lib/ledger-refs";
+import { assertRefsInLedger, RefNotInLedgerError } from "@/lib/ledger-refs";
 import { yuanToCents } from "@/lib/money";
 import { loadCurrencyRates } from "@/lib/currency";
 import { resolveTransactionMoney } from "@/lib/tx-currency";
@@ -17,7 +17,7 @@ const txSchema = transactionSchema;
 /** 内部哨兵：更新 0 行（目标流水不存在/无权限），跳过审计 */
 class TransactionNotUpdatedError extends Error {}
 
-/** 复制流水时追加到备注的「副本」标签（服务端会传翻译后的文案，桌面回退到固定串） */
+/** 今天日期（YYYY-MM-DD），用于复制 / 新建流水的 txDate 等 / Today's date (YYYY-MM-DD), used for txDate on copy/create */
 const today = () => new Date().toISOString().slice(0, 10);
 
 /* ===================== 新增 / Create ===================== */
@@ -157,6 +157,8 @@ export async function updateTransactionService(actor: Actor, ledgerId: string, i
 
 /* ===================== 复制 / Duplicate ===================== */
 
+/** 复制流水：把「副本」标签追加到备注（copiedLabel 由服务端传入翻译后的文案，桌面回退到固定串）/
+ *  Duplicate a transaction: append the "copy" label to the remark (copiedLabel passed in translated by server, desktop falls back to a fixed string) */
 export async function copyTransactionService(actor: Actor, ledgerId: string, id: string, copiedLabel: string) {
   const [src] = await db.select().from(transactions)
     .where(and(eq(transactions.id, id), eq(transactions.ledgerId, ledgerId)));
@@ -202,6 +204,7 @@ export async function deleteTransactionService(actor: Actor, ledgerId: string, i
   return { ok: true as const, error: null };
 }
 
+// 批量删除流水（需 editor；带审计）/ Batch-delete transactions (editor; with audit)
 export async function batchDeleteTransactionsService(actor: Actor, ledgerId: string, ids: string[]) {
   if (!ids.length) return { ok: false as const, error: "errors.noneSelected" };
 

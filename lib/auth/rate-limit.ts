@@ -89,6 +89,7 @@ export async function allowAttempt(key: string, limit: RateLimit = REGISTER_LIMI
   }
 }
 
+// 剩余可用次数（分布式走 Redis，否则内存）/ Remaining attempts (Redis if configured, else memory)
 export async function remainingAttempts(key: string, limit: RateLimit = REGISTER_LIMIT): Promise<number> {
   const r = await getRedis();
   if (!r) return memRemaining(key, limit);
@@ -100,6 +101,7 @@ export async function remainingAttempts(key: string, limit: RateLimit = REGISTER
   }
 }
 
+// 清零某 key 的限流计数（如登录成功）/ Reset a key's counter (e.g. after successful login)
 export async function resetAttempts(key: string): Promise<void> {
   const r = await getRedis();
   if (!r) {

@@ -13,6 +13,7 @@ import type { CurrencyInput, CurrencyUpdateInput, ProjectInput, TagInput } from 
 
 /* ===================== 项目 / Projects ===================== */
 
+// 新建项目（需 editor）/ Create a project (editor)
 export async function createProject(input: ProjectInput) {
   const ledgerId = await getCurrentLedgerId();
   if (!ledgerId) return { ok: false as const, error: "errors.noLedger" };
@@ -26,6 +27,7 @@ export async function createProject(input: ProjectInput) {
   return r;
 }
 
+// 更新项目（需 editor）/ Update a project (editor)
 export async function updateProject(id: string, input: ProjectInput) {
   const ledgerId = await getCurrentLedgerId();
   if (!ledgerId) return { ok: false as const, error: "errors.noLedger" };
@@ -39,6 +41,7 @@ export async function updateProject(id: string, input: ProjectInput) {
   return r;
 }
 
+// 删除项目（需 editor）/ Delete a project (editor)
 export async function deleteProject(id: string) {
   const ledgerId = await getCurrentLedgerId();
   if (!ledgerId) return { ok: false as const, error: "errors.noLedger" };
@@ -54,6 +57,7 @@ export async function deleteProject(id: string) {
 
 /* ===================== 标签 / Tags ===================== */
 
+// 新建标签（需 editor）/ Create a tag (editor)
 export async function createTag(input: TagInput) {
   const ledgerId = await getCurrentLedgerId();
   if (!ledgerId) return { ok: false as const, error: "errors.noLedger" };
@@ -67,6 +71,7 @@ export async function createTag(input: TagInput) {
   return r;
 }
 
+// 更新标签（需 editor）/ Update a tag (editor)
 export async function updateTag(id: string, input: TagInput) {
   const ledgerId = await getCurrentLedgerId();
   if (!ledgerId) return { ok: false as const, error: "errors.noLedger" };
@@ -80,6 +85,7 @@ export async function updateTag(id: string, input: TagInput) {
   return r;
 }
 
+// 删除标签（需 editor）/ Delete a tag (editor)
 export async function deleteTag(id: string) {
   const ledgerId = await getCurrentLedgerId();
   if (!ledgerId) return { ok: false as const, error: "errors.noLedger" };
@@ -95,6 +101,7 @@ export async function deleteTag(id: string) {
 
 /* ===================== 币种 / Currencies（全局，admin 级） ===================== */
 
+// 新建币种（仅 admin，全局表）/ Create a currency (admin; global)
 export async function createCurrency(input: CurrencyInput) {
   const user = await requireAdmin();
   const r = await basics.createCurrencyService({ id: user.id, role: user.role }, input);
@@ -102,6 +109,7 @@ export async function createCurrency(input: CurrencyInput) {
   return r;
 }
 
+// 更新币种（仅 admin）/ Update a currency (admin)
 export async function updateCurrency(code: string, input: CurrencyUpdateInput) {
   const user = await requireAdmin();
   const r = await basics.updateCurrencyService({ id: user.id, role: user.role }, code, input);
@@ -109,6 +117,7 @@ export async function updateCurrency(code: string, input: CurrencyUpdateInput) {
   return r;
 }
 
+// 删除币种（仅 admin）/ Delete a currency (admin)
 export async function deleteCurrency(code: string) {
   const user = await requireAdmin();
   const r = await basics.deleteCurrencyService({ id: user.id, role: user.role }, code);
@@ -116,6 +125,7 @@ export async function deleteCurrency(code: string) {
   return r;
 }
 
+// 更新币种汇率（仅 admin）/ Update a currency rate (admin)
 export async function updateCurrencyRate(code: string, rate: string) {
   const user = await requireAdmin();
   const r = await basics.updateCurrencyRateService({ id: user.id, role: user.role }, code, rate);
@@ -123,6 +133,7 @@ export async function updateCurrencyRate(code: string, rate: string) {
   return r;
 }
 
+// 启用/停用币种（仅 admin）/ Enable/disable a currency (admin)
 export async function toggleCurrency(code: string, isActive: boolean) {
   const user = await requireAdmin();
   const r = await basics.toggleCurrencyService({ id: user.id, role: user.role }, code, isActive);

@@ -7,6 +7,7 @@ import { requireUser } from "@/lib/scope";
 import * as svc from "@/lib/services/settings";
 import { revalidatePath } from "next/cache";
 
+// 批量删除审计日志（仅 admin）/ Delete audit logs by ids (admin only)
 export async function deleteAuditLogs(ids: string[]) {
   const user = await requireUser();
   if (user.role !== ROLE.admin) return { ok: false as const, error: "errors.adminOnly" };
@@ -15,6 +16,7 @@ export async function deleteAuditLogs(ids: string[]) {
   return r;
 }
 
+// 清空过期审计日志（仅 admin）/ Clear expired audit logs (admin only)
 export async function clearExpiredLogs() {
   const user = await requireUser();
   if (user.role !== ROLE.admin) return { ok: false as const, error: "errors.adminOnly" };

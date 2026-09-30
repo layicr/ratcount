@@ -9,7 +9,7 @@ import type { AppDict } from "@/i18n/dict";
 
 /** 标签管理，独立页面 /tags */
 export default async function TagsPage() {
-  const user = await requireUser();
+  await requireUser();
   const ledger = await requireCurrentLedger();
   const d = (await getMessages()) as unknown as AppDict;
   const tgs = await db.select().from(tags).where(eq(tags.ledgerId, ledger.id));

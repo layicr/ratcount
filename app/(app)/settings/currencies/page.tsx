@@ -10,7 +10,7 @@ import type { AppDict } from "@/i18n/dict";
 /** 币种管理界面（独立页面 /settings/currencies，仅管理员） */
 export default async function CurrenciesPage() {
   const user = await requireUser();
-  const ledger = await requireCurrentLedger();
+  await requireCurrentLedger();
   const d = (await getMessages()) as unknown as AppDict;
   if (user.role !== ROLE.admin) {
     return (

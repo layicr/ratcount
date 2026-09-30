@@ -6,7 +6,6 @@
  */
 import { ALL_TIME_ZONES } from "./timezones.generated";
 import type { AppLocale } from "./routing";
-import { TIME_ZONE_COOKIE } from "@/lib/constants";
 
 /** 全量 IANA 时区标识（418 条，自动生成） */
 export const TIME_ZONE_CODES = ALL_TIME_ZONES;

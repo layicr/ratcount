@@ -15,7 +15,7 @@ import { MonthlyTrendChart } from "../components/monthly-trend-chart";
 
 /** 仪表盘：净资产 / 本月收支 / 资产分布 / 月度趋势 */
 export default async function DashboardPage() {
-  const user = await requireUser();
+  await requireUser();
   const ledger = await requireCurrentLedger();
   const s = await dashboardStats(ledger.id, undefined, { includeRecent: true }, await getResolvedTimeZone());
   const locale = await getLocale();

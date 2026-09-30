@@ -7,6 +7,7 @@ import { fmt, getPeriodLabel } from "./utils";
 import { getMessages, getLocale } from "next-intl/server";
 import { makeDictTranslator, type AppDict } from "@/i18n/dict";
 
+// 概览页签（收支汇总 + 年度趋势）/ Overview tab (summary + yearly trend)
 export async function Overview({ s, period, yearTrend, currency }: { s: Awaited<ReturnType<typeof dashboardStats>>; period: StatsPeriod; yearTrend: Awaited<ReturnType<typeof yearSummary>>; currency: string }) {
   const locale = await getLocale();
   const d = (await getMessages()) as unknown as AppDict;

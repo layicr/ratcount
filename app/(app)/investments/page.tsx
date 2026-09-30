@@ -6,7 +6,7 @@ import { investmentOverview, parsePeriod, type StatsPeriod } from "@/lib/queries
 import { getResolvedTimeZone } from "@/lib/settings";
 import { localParts } from "@/lib/datetime";
 import { formatCurrency, formatPercent } from "@/lib/money";
-import { INVESTMENT_TYPES, investmentIcon, investmentTypeKey, quantityToDisplay } from "@/lib/investment-types";
+import { INVESTMENT_TYPES, investmentIcon, quantityToDisplay } from "@/lib/investment-types";
 import { holdingProfitCents } from "@/lib/investment-flow";
 import { TimeRangePicker } from "../components/time-range-picker";
 import { InvestmentPieChart } from "../components/investment-pie-chart";

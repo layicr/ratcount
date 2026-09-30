@@ -8,7 +8,7 @@ import type { AppDict } from "@/i18n/dict";
 
 /** 项目：列表（盈亏 + 预算进度）+ 新增/删除 */
 export default async function ProjectsPage() {
-  const user = await requireUser();
+  await requireUser();
   const ledger = await requireCurrentLedger();
   const d = (await getMessages()) as unknown as AppDict;
   const rows = await projectSummary(ledger.id, undefined, await getResolvedTimeZone());

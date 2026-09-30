@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { recordBalance } from "@/app/actions/balances";
 import { useTranslations, useLocale } from "next-intl";
-import { useMoney, useBaseCurrency } from "@/components/currency-context";
+import { useBaseCurrency } from "@/components/currency-context";
 import { formatCurrency } from "@/lib/money";
 import { ConfirmButton } from "../components/confirm";
 
@@ -14,7 +14,6 @@ export function BalanceForm({
   accounts: { id: string; name: string; icon: string; balanceCents: number; currencyCode?: string }[];
 }) {
   const t = useTranslations();
-  const money = useMoney();
   const baseCur = useBaseCurrency();
   const locale = useLocale();
   const [accountId, setAccountId] = useState("");

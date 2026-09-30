@@ -63,6 +63,7 @@ export async function createProjectService(actor: Actor, ledgerId: string, input
   return { ok: true, error: null };
 }
 
+// 更新项目（需 editor）/ Update a project (editor)
 export async function updateProjectService(actor: Actor, ledgerId: string, id: string, input: ProjectInput): Promise<ServiceResult> {
   const parsed = projectSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "errors.invalidInput" };
@@ -150,6 +151,7 @@ export async function createTagService(actor: Actor, ledgerId: string, input: Ta
   return { ok: true, error: null };
 }
 
+// 更新标签（需 editor）/ Update a tag (editor)
 export async function updateTagService(actor: Actor, ledgerId: string, id: string, input: TagInput): Promise<ServiceResult> {
   if (!input.name.trim()) return { ok: false, error: "errors.tagNameRequired" };
   const parsed = tagSchema.safeParse(input);
@@ -240,6 +242,7 @@ export async function createCurrencyService(actor: Actor, input: CurrencyInput):
   return { ok: true, error: null };
 }
 
+// 更新币种（admin；汇率由独立接口维护）/ Update a currency (admin; rate managed via a separate endpoint)
 export async function updateCurrencyService(actor: Actor, code: string, input: CurrencyUpdateInput): Promise<ServiceResult> {
   const parsed = currencySchema.omit({ code: true }).safeParse(input);
   if (!parsed.success) return { ok: false, error: "errors.invalidInput" };

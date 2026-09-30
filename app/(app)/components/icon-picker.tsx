@@ -46,6 +46,7 @@ const ICONS = [
   "🎉", "🎊", "🌟", "✨", "💫", "🎶", "💛", "💚", "💙", "💜", "🖤",
 ];
 
+// 图标选择器（emoji 面板，受控组件）/ Emoji icon picker (controlled)
 export function IconPicker({
   value,
   onChange,

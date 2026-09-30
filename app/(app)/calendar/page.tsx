@@ -23,7 +23,7 @@ export default async function CalendarPage({
 }: {
   searchParams: Promise<{ month?: string }>;
 }) {
-  const user = await requireUser();
+  await requireUser();
   const ledger = await requireCurrentLedger();
   const sp = await searchParams;
   const d = (await getMessages()) as unknown as AppDict;

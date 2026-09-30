@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { createTag, deleteTag, updateTag } from "@/app/actions/common";
 import { useTranslations } from "next-intl";
-import { ConfirmButton, DeleteButton } from "../components/confirm";
+import { DeleteButton } from "../components/confirm";
 import { NameRemarkForm } from "../components/name-remark-form";
 import { ColorPicker } from "../components/color-picker";
 

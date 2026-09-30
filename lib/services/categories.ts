@@ -39,6 +39,7 @@ export async function createCategoryService(actor: Actor, ledgerId: string, inpu
   return { ok: true as const, error: null };
 }
 
+// 更新分类（需 editor）/ Update a category (editor)
 export async function updateCategoryService(actor: Actor, ledgerId: string, id: string, input: CategoryInput) {
   if (!input.name.trim()) return { ok: false as const, error: "errors.nameRequired" };
   const parsed = categorySchema.safeParse(input);

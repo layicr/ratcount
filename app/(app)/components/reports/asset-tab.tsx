@@ -7,6 +7,7 @@ import { BAR_COLORS } from "@/lib/chart-colors";
 import { TimeRangePicker } from "../time-range-picker";
 import { fmt, getPeriodLabel } from "./utils";
 
+// 资产分布页签（按账户聚合市值/成本）/ Assets tab (aggregate value/cost by account)
 export async function AssetTab({ ledgerId, period, s, currency }: { ledgerId: string; period: StatsPeriod; s: Awaited<ReturnType<typeof dashboardStats>>; currency: string }) {
   const locale = await getLocale();
   const d = (await getMessages()) as unknown as AppDict;

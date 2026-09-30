@@ -34,6 +34,7 @@ export const localeLabels: Record<AppLocale, string> = {
 /** 原始字典类型（以 zh-CN 为基准结构，所有语言 key 结构一致） */
 export type RawDict = (typeof dictionaries)["zh-CN"];
 
+// next-intl 路由实例（localePrefix:never + cookie 切换语言，不改 URL 结构）/ next-intl routing instance (cookie-based locale, no URL prefix)
 export const routing = defineRouting({
   locales,
   defaultLocale: DEFAULT_LOCALE,

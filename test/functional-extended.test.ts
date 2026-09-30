@@ -124,7 +124,7 @@ const YEAR2026 = { type: "year", year: 2026 } as const;
 const UUID = () => crypto.randomUUID();
 
 before(async () => {
-  const { setupTestDb, seedTestData } = await import("./helpers/db-fixture");
+  const { setupTestDb} = await import("./helpers/db-fixture");
   const ctx = await setupTestDb();
   db = ctx.db;
 

@@ -6,8 +6,8 @@ import type { AppDict } from "@/i18n/dict";
 
 /** 修改密码页面 / Change password page */
 export default async function PasswordPage() {
-  const user = await requireUser();
-  const ledger = await requireCurrentLedger();
+  await requireUser();
+  await requireCurrentLedger();
   const d = (await getMessages()) as unknown as AppDict;
 
   return (

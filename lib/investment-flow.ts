@@ -37,6 +37,18 @@ export function parseAnnualRate(rate: string | null | undefined): number | null 
   return n / 100;
 }
 
+/**
+ * 利率归一化（展示/入库统一口径）：去首尾空白与百分号，空值返回 null，否则末尾补 %。
+ * 幂等：normalizeInterestRate("2.6") === normalizeInterestRate("2.6%") === "2.6%"；
+ * 与 parseAnnualRate 配套——存储带 %，解析时再去 %，两端口径一致。
+ */
+export function normalizeInterestRate(rate: string | null | undefined): string | null {
+  if (rate == null) return null;
+  const cleaned = String(rate).trim().replace(/%/g, "").trim();
+  if (!cleaned) return null;
+  return `${cleaned}%`;
+}
+
 /** 两个日期相差天数（UTC，end - start）；非法输入返回 null / Days between two dates (UTC, end - start); invalid input → null */
 export function daysBetween(start: string, end: string): number | null {
   if (!isDateStr(start) || !isDateStr(end)) return null;

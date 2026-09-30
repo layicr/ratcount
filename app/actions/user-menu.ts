@@ -11,6 +11,7 @@ import { requireUser } from "@/lib/scope";
 import { revalidatePath } from "next/cache";
 import * as svc from "@/lib/services/profile";
 
+// 读取当前账本可用菜单 id（仅返回启用项；无配置时回退全部启用）/ Read available menu ids for the ledger (active only; falls back to all when unset)
 export async function getLedgerMenuIds(ledgerId: string, userId: string) {
   const allowed = new Set(
     (await db.select({ menuId: menus.menuId }).from(menus).where(eq(menus.statusCode, MENU_STATUS.active))).map((r) => r.menuId),
@@ -24,6 +25,7 @@ export async function getLedgerMenuIds(ledgerId: string, userId: string) {
   return ids.length ? ids : [...allowed];
 }
 
+// 保存「我的菜单」配置（需登录）/ Save "my menu" config (signed-in)
 export async function saveLedgerMenu(menuIds: string[]) {
   const user = await requireUser();
   const ledger = await getCurrentLedger();

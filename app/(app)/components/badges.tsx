@@ -22,6 +22,7 @@ export function TxTypeBadge({ type }: { type: string }) {
   );
 }
 
+// 账户类型徽标（颜色 + i18n 文案，由 accountTypeI18nKey 派生）/ Account-type badge (color + i18n label)
 export function AccountTypeBadge({ type }: { type: string }) {
   const t = useTranslations();
   // i18n key 统一从 lib/constants 派生，新增账户类型无需改此处

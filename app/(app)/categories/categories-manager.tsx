@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { createCategory, deleteCategory, updateCategory } from "@/app/actions/categories";
 import { useTranslations } from "next-intl";
-import { ConfirmButton, DeleteButton } from "../components/confirm";
+import { DeleteButton } from "../components/confirm";
 import { NameRemarkForm } from "../components/name-remark-form";
 import { IconPicker } from "../components/icon-picker";
 import { TX, type CategoryType } from "@/lib/constants";

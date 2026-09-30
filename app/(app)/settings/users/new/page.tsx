@@ -9,7 +9,7 @@ import type { AppDict } from "@/i18n/dict";
 /** 新增用户页面（仅管理员） */
 export default async function NewUserPage() {
   const user = await requireUser();
-  const ledger = await requireCurrentLedger();
+  await requireCurrentLedger();
   const d = (await getMessages()) as unknown as AppDict;
 
   // 仅管理员可访问 / Admin only

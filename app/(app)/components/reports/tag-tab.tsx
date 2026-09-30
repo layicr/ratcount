@@ -6,6 +6,7 @@ import { getPeriodLabel } from "./utils";
 import { getMessages, getLocale } from "next-intl/server";
 import { makeDictTranslator, type AppDict } from "@/i18n/dict";
 
+// 标签页签（按标签汇总）/ Tags tab (rollup by tag)
 export async function TagTab({ ledgerId, period, currency }: { ledgerId: string; period: StatsPeriod; currency: string }) {
   const locale = await getLocale();
   const d = (await getMessages()) as unknown as AppDict;

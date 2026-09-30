@@ -44,7 +44,7 @@ export function TxList({
   summary?: { incomeCents: number; expenseCents: number };
 }) {
   const [sel, setSel] = useState<Set<string>>(new Set());
-  const [pending, start] = useTransition();
+  useTransition();
   const t = useTranslations();
   const baseCur = useBaseCurrency();
   const locale = useLocale();

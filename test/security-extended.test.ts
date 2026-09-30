@@ -99,7 +99,6 @@ let createAccount: any;
 let deleteAuditLogs: any;
 let clearExpiredLogs: any;
 let cleanupRouteGET: any;
-let ROLE: any;
 let AUDIT_ACTION: any;
 let ENTITY: any;
 
@@ -113,7 +112,7 @@ before(async () => {
   ({ createTransaction } = await import("../app/actions/transactions"));
   ({ createAccount } = await import("../app/actions/accounts"));
   ({ deleteAuditLogs, clearExpiredLogs } = await import("../app/actions/logs"));
-  ({ ROLE, AUDIT_ACTION, ENTITY } = await import("../lib/constants"));
+  ({ AUDIT_ACTION, ENTITY } = await import("../lib/constants"));
   ({ GET: cleanupRouteGET } = await import("../app/api/cron/cleanup-audit/route"));
 });
 

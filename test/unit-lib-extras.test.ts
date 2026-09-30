@@ -12,7 +12,6 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import path from "node:path";
 
 /* ==================== next/cache 钩子（revalidate 测试用） ==================== */
 // 必须在业务模块加载前注册；捕获 revalidatePath 的调用路径，供断言

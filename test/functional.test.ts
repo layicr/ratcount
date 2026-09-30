@@ -50,7 +50,6 @@ test("余额: 期初 + 流水实时汇总（支出减/收入加/转账出-入+�
 test("余额: 转账不计收支但一出一进，总资产守恒", async () => {
   // 转账 20000 从现金到借记卡：现金 -20000、借记卡 +20000
   const accts = await listAccountsWithBalance(seed.l1.id);
-  const m: any = new Map(accts.map((a: any) => [a.id, a]));
   const total = accts.filter((a: any) => a.isAsset).reduce((s: number, a: any) => s + a.balanceCents, 0);
   assert.strictEqual(total, 1303700);
 });
@@ -196,7 +195,7 @@ test("币种: 按 sort/code 排序，基准币种优先", async () => {
 /* ==================== 6. 审计（事务一致 + 查询） ==================== */
 
 test("审计: withAudit 业务+日志同事务提交，日志含操作者信息", async () => {
-  const { transactions, categories } = await import("../db/schema");
+  const { categories } = await import("../db/schema");
   const created = await withAudit(
     { userId: seed.u1.id, action: "C", entity: "transaction", entityId: seed.t1.id, summary: "新增流水 测试" },
     async (tx: any) => {

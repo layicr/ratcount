@@ -9,9 +9,10 @@ import { purgeExpiredAuditLogs } from "@/lib/audit-cleanup";
  *  - 生产环境（NODE_ENV=production）强制要求 CRON_SECRET，缺失即 401，杜绝端点被随意调用；
  *    非生产（dev/test）未设置时允许本地 dry-run。任意环境只要设置了 CRON_SECRET 都必须校验 Bearer。
  */
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+export const runtime = "nodejs"; // Node 运行时（审计清理需服务端 API）/ Node runtime
+export const dynamic = "force-dynamic"; // 始终动态渲染，避免被静态缓存/ Always dynamic (never statically cached)
 
+// Cron 入口：清理超期审计日志（鉴权规则见文件头注释）/ Cron entry: purge expired audit logs (auth rules in header)
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
   const isProd = process.env.NODE_ENV === "production";

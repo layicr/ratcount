@@ -103,7 +103,7 @@ async function main() {
     ])
     .returning();
 
-  const [salaryCat, foodCat, trafficCat] = await db
+  const [salaryCat, foodCat] = await db
     .insert(categories)
     .values([
       { ledgerId: ledgerA.id, name: "工资", type: TX.income, icon: "💰" },
@@ -123,7 +123,7 @@ async function main() {
     { name: "登录验证码", key: "enable_login_captcha", value: "false", userId: GLOBAL_USER_ID, updatedBy: admin.id },
   ]);
 
-  // eslint-disable-next-line no-console
+   
   console.log("[e2e-seed] 完成：admin@example.com / demo1234，账本 x2，流水 x2");
 }
 

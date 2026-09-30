@@ -1,5 +1,4 @@
 import { requireUser } from "@/lib/scope"
-import { DEFAULT_CURRENCY } from "@/lib/constants";
 import { requireCurrentLedger } from "@/lib/ledger";
 import { listBalances } from "@/lib/queries";
 import { formatCurrency } from "@/lib/money";
@@ -9,11 +8,10 @@ import type { AppDict } from "@/i18n/dict";
 
 /** 余额表：期初 + 实时余额 vs 最新快照（对账差异） */
 export default async function BalancePage() {
-  const user = await requireUser();
+  await requireUser();
   const ledger = await requireCurrentLedger();
   const locale = await getLocale();
   const d = (await getMessages()) as unknown as AppDict;
-  const cur = ledger.baseCurrencyCode ?? DEFAULT_CURRENCY;
   const rows = await listBalances(ledger.id);
 
   return (

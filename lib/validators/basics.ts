@@ -2,7 +2,7 @@
 //  - 从 app/actions/* 内联 schema 抽出，供 lib/services/basics 与服务端 action 共用
 //  - Extracted from the inline schemas in app/actions/* so lib/services/basics and the server actions share one source
 import { z } from "zod";
-import { PROJECT_STATUS, projectStatuses } from "@/lib/constants";
+import { projectStatuses } from "@/lib/constants";
 
 /** 项目入参 / Project input */
 export const projectSchema = z.object({

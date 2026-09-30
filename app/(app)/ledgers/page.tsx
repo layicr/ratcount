@@ -22,7 +22,7 @@ export default async function LedgersPage() {
 
   // 查询当前用户的所有账本 + 每个账本的成员数
   const myLedgers = await getMyLedgers(user.id);
-  const locale = await getLocale();
+  await getLocale();
   const curs = await db.select({ code: currencies.code, name: currencies.name }).from(currencies).where(eq(currencies.isActive, true));
   const currencyList = curs.map((c) => ({ code: c.code, name: c.name || c.code }));
 

@@ -1,5 +1,5 @@
 /**
- * money · 演示数据种子（对齐原型演示口径）/ Demo data seed (aligned with the prototype)
+ * ratcount · 演示数据种子（对齐原型演示口径）/ Demo data seed (aligned with the prototype)
  * 用法：npm run db:seed / Usage: npm run db:seed
  */
 import { ledgers, ledgerMembers, currencies, accounts, categories, tags, projects, transactions, transactionTags, balances, settings, investmentHoldings, holdingTags, recurringPlans, auditLogs, menuGroups, menus, userMenuConfig, languages, users } from "../db/schema"
@@ -23,7 +23,6 @@ import { HOLDING_DEFS, HOLDING_TAG_DEFS } from "./seeds/investments";
 import { SETTING_DEFS, CURRENCY_DEFS, LANGUAGE_DEFS } from "./init/02-settings";
 import { MENU_GROUP_DEFS, MENU_DEFS, ACTIVE_MENU_IDS } from "./init/01-menus";
 import { RECURRING_DEFS, BALANCE_DEFS, AUDIT_LOG_DEFS } from "./seeds/extra";
-import { type AcctKey } from "./seeds/types";
 
 async function main() {
   // 安全守门：禁止在生产环境执行种子（会清空全部数据表），staging/prod 直接拒绝 / Safety gate: refuse to run in production (it wipes all tables); staging/prod rejected outright

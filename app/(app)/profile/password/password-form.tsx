@@ -55,7 +55,7 @@ export function PasswordForm() {
       setOldPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      // 3秒后退出登录，要求用新密码重新登录 / Sign out after 3 seconds
+      // 2秒后退出登录，要求用新密码重新登录 / Sign out after 2 seconds
       setTimeout(async () => {
         await signOut({ callbackUrl: LOGIN_PATH });
       }, 2000);

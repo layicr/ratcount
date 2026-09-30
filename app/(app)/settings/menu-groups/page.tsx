@@ -10,7 +10,7 @@ import type { AppDict } from "@/i18n/dict";
 /** 菜单分组管理（仅管理员）：全局导航分组的增删改查 */
 export default async function MenuGroupsPage() {
   const user = await requireUser();
-  const ledger = await requireCurrentLedger();
+  await requireCurrentLedger();
   const d = (await getMessages()) as unknown as AppDict;
 
   if (user.role !== ROLE.admin) {

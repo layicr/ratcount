@@ -9,6 +9,7 @@ import * as svc from "@/lib/services/balances";
 import type { BalanceInput } from "@/lib/services/balances";
 import { revalidatePath } from "next/cache";
 
+// 记录余额快照（需 editor；期初 + 流水对账）/ Record a balance snapshot (editor; opening + tx reconciliation)
 export async function recordBalance(input: BalanceInput) {
   const ledgerId = await getCurrentLedgerId();
   if (!ledgerId) return { ok: false as const, error: "errors.noLedger" };

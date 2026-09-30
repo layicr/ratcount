@@ -26,6 +26,7 @@ const MAX_CELLS = 1_000_000; // 单元格总量上限（防解压炸弹：小体
 const ALLOWED_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const CSV_MIMES = ["text/csv", "application/csv", "text/plain"];
 
+// 导入接口：校验登录+editor 角色后解析 xlsx/csv 并落库（含解压炸弹/容量防护）/ Import: auth + editor, then parse xlsx/csv and persist (with bomb/cap guards)
 export async function POST(req: Request) {
   const user = await requireUser();
   const ledger = await getCurrentLedger();

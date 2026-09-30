@@ -3,8 +3,7 @@
 // ratcount · 用户管理（读保留，写抽服务）/ User management (reads kept, writes delegated)
 //  - createUser/updateUser/resetUserPassword/deleteUser 的写逻辑已抽到 lib/services/admin；
 //    此处仅做守卫（requireAdmin），服务端行为零回归。
-import { ledgerMembers, users } from "@/db/schema";
-import { ROLE, AUDIT_ACTION, ENTITY } from "@/lib/constants";
+import { users } from "@/db/schema";
 import { requireAdmin } from "@/lib/scope";
 import { eq, like, or, desc, count } from "drizzle-orm";
 import { db } from "@/lib/db";

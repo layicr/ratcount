@@ -7,7 +7,7 @@ import { createInvestment, updateInvestment } from "@/app/actions/investments";
 import { type InvestmentType, INV, ACCT, type MetalSubType, DEFAULT_CURRENCY } from "@/lib/constants";
 import { METAL_SUB_TYPES, displayToQuantity, quantityToDisplay, areaToDisplay, displayToArea, linkedAccountTypeOf, investmentTypeConfig } from "@/lib/investment-types";
 import { parseYuanAmount } from "@/lib/money";
-import { estimateMaturityPreview } from "@/lib/investment-flow";
+import { estimateMaturityPreview, normalizeInterestRate } from "@/lib/investment-flow";
 import { TagPicker } from "./tag-picker";
 import { ConfirmButton, useToast } from "./confirm";
 
@@ -72,7 +72,7 @@ function initialForm(initial: HoldingItem | null, defaultSubType?: string) {
     valueYuan: initial ? toYuan(initial.currentValueCents) : "",
     purchaseDate: initial?.purchaseDate ?? "",
     maturityDate: initial?.maturityDate ?? "",
-    interestRate: initial?.interestRate ?? "",
+    interestRate: initial?.interestRate?.replace(/%/g, "") ?? "",
     location: initial?.location ?? "",
     subType: initial?.subType ?? defaultSubType ?? "gold",
     remark: initial?.remark ?? "",
@@ -132,15 +132,17 @@ export function InvestmentForm({
   // 投资类型 UI 配置（单一数据源）：集中管理类型判定 / 字段显隐 / 必填 / 数量标签，新增类型只改 investmentTypeConfig
   // Investment type UI config (single source): type flags / field visibility / required / qty label
   const cfg = investmentTypeConfig(type);
-  // 建仓「满期预览」：固收（非借贷）按 30/360 实时算预计到期利息 / 到期总额（只读展示，不写库）
-  // Create-form full-term preview: fixed income (non-loan) estimates maturity interest / total at 30/360 (read-only)
-  const maturityPreview = cfg.isFixedIncome && !cfg.isLoan
+  // 建仓「满期预览」：固收（含借贷）实时算预计到期利息 / 到期总额（只读展示，不写库）；
+  // 借贷按 ACT/365（与收/还款口径一致），其余固收按 30/360
+  // Create-form full-term preview: fixed income (incl. loan) estimates maturity interest / total (read-only);
+  // loan uses ACT/365 (matching collect/repay), other fixed income uses 30/360
+  const maturityPreview = cfg.isFixedIncome
     ? estimateMaturityPreview({
         principalCents: Math.round((parseYuanAmount(form.costYuan || "0") ?? 0) * 100),
         interestRate: form.interestRate,
         purchaseDate: form.purchaseDate,
         maturityDate: form.maturityDate,
-        basis: "360",
+        basis: cfg.isLoan ? "365" : "360",
       })
     : null;
   // 关联账户按持仓类型限定账户类型（基金 → 基金账户；无匹配则不筛选）；
@@ -233,7 +235,7 @@ export function InvestmentForm({
         valueYuan: cfg.isDeposit ? form.valueYuan || form.costYuan || "0" : form.valueYuan || "0",
         purchaseDate: form.purchaseDate || null,
         maturityDate: form.maturityDate || null,
-        interestRate: form.interestRate || null,
+        interestRate: normalizeInterestRate(form.interestRate),
         location: form.location || null,
         areaSqm: cfg.isEstate && form.area ? displayToArea(Number(form.area)) : null,
         remark: form.remark || null,
@@ -325,7 +327,10 @@ export function InvestmentForm({
         {cfg.isFixedIncome && (
           <div>
             <label className={labelCls}>{t("investment.interestRate")}{cfg.isInsurance && <span className="text-red-500">*</span>}</label>
-            <input value={form.interestRate} onChange={(e) => set("interestRate", e.target.value)} placeholder="2.60%" className={inputCls} />
+            <div className="relative">
+              <input value={form.interestRate} onChange={(e) => set("interestRate", e.target.value)} placeholder="2.60" inputMode="decimal" className={`${inputCls} pr-7`} />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">%</span>
+            </div>
           </div>
         )}
 

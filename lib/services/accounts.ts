@@ -5,7 +5,6 @@ import { and, eq, or } from "drizzle-orm";
 import { z } from "zod";
 import { accounts, balances, investmentHoldings, recurringPlans, transactions } from "@/db/schema";
 import { AUDIT_ACTION, ENTITY } from "@/lib/constants";
-import { db } from "@/lib/db";
 import { withAudit } from "@/lib/audit";
 import { yuanToCents } from "@/lib/money";
 import { loadCurrencyRates, rateOf, toBaseCents } from "@/lib/currency";
@@ -69,6 +68,7 @@ export async function createAccountService(actor: Actor, ledgerId: string, input
   return { ok: true as const, error: null };
 }
 
+// 更新账户（需 editor；校验输入并刷新缓存）/ Update an account (editor; validates input & refreshes caches)
 export async function updateAccountService(actor: Actor, ledgerId: string, id: string, input: AccountInput) {
   const parsed = acctSchema.safeParse(input);
   if (!parsed.success) return { ok: false as const, error: "errors.invalidInput" };

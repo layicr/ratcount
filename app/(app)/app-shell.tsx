@@ -12,6 +12,7 @@ import { ROLE, DEVICE, DEFAULT_LEDGER_ICON, DASHBOARD_PATH, LEDGER_COOKIE } from
 
 type LedgerOpt = { id: string; name: string; icon: string };
 
+// 应用外壳：侧边栏 + 顶栏 + 内容区布局（客户端导航壳，含账本切换与菜单）/ App shell: sidebar + topbar + content layout (client nav shell)
 export function AppShell({
   userName,
   userRole,

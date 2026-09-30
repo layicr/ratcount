@@ -3,7 +3,7 @@
 // 薄封装：菜单读操作保留（需 requireUser），写操作改调 lib/services/menus + revalidatePath（Next 专属）
 import { revalidatePath } from "next/cache";
 import { menus } from "@/db/schema";
-import { menuDeviceTypes, type MenuDeviceType, MENU_STATUS, SETTINGS_MENUS_PATH } from "@/lib/constants";
+import { type MenuDeviceType, MENU_STATUS, SETTINGS_MENUS_PATH } from "@/lib/constants";
 import { requireUser, requireAdmin } from "@/lib/scope";
 import { eq, and, asc } from "drizzle-orm";
 import { db } from "@/lib/db";

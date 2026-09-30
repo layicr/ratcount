@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useTranslations, useLocale, useFormatter } from "next-intl";
+import { useTranslations, useFormatter } from "next-intl";
 import { computeTotalPages } from "@/lib/pagination-util";
 import { ConfirmButton, DeleteButton } from "../../components/confirm";
 import { Pagination } from "../../components/pagination";
@@ -42,7 +42,6 @@ export function UsersManager({
 }) {
   const t = useTranslations();
   const f = useFormatter();
-  const locale = useLocale();
   const router = useRouter();
   const [search, setSearch] = useState(initialSearch);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);

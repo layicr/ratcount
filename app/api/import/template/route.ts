@@ -5,7 +5,7 @@ import { readLocale, getMergedDict } from "@/i18n/dict";
 
 /** 下载导入模板（.xlsx）：流水表含示例行，另附填写说明 sheet */
 export async function GET() {
-  const user = await requireUser();
+  await requireUser();
   const ledger = await getCurrentLedger();
   if (!ledger) return Response.json({ error: "no ledger" }, { status: 400 });
   const locale = await readLocale();

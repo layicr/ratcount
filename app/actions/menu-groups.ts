@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { menuGroups } from "@/db/schema";
 import { type MenuDeviceType, SETTINGS_MENU_GROUPS_PATH } from "@/lib/constants";
 import { requireUser, requireAdmin } from "@/lib/scope";
-import { eq, asc } from "drizzle-orm";
+import { asc } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   createMenuGroupService, updateMenuGroupService, deleteMenuGroupService,

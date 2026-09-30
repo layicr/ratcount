@@ -85,7 +85,7 @@ test.describe("收支日历", () => {
   });
 
   test("今日格子展开当日明细（seed 流水可见）", async ({ page }) => {
-    const { y, m, d } = todayParts();
+    const { d } = todayParts();
     await page.goto("/calendar");
     const dayCell = page.getByRole("button", { name: new RegExp("^" + d) }).first();
     await expect(dayCell).toBeVisible();

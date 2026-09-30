@@ -37,7 +37,6 @@ let withAudit: any;
 let listTransactions: any;
 let listAccountsWithBalance: any;
 let schema: any;
-let tempDir: string;
 
 /** 构造一个 FormData 风格的 File（Node 24 全局 File） */
 function makeFile(buf: Uint8Array | Buffer, name: string, type: string): File {
@@ -368,7 +367,6 @@ async function counts(ledgerId: string) {
 before(async () => {
   const ctx = await setupTestDb();
   db = ctx.db;
-  tempDir = ctx.dir;
   seed = await seedTestData(db);
   ({ withAudit } = await import("../lib/audit"));
   ({ listTransactions, listAccountsWithBalance } = await import("../lib/queries"));
@@ -491,7 +489,7 @@ test("EXP-7 导出文件字节有效：ZIP 魔术头 + 可被 @e965/xlsx 回读�
 
 test("EXP-8 空账本导出：流水 sheet 仅表头，其余 sheet 为空", async () => {
   const { ledgers, ledgerMembers, accounts } = schema;
-  const { eq } = await import("drizzle-orm");
+  await import("drizzle-orm");
   const [emptyLedger] = await db.insert(ledgers).values({ name: "空账本", createdBy: seed.u1.id }).returning();
   await db.insert(ledgerMembers).values({ ledgerId: emptyLedger.id, userId: seed.u1.id, role: "owner" });
   await db.insert(accounts).values({
@@ -508,7 +506,7 @@ test("EXP-8 空账本导出：流水 sheet 仅表头，其余 sheet 为空", asy
 
 test("EXP-9 分页分批：5000 行批次边界下导出全量无遗漏（构造 5200 笔）", async () => {
   const { ledgers, ledgerMembers, accounts, transactions } = schema;
-  const { eq } = await import("drizzle-orm");
+  await import("drizzle-orm");
   const [big] = await db.insert(ledgers).values({ name: "大批量账本", createdBy: seed.u1.id }).returning();
   await db.insert(ledgerMembers).values({ ledgerId: big.id, userId: seed.u1.id, role: "owner" });
   const [acct] = await db.insert(accounts).values({
@@ -540,7 +538,7 @@ test("EXP-9 分页分批：5000 行批次边界下导出全量无遗漏（构造
 
 test("IMP-1 正常 Excel 导入：流水写入 + 自动建账户/分类 + 转账行分类空 + 审计一条", async () => {
   const beforeWal = await counts(seed.l2.id);
-  const baseTx = beforeWal.txs.length, baseAcct = beforeWal.accts.length, baseCat = beforeWal.cats.length, baseAudit = beforeWal.audits.length;
+  const baseTx = beforeWal.txs.length, baseAcct = beforeWal.accts.length, baseAudit = beforeWal.audits.length;
   const xlsx = xlsxFromAoa([
     ["类型", "日期", "账户", "分类", "金额", "备注"],
     ["收入", "2026-09-01", "工作卡", "工资", 100, "九月工资"],

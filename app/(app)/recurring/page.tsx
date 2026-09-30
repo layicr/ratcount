@@ -13,7 +13,7 @@ import type { AppDict } from "@/i18n/dict";
 
 /** 周期计划：按频率生成周期性流水（账单重复、固定收支等） */
 export default async function RecurringPage() {
-  const user = await requireUser();
+  await requireUser();
   const ledger = await requireCurrentLedger();
   const d = (await getMessages()) as unknown as AppDict;
 

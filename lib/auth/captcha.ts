@@ -125,7 +125,7 @@ export async function verifyCaptcha(input: string): Promise<boolean> {
 
 /** 画布尺寸（与前端 <img> 的 96×40 样式一致，避免拉伸变形）/ Canvas size (matches the 96×40 front-end <img> to avoid stretching) */
 export const CAPTCHA_WIDTH = 96;
-export const CAPTCHA_HEIGHT = 40;
+export const CAPTCHA_HEIGHT = 40; // 画布高度（与前端 <img> 样式一致，避免拉伸）/ canvas height (matches front-end <img> to avoid stretching)
 
 /** 5×7 点阵字模：'#' 前景 / '.' 背景；行自上而下，每行 5 列 / 5×7 dot-matrix glyphs: '#' = foreground, '.' = background; top-to-bottom rows, 5 columns each */
 const GLYPHS: Record<string, string[]> = {
@@ -183,8 +183,8 @@ class Canvas {
   }
   line(x0: number, y0: number, x1: number, y1: number, v: number): void {
     // Bresenham 直线算法 / Bresenham line algorithm
-    let dx = Math.abs(x1 - x0);
-    let dy = Math.abs(y1 - y0);
+    const dx = Math.abs(x1 - x0);
+    const dy = Math.abs(y1 - y0);
     const sx = x0 < x1 ? 1 : -1;
     const sy = y0 < y1 ? 1 : -1;
     let err = dx - dy;

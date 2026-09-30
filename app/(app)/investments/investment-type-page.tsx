@@ -25,6 +25,7 @@ import type { InvestmentType } from "@/lib/constants";
 /** 表格展示变体（与 InvestmentTypeTable 的 variant 保持一致） */
 export type InvestmentVariant = "tradable" | "fixed" | "estate";
 
+// 由配置生成某投资类型的列表页（tradable/fixed/estate 变体复用）/ Build an investment-type list page from config (variant reuse)
 export function makeInvestmentTypePage(cfg: {
   type: InvestmentType;
   variant: InvestmentVariant;

@@ -122,6 +122,7 @@ export interface InvestmentTypeUiConfig {
   qtyLabelKey: string;
 }
 
+// 投资类型 → UI 展示配置（字段标签/数量标签/是否含代码等）/ Investment type → UI config (field/qty labels, showCode…)
 export function investmentTypeConfig(type: InvestmentType): InvestmentTypeUiConfig {
   const stockLike = isStockLike(type);
   const fixed = isFixedIncome(type);
@@ -203,6 +204,7 @@ export function isValidInvestmentType(v: string): v is InvestmentType {
   return (investmentTypes as readonly string[]).includes(v);
 }
 
+// 校验金属子类型是否合法（贵金属细分：金/银）/ Validate a metal sub-type (gold/silver)
 export function isValidMetalSubType(v: string): v is MetalSubType {
   return (metalSubTypes as readonly string[]).includes(v);
 }

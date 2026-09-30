@@ -33,6 +33,7 @@ type PaginationProps = {
   unit?: string;
 };
 
+// 分页器（支持链接式与受控式两种用法）/ Pagination (link-based or controlled)
 export function Pagination(props: PaginationProps) {
   const t = useTranslations();
   const unit = props.unit ?? t("common.items");

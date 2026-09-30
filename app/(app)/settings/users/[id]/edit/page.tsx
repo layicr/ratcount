@@ -15,7 +15,7 @@ export default async function EditUserPage({
   params: Promise<{ id: string }>;
 }) {
   const user = await requireUser();
-  const ledger = await requireCurrentLedger();
+  await requireCurrentLedger();
   const d = (await getMessages()) as unknown as AppDict;
 
   // 仅管理员可访问 / Admin only

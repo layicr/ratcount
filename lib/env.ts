@@ -94,6 +94,7 @@ if (!process.env.AUTH_SECRET && process.env.NODE_ENV !== NODE_ENV.production) {
   );
 }
 
+// 经 Zod 校验后的环境变量（含解析出的 DATABASE_MODE）；校验失败回退安全默认值/ Validated env (with resolved DATABASE_MODE); falls back to safe defaults on failure
 export const env = parsed.success
   ? { ...parsed.data, DATABASE_MODE: resolveDbMode(parsed.data.DATABASE_URL) }
   : {

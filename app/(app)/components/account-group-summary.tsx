@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { formatCurrency } from "@/lib/money";
 import { listAccountsWithBalance, listTransactions, listRecurringPlans } from "@/lib/queries";
 import { accountTypeIcon, accountTypeI18nKey, TX, type AccountType, RECURRING_STATUS } from "@/lib/constants";

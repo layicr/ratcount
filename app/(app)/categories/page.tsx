@@ -9,7 +9,7 @@ import type { AppDict } from "@/i18n/dict";
 
 /** 分类管理（收入 / 支出），独立页面 /categories */
 export default async function CategoriesPage() {
-  const user = await requireUser();
+  await requireUser();
   const ledger = await requireCurrentLedger();
   const d = (await getMessages()) as unknown as AppDict;
   const cats = await db.select().from(categories).where(eq(categories.ledgerId, ledger.id));

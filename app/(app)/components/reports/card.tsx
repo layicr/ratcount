@@ -1,3 +1,4 @@
+// 报表统计卡片（标签/数值/色调/副文案）/ Stat card (label/value/tone/sub)
 export function Card({ label, value, tone, sub }: { label: string; value: string; tone?: string; sub?: string }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-3">

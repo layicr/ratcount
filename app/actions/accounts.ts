@@ -9,6 +9,7 @@ import * as svc from "@/lib/services/accounts";
 import type { AccountInput } from "@/lib/services/accounts";
 import { revalidatePath } from "next/cache";
 
+// 新建账户（需 editor）/ Create an account (editor)
 export async function createAccount(input: AccountInput) {
   const ledgerId = await getCurrentLedgerId();
   if (!ledgerId) return { ok: false as const, error: "errors.noLedger" };
@@ -22,6 +23,7 @@ export async function createAccount(input: AccountInput) {
   return r;
 }
 
+// 更新账户（需 editor）/ Update an account (editor)
 export async function updateAccount(id: string, input: AccountInput) {
   const ledgerId = await getCurrentLedgerId();
   if (!ledgerId) return { ok: false as const, error: "errors.noLedger" };
@@ -35,6 +37,7 @@ export async function updateAccount(id: string, input: AccountInput) {
   return r;
 }
 
+// 删除账户（需 editor）/ Delete an account (editor)
 export async function deleteAccount(id: string) {
   const ledgerId = await getCurrentLedgerId();
   if (!ledgerId) return { ok: false as const, error: "errors.noLedger" };

@@ -10,7 +10,7 @@
  *  - 金额一律存整数"分"（*_cents），前端只展示 / All amounts stored as integer cents (*_cents); front-end only displays
  *  - 账户余额不落库：仅存 opening_balance，当前余额 = 期初 + 流水实时汇总 / Balances are not stored: only opening_balance; live balance = opening + aggregated tx
  *  - 业务表全部带 ledger_id + scopeGuard 强制账本隔离 / All business tables carry ledger_id + scopeGuard for ledger isolation
- *  - 全部表含 remark 备注字段；ledgers/accounts/categories/projects 含 icon / All tables have remark; ledgers/accounts/categories/projects have icon
+ *  - 多数业务表含 remark 备注字段（ledgerMembers / settings 等少数表除外）；ledgers/accounts/categories/projects 含 icon / Most business tables have remark (ledgerMembers / settings excluded); ledgers/accounts/categories/projects have icon
  *  - 导航数据驱动：menu_groups（分组）+ menus（菜单项）+ user_menu_config（账本+用户启用）
  *    取代早期 ledgers.menu_config JSON 列
  *    Data-driven nav: menu_groups + menus + user_menu_config (per ledger+user), replacing the early ledgers.menu_config JSON column.

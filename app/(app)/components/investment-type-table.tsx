@@ -6,7 +6,7 @@ import { useTranslations, useLocale } from "next-intl";
 import { useMoney, useBaseCurrency } from "@/components/currency-context";
 import { formatCurrency } from "@/lib/money";
 import { type InvestmentType, INV, INVESTMENT_STATUS } from "@/lib/constants";
-import { investmentIcon, quantityToDisplay, areaToDisplay, isStockLike } from "@/lib/investment-types";
+import { investmentIcon, quantityToDisplay, areaToDisplay } from "@/lib/investment-types";
 import { estimateAccruedCents, holdingProfitCents } from "@/lib/investment-flow";
 import { InvestmentDeleteButton, InvestmentSellButton, InvestmentDividendButton, InvestmentCopyButton } from "./investment-list-client";
 import { Pagination } from "./pagination";
@@ -96,7 +96,7 @@ export function InvestmentTypeTable({
   // 文案走 useTranslations 按需取键：不再由页面下传整份字典（≈33KB/语言，且与 NextIntlClientProvider 重复）
   const t = useTranslations();
   const ti = useTranslations("investment");
-  // 定期 / 国债：无「市值」概念，按「本金 × (1 + 年利率 × 天数 ÷ 365)」估算本息
+  // 定期 / 国债：无「市值」概念，按「本金 × (1 + 年利率 × 天数 ÷ 360)」（30/360）估算本息
   // （未到期算到今天，到期日已过按到期日算；已到期已结算的用实际到账值，不重算）
   const isAccrual = type === INV.deposit || type === INV.bond;
   const valueOf = (h: HoldingItem) =>
@@ -132,9 +132,6 @@ export function InvestmentTypeTable({
   }, 0);
   // 实际成本合计（基准币种）：成本 + 费用 / total actual cost in base: cost + fee
   const totalCost = holdings.reduce((s, h) => s + (h.baseCostCents ?? h.costCents) + (h.baseFeeCents ?? h.feeCents), 0);
-  const curPage = pagination?.page ?? page ?? 1;
-  const curPageSize = pagination?.pageSize ?? pageSize ?? 10;
-  const totalPages = pagination?.totalPages ?? (total ? Math.max(1, Math.ceil(total / curPageSize)) : 1);
   const displayTotal = total ?? holdings.length;
   // 类股票（股票 / 数字资产）列表列标题使用带口径说明的文案，其余类型沿用简短文案
   const isStockLike = type === INV.stock || type === INV.digital_asset;

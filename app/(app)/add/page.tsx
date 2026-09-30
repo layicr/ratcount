@@ -14,7 +14,7 @@ import type { AppDict } from "@/i18n/dict";
 
 /** 记一笔：取账本基础数据交给客户端表单 */
 export default async function AddPage() {
-  const user = await requireUser();
+  await requireUser();
   const ledger = await requireCurrentLedger();
   const d = (await getMessages()) as unknown as AppDict;
 

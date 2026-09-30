@@ -22,7 +22,7 @@ export default async function TransactionsPage({
 }: {
   searchParams: Promise<{ type?: string; categoryId?: string; q?: string; page?: string; accountId?: string; accountIds?: string | string[]; projectId?: string; startDate?: string; endDate?: string; pageSize?: string; minAmount?: string; maxAmount?: string }>;
 }) {
-  const user = await requireUser();
+  await requireUser();
   const ledger = await getCurrentLedger();
   const sp = await searchParams;
   // 全部筛选参数白名单/格式预校验（非法值回退为空/不过滤）

@@ -20,7 +20,7 @@ export default async function EditTransactionPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const user = await requireUser();
+  await requireUser();
   const ledger = await requireCurrentLedger();
   const d = (await getMessages()) as unknown as AppDict;
   const { id } = await params;

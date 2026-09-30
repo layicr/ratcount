@@ -1,7 +1,7 @@
 // ratcount · 周期计划 业务服务 / Recurring plan business services
 //  - 从 app/actions/recurring.ts 抽出的「校验 + 审计 + 写库」纯逻辑（不依赖 'use server' / cookie）。
 import { transactions, recurringPlans } from "@/db/schema";
-import { MR, recurringFrequencies, AUDIT_ACTION, ENTITY, RECURRING_STATUS, TX } from "@/lib/constants";
+import { recurringFrequencies, AUDIT_ACTION, ENTITY, RECURRING_STATUS, TX } from "@/lib/constants";
 import { db } from "@/lib/db";
 import { withAudit } from "@/lib/audit";
 import { listAccountsWithBalance } from "@/lib/queries";

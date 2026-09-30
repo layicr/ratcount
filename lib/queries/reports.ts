@@ -56,6 +56,7 @@ export type ProjectSummaryRow = {
   nativeBreakdown: { currency: string; amountCents: number }[];
 };
 
+// 项目汇总：聚合关联投资持仓的投入成本/市值/收益（含多币种原币组成）/ Project rollup: aggregate linked holdings' cost/value/profit (with multi-currency native breakdown)
 export async function projectSummary(ledgerId: string, period?: StatsPeriod, timeZone: string = DEFAULT_TIME_ZONE): Promise<ProjectSummaryRow[]> {
   const { start: rangeStart, end: rangeEnd } = resolvePeriodRange(period, timeZone);
   const projs = await db.select().from(projects).where(eq(projects.ledgerId, ledgerId));

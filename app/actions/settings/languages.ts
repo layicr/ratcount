@@ -8,6 +8,7 @@ import * as svc from "@/lib/services/settings";
 import type { LanguageInput, LanguageUpdateInput } from "@/lib/services/settings";
 import { revalidatePath } from "next/cache";
 
+// 新建语言（仅 admin）/ Create a language (admin only)
 export async function createLanguage(input: LanguageInput) {
   const user = await requireAdmin();
   const r = await svc.createLanguageService({ id: user.id, role: user.role }, input);
@@ -15,6 +16,7 @@ export async function createLanguage(input: LanguageInput) {
   return r;
 }
 
+// 更新语言（仅 admin）/ Update a language (admin only)
 export async function updateLanguage(code: string, input: LanguageUpdateInput) {
   const user = await requireAdmin();
   const r = await svc.updateLanguageService({ id: user.id, role: user.role }, code, input);
@@ -22,6 +24,7 @@ export async function updateLanguage(code: string, input: LanguageUpdateInput) {
   return r;
 }
 
+// 启用/停用语言（仅 admin）/ Enable/disable a language (admin only)
 export async function toggleLanguage(code: string, isEnabled: boolean) {
   const user = await requireAdmin();
   const r = await svc.toggleLanguageService({ id: user.id, role: user.role }, code, isEnabled);
@@ -29,6 +32,7 @@ export async function toggleLanguage(code: string, isEnabled: boolean) {
   return r;
 }
 
+// 删除语言（仅 admin）/ Delete a language (admin only)
 export async function deleteLanguage(code: string) {
   const user = await requireAdmin();
   const r = await svc.deleteLanguageService({ id: user.id, role: user.role }, code);

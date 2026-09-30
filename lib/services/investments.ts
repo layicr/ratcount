@@ -4,7 +4,7 @@
 import { and, eq, inArray, or } from "drizzle-orm";
 import { z } from "zod";
 import { transactions, transactionTags, tags, holdingTags, investmentHoldings, accounts } from "@/db/schema";
-import { investmentTypes, investmentDirections, metalSubTypes, INV, MR, AUDIT_ACTION, ENTITY, INVESTMENT_STATUS, TX, DEFAULT_CURRENCY } from "@/lib/constants";
+import { investmentTypes, investmentDirections, metalSubTypes, INV, AUDIT_ACTION, ENTITY, INVESTMENT_STATUS, TX, DEFAULT_CURRENCY } from "@/lib/constants";
 import { db } from "@/lib/db";
 import { withAudit, getDefaultTranslator } from "@/lib/audit";
 import { ensureCategory, type Tx, assertRefsInLedger, RefNotInLedgerError } from "@/lib/ledger-refs";
@@ -12,7 +12,7 @@ import { yuanToCents, centsToYuan } from "@/lib/money";
 import { loadCurrencyRates, rateOf, toBaseCents } from "@/lib/currency";
 import { resolveTransactionMoney } from "@/lib/tx-currency";
 import { listAccountsWithBalance } from "@/lib/queries";
-import { actualCostCents, profitCents, prorateSell, todayStr, isDateStr, daysBetween } from "@/lib/investment-flow";
+import { actualCostCents, profitCents, prorateSell, todayStr, isDateStr, daysBetween, normalizeInterestRate } from "@/lib/investment-flow";
 import { fmtDate, parseDate } from "@/lib/recurring";
 import { type Actor } from "./guard";
 
@@ -182,7 +182,7 @@ async function insertHoldingCore(
     baseValueCents: toBaseCents(valueCents, holdingRate),
     baseDividendCents: 0,
     purchaseDate: input.purchaseDate ?? null, maturityDate: input.maturityDate ?? null,
-    interestRate: input.interestRate ?? null, location: input.location ?? null,
+    interestRate: normalizeInterestRate(input.interestRate), location: input.location ?? null,
     areaSqm: input.areaSqm ?? null, remark: input.remark ?? null, projectId: input.projectId ?? null,
   }).returning({ id: investmentHoldings.id });
   await replaceHoldingTags(tx, ledgerId, holding.id, input.tagIds);
@@ -343,6 +343,7 @@ async function reconcileBuyFlow(
   }
 }
 
+// 更新投资持仓（需 editor）/ Update an investment holding (editor)
 export async function updateInvestmentService(actor: Actor, ledgerId: string, id: string, input: InvestmentInput) {
   const parsed = investmentSchema.safeParse(input);
   if (!parsed.success) return { ok: false as const, error: "errors.invalidInput" };
@@ -417,7 +418,7 @@ export async function updateInvestmentService(actor: Actor, ledgerId: string, id
           baseFeeCents: toBaseCents(feeCents, holdingRate),
           baseValueCents: toBaseCents(valueCents, holdingRate),
           purchaseDate: d.purchaseDate ?? null, maturityDate: d.maturityDate ?? null,
-          interestRate: d.interestRate ?? null, location: d.location ?? null,
+          interestRate: normalizeInterestRate(d.interestRate), location: d.location ?? null,
           areaSqm: d.areaSqm ?? null, remark: d.remark ?? null, projectId: d.projectId ?? null,
         }).where(and(eq(investmentHoldings.id, id), eq(investmentHoldings.ledgerId, ledgerId)));
         const rowsAffected = (upd as { rowsAffected: number }).rowsAffected ?? 0;
@@ -453,6 +454,7 @@ const investActionSchema = z.object({
 
 export type InvestActionInput = z.infer<typeof investActionSchema>;
 
+// 卖出/清仓投资持仓（转账回款账户，记审计）/ Sell/close a holding (transfer back to account, with audit)
 export async function sellInvestmentService(actor: Actor, ledgerId: string, input: InvestActionInput) {
   const parsed = investActionSchema.safeParse(input);
   if (!parsed.success) return { ok: false as const, error: "errors.invalidInput" };
@@ -726,6 +728,7 @@ export async function sellInvestmentService(actor: Actor, ledgerId: string, inpu
   return { ok: true as const, error: null };
 }
 
+// 投资派息（现金入账，记审计）/ Investment dividend (cash in, with audit)
 export async function dividendInvestmentService(actor: Actor, ledgerId: string, input: InvestActionInput) {
   const parsed = investActionSchema.safeParse(input);
   if (!parsed.success) return { ok: false as const, error: "errors.invalidInput" };

@@ -13,7 +13,7 @@ import { DEFAULT_THEME } from "@/i18n/themes";
 /** 全局设置（仅管理员）：系统设置 + 币种/语言/用户/日志/菜单/菜单分组管理入口 */
 export default async function SettingsPage() {
   const user = await requireUser();
-  const ledger = await requireCurrentLedger();
+  await requireCurrentLedger();
   const d = (await getMessages()) as unknown as AppDict;
 
   const isAdmin = user.role === ROLE.admin;

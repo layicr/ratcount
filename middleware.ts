@@ -61,6 +61,7 @@ export default function middleware(req: NextRequest) {
   return res;
 }
 
+// 中间件匹配范围：跳过 api / _next / 静态资源与带后缀文件，仅页面路由注入 CSP/cookie/ Middleware matcher: skip api/_next/static & suffixed files; only page routes get CSP/cookie
 export const config = {
   // 跳过 api、_next 静态资源与带后缀的文件（页面都在无 locale 段路径下）
   matcher: ["/((?!api|_next|_next/static|_vercel|.*\\..*).*)"],

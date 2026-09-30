@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/scope";
 import { getMyLedgers, getCurrentLedgerId, ensureDefaultLedger } from "@/lib/ledger";
 import { getSetting, getAppName, getAppSlogan } from "@/lib/settings";
